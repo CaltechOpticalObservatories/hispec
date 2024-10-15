@@ -1,0 +1,32 @@
+<?xml version="1.0" ?>
+<bundle name="DEVICE_$(DISPNUM)" service="$(KTLSERVICE)" xmlns:xsi="http://www.w3.org/2001/XML-Schema-instance">
+	<dispatcher>
+		<name>+service+_dispatch_$(DISPNUM)</name>
+	</dispatcher>
+        <keyword>
+                <name>$(DISPNAME)_SERIAL</name>
+                <type>string</type>
+                <help level="brief">The serial number of the device.</help>
+                <help level="verbose">This serial number of the Lakeshore
+		temperature measuring device.</help>
+		<capability type="write">False</capability>
+                <serverside>
+                        <initialize>
+                                <use_cache>False</use_cache>
+                        </initialize>
+                </serverside>
+	</keyword>
+        <keyword>
+                <name>$(DISPNAME)_REV</name>
+                <type>string</type>
+                <help level="brief">The serial number of the device.</help>
+                <help level="verbose">This serial number of the
+		Lakeshore temperature measuring device .</help>
+		<capability type="write">False</capability>
+                <serverside>
+                        <initialize>
+                                <use_cache>False</use_cache>
+                        </initialize>
+                </serverside>
+        </keyword>
+</bundle>

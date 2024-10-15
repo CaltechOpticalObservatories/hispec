@@ -1,0 +1,267 @@
+<?xml version="1.0" ?>
+<bundle name="STRIP_$(STRIP)" service="$(KTLSERVICE)" xmlns:xsi="http://www.w3.org/2001/XML-Schema-instance">
+	<dispatcher>
+		<name>$(KTLSERVICE)_dispatch_$(DISPNUM)</name>
+	</dispatcher>
+	<keyword>
+		<name>STRIP_$(STRIP)_ADDRESS</name>
+		<type>string</type>
+		<help level="brief">Power strip IP address</help>
+		<help level="verbose">Network address for this power distribution unit.</help>
+		<capability type="write">False</capability>
+	</keyword>
+#ifdefnotzero HAS_STRIP_ALL
+	<keyword>
+		<name>STRIP_$(STRIP)_ALL</name>
+		<type>enumerated</type>
+		<help level="brief">Strip $(STRIP) control for all outlets</help>
+		<help level="verbose">Power control and status for all outlets on Strip$(STRIP)$.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Unknown</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>All on</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>All on Timed</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>All off</value>
+			</entry>
+			<entry>
+				<key>4</key>
+				<value>Reboot All</value>
+			</entry>
+			<entry>
+				<key>5</key>
+				<value>Reboot All Timed</value>
+			</entry>
+			<entry>
+				<key>6</key>
+				<value>noCommand</value>
+			</entry>
+		</values>
+	</keyword>
+#endif
+#ifdefnotzero HAS_STRIP_AMPS
+	<keyword>
+		<name>STRIP_$(STRIP)_AMPS</name>
+		<type>integer</type>
+		<units>amps</units>
+		<help level="brief">PDU $(STRIP) total current amperage</help>
+		<help level="verbose">Instantaneous total current draw.</help>
+		<capability type="write">False</capability>
+	</keyword>
+#endif
+	<keyword>
+		<name>STRIP_$(STRIP)_AUTOLOCK</name>
+		<type>integer</type>
+		<units>seconds</units>
+		<range enforce="client">
+			<minimum>0</minimum>
+		</range>
+		<help level="brief">PDU $(STRIP) autolock delay</help>
+		<help level="verbose">If set to a non-zero value, the dispatcher will automatically re-lock any/all outlets on this PDU if/when they are unlocked. If set to zero, no automatic re-locking will occur.</help>
+		<serverside>
+			<initialize>
+				<value>0</value>
+				<use_cache>True</use_cache>
+			</initialize>
+		</serverside>
+	</keyword>
+#ifdefnotzero BREAKERS
+#redefine i 0
+#while $(i++) < $(BREAKERS)
+	<keyword>
+		<name>STRIP_$(STRIP)_BREAKER$(i)</name>
+		<type>enumerated</type>
+		<help level="brief">Strip $(STRIP) breaker $(i)</help>
+		<help level="verbose">Breaker status for this PDU. Typically there is one breaker for a bank of outlets; breakers are typically only present in larger PDUs, with multiple outlets.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>NotApplicable</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>On</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Off</value>
+			</entry>
+		</values>
+	</keyword>
+#end
+#endif
+	<keyword>
+		<name>STRIP_$(STRIP)_FIRMWARE</name>
+		<type>string</type>
+		<help level="brief">Power strip firmware revision</help>
+		<help level="verbose">Reported firmware revision for this power distribution unit.</help>
+		<capability type="write">False</capability>
+	</keyword>
+#ifdefnotzero HAS_STRIP_DRAW
+	<keyword>
+		<name>STRIP_$(STRIP)_DRAW</name>
+		<type>integer</type>
+		<units>watts</units>
+		<help level="brief">PDU $(STRIP) total power draw</help>
+		<help level="verbose">Instantaneous total power draw.</help>
+		<capability type="write">False</capability>
+	</keyword>
+#endif
+#ifdefnotzero HAS_HARDWARE_VER
+	<keyword>
+		<name>STRIP_$(STRIP)_HARDWARE</name>
+		<type>string</type>
+		<help level="brief">Power strip hardware revision</help>
+		<help level="verbose">Reported hardware version for this power distribution unit.</help>
+		<capability type="write">False</capability>
+	</keyword>
+#endif
+	<keyword>
+		<name>STRIP_$(STRIP)_MAPS</name>
+		<type>string</type>
+		<help level="brief">Power strip outlet aliases</help>
+		<help level="verbose">Prefix names for any/all outlet mappings served by this dispatcher.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>STRIP_$(STRIP)_MAXOUTLETS</name>
+		<type>integer</type>
+		<help level="brief">Number of outlets</help>
+		<help level="verbose">The number of outlets that PDU $(STRIP) has.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>STRIP_$(STRIP)_MODEL</name>
+		<type>string</type>
+		<help level="brief">Power strip model number</help>
+		<help level="verbose">Reported model number for this power distribution unit.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>STRIP_$(STRIP)_NAME</name>
+		<type>string</type>
+		<help level="brief">Power strip name</help>
+		<help level="verbose">Descriptive name for this power distribution unit.</help>
+		<serverside>
+			<initialize>
+				<use_cache>True</use_cache>
+			</initialize>
+		</serverside>
+	</keyword>
+	<keyword>
+		<name>STRIP_$(STRIP)_NOTES</name>
+		<type>string</type>
+		<help level="brief">Power strip additional notes or misc. information.</help>
+		<help level="verbose">Additional notes that should be considered for this PDU.</help>
+		<serverside>
+			<initialize>
+				<use_cache>True</use_cache>
+			</initialize>
+		</serverside>
+	</keyword>
+	<keyword>
+		<name>STRIP_$(STRIP)_OUTLETS</name>
+		<type>enumerated</type>
+		<help level="brief">Status of all outlets</help>
+		<help level="verbose">Status of all outlets for this power distribution unit. This keyword can be used to turn all available outlets on or off in a single command. If the outlets are a mixture of on and off the status reported here will be 'Mixed'.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Unknown</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>On</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>Mixed</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>STRIP_$(STRIP)_SERIAL</name>
+		<type>string</type>
+		<help level="brief">Power strip serial number</help>
+		<help level="verbose">Reported serial number for this power distribution unit.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>STRIP_$(STRIP)_SNMP</name>
+		<type>enumerated</type>
+		<help level="brief">SNMP connection status</help>
+		<help level="verbose">Health of SNMP connectivity for this power distribution unit.</help>
+		<capability type="write">False</capability>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Unknown</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>Online</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Refusing SNMP</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>Offline</value>
+			</entry>
+		</values>
+	</keyword>
+#ifdef MAPS
+#foreach -$(MAP_SEP) __name,__outlets $(MAPS)
+	<keyword>
+		<name>$(__name)</name>
+		<type>enumerated</type>
+		<help level="brief">Outlet map/alias</help>
+		<help level="verbose">Functional name to manipulate one or more outlets via a single keyword. See $(__name)_OUTLETS to know which outlet keywords are being toggled.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Unknown</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>On</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>Mixed</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__name)_OUTLETS</name>
+		<type>string</type>
+		<help level="brief">PDU outlets manipulated by $(__name)</help>
+		<help level="verbose">Whitespace-separated list of outlet keywords that will be toggled when the $(__name) keyword is modified. This list is dynamic and can be changed on the fly, though the user is encouraged to commit any such changes in the per-PDU definition file in the source code repository. Any valid KTL keyword can be used, so long as On and Off are valid values for that keyword. Keywords that are not in the local service must specify the service name, in servicename.KEYWORDNAME syntax; if no service is specified, it is assumed that the designated keyword is in the local KTL service.</help>
+		<serverside>
+			<initialize>
+				<value>$(__outlets)</value>
+				<use_cache>True</use_cache>
+			</initialize>
+		</serverside>
+	</keyword>
+#end
+#endif
+</bundle>

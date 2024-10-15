@@ -1,0 +1,512 @@
+#! @KPYTHON3@
+#
+# kpython safely sets RELDIR, KROOT, LROOT, and PYTHONPATH before invoking
+# the actual Python interpreter.
+
+# KPF specific lakeshore controller
+
+#
+# #
+# Required libraries.
+# #
+#
+
+import array
+import atexit
+import configparser
+import getopt
+import logging
+import os
+import re
+import signal
+import subprocess
+import sys
+import termios
+import threading
+import time
+
+import DFW                  # provided by kroot/util/dfw
+import ktl                  # provided by kroot/ktl/keyword/python
+import SerialStream         # provided by kroot/util/py-util/serialstream
+import GenericDispatcher
+
+# an option to use the Lakeshore library that is part of KTL
+LAKESHORE = False
+#
+# #
+# Main execution, invoked by a check at the tail end of this file.
+# #
+#
+
+def main():
+
+    parseCommandLine()     # Need to know where the config file is.
+    parseConfigFile()
+    parseCommandLine()     # Parse the command line again, so that it
+                            # overwrites options set by the config file.
+                            # This feature is not currently used.
+
+    checkSanity()
+
+
+    # Set handlers to shut down cleanly in all situations.
+
+    atexit.register(shutdown)
+    signal.signal(signal.SIGINT, shutdown)
+    signal.signal(signal.SIGTERM, shutdown)
+
+
+    if LAKESHORE:
+        main.controller = LakeShore.Controller(main.config,'device')
+    else:
+        main.serial = SerialStream.factory( main.ip, port=main.port, delimiter='\n')
+
+        
+        
+    # Start up our KTL backend.
+
+
+        
+    main.Service = DFW.Service(main.config.get('main', 'service'),
+                               main.config.get('main', 'stdiosvc'),
+                               setupKeywords)    
+                                      
+    
+    try:
+        connected = initialConnection()
+    except Exception as e:
+        main.Service['DISP%dMSG' % (main.dispnum) ].set("Error in initialConnection(): %s" % (e))
+        ostr = "%s: %s" % (type(e),e)
+        main.Service.log(logging.ERROR,ostr)
+    
+    while main.shutdown.isSet() == False:
+        try:
+            main.shutdown.wait(300)
+
+        except(KeyboardInterrupt, SystemExit):
+            break
+
+    # End of execution.
+
+
+main.config = configparser.ConfigParser()
+main.config_file = None
+main.serial = None
+main.controller = None
+main.ip = None
+main.port = None
+main.Service = None
+main.shutdown = threading.Event()
+main.version = '0.2b'
+
+def shutdown(*ignored):
+
+    main.shutdown.set()
+
+    try:
+        main.serial.disconnect()
+    except:
+        pass
+    
+    if main.Service != None:
+        main.Service['DISP%dSTA' % (main.dispnum)].set('shutting down')
+        main.Service.shutdown()
+        main.Service = None
+        os._exit(1)
+#
+# #
+# All Keyword values, with the exception of those that are handled
+# purely by the stdiosvc backend, are instantiated in the following
+# function, which gets called when our DFW.Service instance is
+# initialized in main().
+# #
+#
+
+def setupKeywords(service):
+
+    DFW.Keyword.Enumerated('DISP%dSTA' % (main.dispnum), service, 'initializing')
+    GenericDispatcher.MemoryUsage('DISP%dMEM' % (main.dispnum), service, period=1)
+    GenericDispatcher.StopKeyword('DISP%dSTOP' % (main.dispnum), service, main.shutdown)
+    DFW.Keyword.String('DISP%dMSG' % (main.dispnum), service, '')
+    DFW.Keyword.String('DISP%dCONN' % (main.dispnum), service, "%s:%s" % (str(main.ip),str(main.port)))
+    DFW.Keyword.String('DISP%dDEV' % (main.dispnum), service, main.config.get('device','device_name'))
+
+    polltime = int(main.config.get('device','poll_time'))
+
+    DFW.Keyword.String('%s_REV' % (main.name), service, "")
+    DFW.Keyword.String('%s_SERIAL' % (main.name), service, "")
+
+    
+    temps = []
+    channels = main.config.get('channels','channels')
+    channels = channels.split()
+    for channel in channels:
+
+        try:
+            channel_name = main.config.get(channel,'name')
+        except:
+            continue
+        
+        unit = main.config.get('temperatures','unit')
+        if unit == 'degC':
+            command = 'CRDG?'
+        else:
+            command = 'KRDG?'
+            
+        name = '%s' % (channel_name)
+
+        if LAKESHORE:
+            try:
+                temps.append(LakeShore.TemperatureInput(name, service, main.controller, channel))
+            except Exception as e:
+                ostr = "Cannot start %s.%s: %s" % (service.name,name,e)
+                print(ostr)
+        else:
+            try:
+                temps.append(TemperatureInput(name, service, main.serial, polltime, channel, command=command))
+            except Exception as e:
+                ostr = "Cannot start %s.%s: %s" % (service.name,name,e)
+                print(ostr)
+
+    return
+
+
+
+
+class TemperatureInput(DFW.Keyword.Double):
+    '''
+
+
+    '''
+
+    def __init__(self, name, service, serial, polltime, channel, command='CRDG?'):
+
+        self.serial = serial
+        self.channel = channel
+        self.par = command + ' ' + channel
+        
+        DFW.Keyword.Double.__init__(self, name, service, -999.0, polltime)
+
+
+    def read(self):
+        ''' Update the keyword
+        '''
+        verbose = False
+        try:
+            result = readPar(self.par)
+        except Exception as e:
+            ostr = "Error in %s: %s" % (self.channel, e)
+            try:
+                main.Service['DISP%dMSG' % (main.dispnum)].set(ostr )
+                main.Service.log(logging.ERROR,ostr)
+            except:
+                pass
+            return None
+            
+        if verbose:
+            main.Service.log(logging.DEBUG,"update for channel %s result is %s" % (self.channel, str(result)) )
+        if result:
+            if main.Service['DISP%dSTA' % (main.dispnum)].read() != '0':
+                main.Service['DISP%dSTA' % (main.dispnum)].set('0')
+                main.Service['DISP%dMSG' % (main.dispnum)].set('Connected to %s' % main.port)
+
+        try:
+            result = float(result)
+        except:
+            ostr = "Error in %s: invalid return value" % (self.channel)
+            main.Service['DISP%dMSG' % (main.dispnum)].set(ostr )
+            main.Service.log(logging.ERROR,ostr)
+            result = None
+                
+        return result
+                
+        
+            
+# end of class 
+
+#
+# #
+# Helper functions.
+# #
+#
+
+def usage(verbose=False):
+    ''' How to invoke this program.
+    '''
+
+    output = "Usage: %s -c config_file [options]" % (sys.argv[0])
+
+    if verbose == False:
+        print(output)
+        return
+
+    output = output + '''
+
+Required flags:
+
+    -c filename         Overall configuration file location
+    --config=filename       Default: None
+
+Optional flags:
+
+    -h,-?            Print verbose help (this output)
+    --help
+    -v               Print version number
+    --version
+'''
+
+    print(output)
+
+
+
+def parseCommandLine():
+
+    executable = sys.argv[0]
+    arguments = sys.argv[1:]
+
+    if len(arguments) == 0:
+        help = True
+    else:
+        help = False
+
+    version = False
+    flags = '?c:hv'
+    long_options = ('config=', 'help', 'port=', 'ip=','--version')
+
+    options, arguments = getopt.gnu_getopt(arguments, flags, long_options)
+
+
+    for option, value in options:
+
+        if option == '-?' or option == '-h' or option == '--help':
+            help = True
+	    
+        elif option in ('-v','--version'):
+            version = True
+
+        elif option == '-c' or option == '--config':
+            main.config_file = validateFile(value)
+            
+        elif option == '--port':
+            try:
+                main.port = int(value)
+            except ValueError:
+                print("%s is not a valid port" % (value))
+            if main.port <= 0:
+                print("%s is not a valid port" % (value))
+                sys.exit(1)
+        elif option == '--ip':
+            main.ip = value
+                
+    if help == True:
+        usage(verbose=True)
+        sys.exit(0)
+        
+    if version == True:
+        print('Version: %s ' %(str(version)))
+        sys.exit(0)
+
+    
+
+
+def parseConfigFile():
+
+    if main.config_file is None:
+        return
+
+    main.config.read(main.config_file)
+    if main.port is None:
+        try:
+            main.ip = main.config.get('device','address').split()[0]
+            main.port = main.config.get('device','port')
+        except Exception as e:
+            main.port = None
+            main.ip   = None
+            print("Address and port my be specified in the config file or as --port option and --ip option on start up")
+            sys.exit(0)
+
+    try:
+        main.dispnum = int(main.config.get('dispatcher','dispnum').strip())
+    except Exception as e:
+        print("Cannot retrieve number for dispatcher instance:  %s" % (e))
+        sys.exit(0)
+
+    try:
+        main.name = main.config.get('dispatcher','name').strip()
+    except Exception as e:
+        print("Cannot retrieve name for dispatcher instance:  %s" % (e))
+        sys.exit(0)
+        
+
+def checkSanity():
+    ''' Raise exceptions if something is wrong with the runtime
+        configuration, as specified by the configuration file and
+        on the command line.
+    '''
+
+    if main.config_file is None:
+        raise ValueError ('no configuration file specified')
+
+    sections = ('main', 'device', 'dispatcher')
+
+    for section in sections:
+
+        if main.config.has_section(section):
+            pass
+        else:
+            raise configparser.NoSectionError("[%s]" % (section))
+
+
+    main.config.get('main', 'service')
+    main.config.get('main', 'stdiosvc')
+    main.config.get('device', 'address')
+    main.config.get('temperatures', 'unit')
+    port = main.config.get('device', 'port')
+
+    polltime = main.config.get('device','poll_time')
+    try:
+        polltime = int(polltime)
+    except ValueError:
+        print("%s is not a valid integer for the device poll_time, change in %s" % (polltime,main.config_file))
+        sys.exit(0)
+
+    if polltime < 1:
+        print("%d is too small a value (<) for the device poll_time, change in %s" % (polltime,main.config_file))
+        sys.exit(0)
+        
+    return
+
+
+
+def validateFile(filename):
+
+    if os.path.isabs(filename):
+        pass
+    else:
+        filename = os.path.abspath(filename)
+
+    if os.path.isfile(filename):
+        pass
+    else:
+        raise ValueError ("file does not exist: '%s'" % (filename))
+
+    return filename
+
+
+def readPar(command):
+    ''' Query the target
+    '''
+
+    dispsta_val = main.Service["DISP%dSTA" % (main.dispnum)].read()
+    
+    if main.serial is None or main.serial.socket is None:
+        disconnect()
+        dispsta_val = '4'
+        
+    if dispsta_val == '1' or dispsta_val == '4' or dispsta_val is None:
+        connected = initialConnection()
+        if connected is False:
+            return
+        
+    try:
+        main.serial.send(command)
+    except SerialStream.CommunicationError as e:
+        disconnect()
+        return
+    except Exception as e:
+        ostr = "%s: %s" % (type(e),e)
+        main.Service.log(logging.ERROR,ostr)
+
+        return 
+
+    rv = readResponse()
+    return rv
+
+
+def readResponse():
+
+    msg = ''
+    try:
+        msg = main.serial.receive()
+    except SerialStream.IncompleteResponse:
+        pass
+    except SerialStream.NoResponse:
+        pass
+    except UnicodeDecodeError as e:
+        ostr = "%s: %s" % (type(e),e)
+        main.Service.log(logging.ERROR,ostr)
+        
+        
+    return msg.strip()
+
+
+def disconnect():
+
+    if main.serial:
+        try:
+            main.serial.disconnect()
+        except Exception as e:
+            ostr = "%s: %s" % (type(e),e)
+            main.Service.log(logging.ERROR,ostr)
+
+
+    main.Service['%s_REV' % (main.name)].set("")
+    main.Service['%s_SERIAL' % (main.name)].set("")    
+    main.Service['DISP%dMSG' % (main.dispnum)].set('Disconnected to %s %s' % (str(main.ip),str(main.port)))
+    main.Service['DISP%dSTA' % (main.dispnum)].set('4')
+
+    return
+        
+
+            
+def initialConnection():
+
+    connected = False
+    if main.shutdown.isSet():
+        return False
+    
+    main.Service['DISP%dSTA' % (main.dispnum)].set('Connecting')
+    main.Service['DISP%dMSG' % (main.dispnum)].set('Connecting to %s %s' % (str(main.ip),str(main.port)))
+
+    try:
+        main.serial.connect()
+    except SerialStream.CommunicationError as e:
+        disconnect()
+        return False
+
+    try:
+        main.serial.send("*IDN?")
+    except SerialStream.CommunicationError as e:
+        disconnect()
+        return False
+    
+    msg = readResponse()
+    
+    if re.search(main.config.get('device','model'),msg):
+        vals = msg.split(",")
+        main.Service['%s_SERIAL' % (main.name)].set(vals[2])
+        main.Service['%s_REV' % (main.name)].set(vals[3])
+        main.Service['DISP%dSTA' % (main.dispnum)].set('Ready')
+        main.Service['DISP%dMSG' % (main.dispnum)].set('Connected to %s %s' % (str(main.ip),str(main.port)))
+
+        connected = True
+    else:
+        main.Service['DISP%dSTA' % (main.dispnum)].set('Not Connected')
+        main.Service['DISP%dMSG' % (main.dispnum)].set('Cannot connect to device %s %s' % (str(main.ip),str(main.port)))
+
+        
+    return connected
+
+
+    
+#
+# #
+# Execute the main() function defined at the head of the file.
+# #
+#
+
+if __name__ == '__main__':
+    main()
+
+
+

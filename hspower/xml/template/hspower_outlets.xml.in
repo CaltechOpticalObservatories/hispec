@@ -1,0 +1,203 @@
+<?xml version="1.0" ?>
+<bundle name="OUTLETS_$(STRIP)" service="$(KTLSERVICE)" xmlns:xsi="http://www.w3.org/2001/XML-Schema-instance">
+	<dispatcher>
+		<name>$(KTLSERVICE)_dispatch_$(DISPNUM)</name>
+	</dispatcher>
+#redefine i 0
+#while $(i++) < $(OUTLETS)
+#if $(OUTLET_OPTION) == 1
+	<keyword>
+		<name>OUTLET_$(STRIP)$(i)</name>
+		<type>enumerated</type>
+		<help level="brief">Outlet $(STRIP)$(i) control and status</help>
+		<help level="verbose">Power control and status for outlet $(STRIP)$(i).</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>On</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Pending off</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>Pending on</value>
+			</entry>
+		</values>
+	</keyword>
+#elseif $(OUTLET_OPTION) == 2
+	<keyword>
+		<name>OUTLET_$(STRIP)$(i)</name>
+		<type>enumerated</type>
+		<help level="brief">Outlet $(STRIP)$(i) control and status</help>
+		<help level="verbose">Power control and status for outlet $(STRIP)$(i).</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Unknown</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>On</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>Reboot</value>
+			</entry>
+			<entry>
+				<key>4</key>
+				<value>Error</value>
+			</entry>
+			<entry>
+				<key>5</key>
+				<value>Pending on</value>
+			</entry>
+			<entry>
+				<key>6</key>
+				<value>Pending off</value>
+			</entry>
+			<entry>
+				<key>7</key>
+				<value>Pending reboot</value>
+			</entry>
+		</values>
+	</keyword>
+#endif
+	<keyword>
+		<name>OUTLET_$(STRIP)$(i)_NAME</name>
+		<type>string</type>
+		<help level="brief">Outlet $(STRIP)$(i) name</help>
+		<help level="verbose">Configured name for outlet $(STRIP)$(i).</help>
+		<serverside>
+			<initialize>
+				<use_cache>True</use_cache>
+			</initialize>
+		</serverside>
+	</keyword>
+	<keyword>
+		<name>OUTLET_$(STRIP)$(i)_LOCK</name>
+		<type>enumerated</type>
+		<help level="brief">Outlet $(STRIP)$(i) locked</help>
+		<help level="verbose">Whether outlet $(STRIP)$(i) is locked or unlocked. When an outlet is locked it cannot be toggled on or off. This corresponds to the switchable status in the PDU configuration.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Unknown</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>Unlocked</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Locked</value>
+			</entry>
+		</values>
+		<serverside>
+			<initialize>
+				<use_cache>True</use_cache>
+			</initialize>
+		</serverside>
+	</keyword>
+	<keyword>
+		<name>OUTLET_$(STRIP)$(i)_LOCKTIMER</name>
+		<type>integer</type>
+		<units>seconds</units>
+		<help level="brief">Outlet $(STRIP)$(i) autolock timer</help>
+		<help level="verbose">Countdown in seconds before this outlet will be automatically re-locked.</help>
+		<capability type="write">False</capability>
+		<serverside>
+			<initialize>
+				<value>0</value>
+			</initialize>
+		</serverside>
+	</keyword>
+#ifdefnotzero HAS_OUTLET_DRAW
+	<keyword>
+		<name>OUTLET_$(STRIP)$(i)_DRAW</name>
+		<type>integer</type>
+		<units>watts</units>
+		<help level="brief">Outlet $(STRIP)$(i) power draw</help>
+		<help level="verbose">Instantaneous power draw from outlet $(STRIP)$(i).</help>
+		<capability type="write">False</capability>
+	</keyword>
+#endif
+#ifdefnotzero HAS_OUTLET_AMPS
+	<keyword>
+		<name>OUTLET_$(STRIP)$(i)_AMPS</name>
+		<type>integer</type>
+		<units>milliamps</units>
+		<help level="brief">Outlet $(STRIP)$(i) current amperage</help>
+		<help level="verbose">Instantaneous current draw from outlet $(STRIP)$(i).</help>
+		<capability type="write">False</capability>
+	</keyword>
+#endif
+#ifdefnotzero HAS_OUTLET_POS
+	<keyword>
+		<name>OUTLET_$(STRIP)$(i)_POS</name>
+		<type>enumerated</type>
+		<help level="brief">Outlet $(STRIP)$(i) power on state</help>
+		<help level="verbose">Determine whether outlet $(STRIP)$(i) will be powered up when the PDU is power-cycled.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>On</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Last state</value>
+			</entry>
+		</values>
+	</keyword>
+#endif
+	<keyword>
+		<name>OUTLET_$(STRIP)$(i)_NOTES</name>
+		<type>string</type>
+		<help level="brief">Outlet $(STRIP)$(i) additional notes or misc. information.</help>
+		<help level="verbose">Additional notes for outlet $(STRIP)$(i).</help>
+		<value></value>
+		<serverside>
+			<initialize>
+				<use_cache>True</use_cache>
+			</initialize>
+		</serverside>
+	</keyword>
+	<keyword>
+		<name>OUTLET_$(STRIP)$(i)_TIME</name>
+		<type>integer</type>
+		<units>seconds</units>
+		<range enforce="client">
+			<minimum>0</minimum>
+		</range>
+		<help level="brief">Outlet $(STRIP)$(i) time powered on</help>
+		<help level="verbose">This keyword tracks the amount of time, cumulative, that the outlet has been powered on. The timer can be reset to any (positive) value, further updates will increment from there.</help>
+		<serverside>
+			<initialize>
+				<use_cache>True</use_cache>
+			</initialize>
+		</serverside>
+	</keyword>
+#ifdefnotzero HAS_OUTLET_WH
+	<keyword>
+		<name>OUTLET_$(STRIP)$(i)_WH</name>
+		<type>integer</type>
+		<units>watt-hours</units>
+		<help level="brief">Outlet $(STRIP)$(i) power over time</help>
+		<help level="verbose">Cumulative watt-hours for this outlet over time. The odometer be reset by writing '0' to this keyword.</help>
+	</keyword>
+#endif
+#end
+	</bundle>

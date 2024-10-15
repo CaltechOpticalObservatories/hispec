@@ -1,0 +1,5 @@
+# These definitions are in their own little file so that
+# Makefiles in subdirectories can easily load them.
+
+KTLSERVICE = hsssd
+SUBST_STRICT = True

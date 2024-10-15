@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<index service="$(KTLSERVICE)">
+	<directories>
+	</directories>
+	<files>
+#foreach SUBSYSTEM $(SUBSYSTEMS)
+		<file>
+			<name>Dispatcher $(SUBSYSTEM)</name>
+			<location>$(SUBSYSTEM)_dispatcher.xml</location>
+			<comment>Keywords for dispatcher $(SUBSYSTEM)</comment>
+		</file>
+		<file>
+			<name>OWENV $(SUBSYSTEM)</name>
+			<location>$(SUBSYSTEM)_owenv.xml</location>
+			<comment>Keywords for OWENV $(SUBSYSTEM)</comment>
+		</file>
+#end
+		<file>
+			<name>messages</name>
+			<location>messages.xml</location>
+			<comment>Music message numbers</comment>
+		</file>
+		<file>
+			<name>keyword_ids</name>
+			<location>keyword_ids.xml</location>
+			<comment>Keyword/keyid association</comment>
+		</file>
+	</files>
+</index>

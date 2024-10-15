@@ -1,0 +1,24 @@
+<?xml version="1.0" ?>
+<bundle name="$(INPUT)_TEMP" service="$(KTLSERVICE)" xmlns:xsi="http://www.w3.org/2001/XML-Schema-instance">
+	<dispatcher>
+		<name>$(KTLSERVICE)_dispatch_$(DISPNUM)</name>
+	</dispatcher>
+	<keyword>
+		<name>$(INPUT)DOT</name>
+		<type>double</type>
+		<units>deg K/min</units>
+		<format>%.2f</format>
+		<help level="brief">Temperature rate of change</help>
+		<help level="verbose">Ten second average rate of change for the temperature input. This value should not exceed the ramp (if used). DOT is short for T-dot, dT/dt.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(INPUT)VAL</name>
+		<type>double</type>
+		<units>deg K</units>
+		<format>%.3f</format>
+		<help level="brief">Temperature value</help>
+		<help level="verbose">Instantaneous reading of the temperature input.</help>
+		<capability type="write">False</capability>
+	</keyword>
+</bundle>

@@ -1,0 +1,25 @@
+
+<<< HSSSD >>>
+
+<< General >>
+
+ServiceName hsssd
+
+DeviceDescription {HISPEC Start/Stop Service}
+
+StartStopCommand @RELDIR@/bin/hispec
+
+# Logging info.
+log_facility    key:hsssdlog
+## log_facility stderr
+
+DebugFlags {NONE}
+
+Dispatchers {
+	hsowenv
+    hsups
+    hsdewar
+    hspower
+}
+
+

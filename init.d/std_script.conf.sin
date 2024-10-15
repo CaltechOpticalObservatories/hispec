@@ -1,0 +1,175 @@
+# ====================================================================
+
+[ hsowenv_rspec ]
+
+description "RSPEC 1-Wire Environmental Sensor"
+
+prefuser    hsdev    # prefer this user, if we're root.
+super       hsdev    # run under super, using 'super nspower1'
+user	    hsdev
+
+# What to execute:
+progpath    $RELDIR/sbin/hsowenvd
+progargs    "-c $RELDIR/data/hsowenv/hsowenv_rspec.conf"
+
+var_run_dir $KROOT/var/run
+logfile     $KROOT/var/log/hsowenv_rspec.stderr
+
+# ====================================================================
+
+[ hsdewar_rspec1 ]
+
+description "RSPEC Lake Shore Model336 Controller"
+
+prefuser    hsdev    # prefer this user, if we're root.
+super       hsdev    # run under super, using 'super nspower1'
+user	    hsdev
+
+# What to execute:
+progpath    $RELDIR/sbin/lakeshored
+progargs    "-c $RELDIR/data/hsdewar/hsdewar_rspec1.conf"
+
+var_run_dir $KROOT/var/run
+logfile     $KROOT/var/log/hsdewar_rspec1.stderr
+
+# ====================================================================
+
+[ hsdewar_rspec2 ]
+
+description "RSPEC Lake Shore Model224 Controller"
+
+prefuser    hsdev    # prefer this user, if we're root.
+super       hsdev    # run under super, using 'super nspower1'
+user	    hsdev
+
+# What to execute:
+progpath    $RELDIR/sbin/hs_lakeshored
+progargs    "-c $RELDIR/data/hsdewar/hsdewar_rspec2.conf"
+
+var_run_dir $KROOT/var/run
+logfile     $KROOT/var/log/hsdewar_rspec2.stderr
+
+# ====================================================================
+
+[ hspower_rspec1 ]
+
+description "RSPEC PDU"
+
+prefuser    hsdev    # prefer this user, if we're root.
+super       hsdev    # run under super, using 'super nspower1'
+user	    hsdev
+
+# What to execute:
+progpath    $RELDIR/sbin/pdud
+progargs    "-c $RELDIR/data/hspower/hspower_rspec1.conf"
+
+var_run_dir $KROOT/var/run
+logfile     $KROOT/var/log/hspower_rspec1.stderr
+
+# ====================================================================
+
+[ fakedcs ]
+
+description     "DCS simulator"
+
+## Do not give fakedcs an account on a runhost;
+## it shouldn't have a runhost at all, so that
+## hs.gserver (say) can recognize that it's not
+## a normal daemon that should be running.
+## account	...
+
+super           fakedcs
+prefuser        hs.grun
+user            hs.grun
+
+# What to execute:
+progpath        $RELDIR/bin/dcsRotSim
+
+irregular_pat "bin/dcsRotSim"
+
+var_run_dir $KROOT/var/run
+logfile     $KROOT/var/log/fakedcs.stderr
+
+
+# ====================================================================
+
+[ hsssd ]
+
+description "Start/Stop service"
+
+# ssh to runhost if that's a different host than us:
+account		<runhost>
+
+# super       hsssd   # run under super, using 'super hsssd'
+# prefuser    hsrun
+# user	    hsrun
+
+super       hsdev   # run under super, using 'super hsssd'
+prefuser    hsdev
+user	    hsdev
+
+logfile     $KROOT/var/log/hsssd.stderr
+
+progpath    $RELDIR/sbin/ktlssd
+progargs    "hsssd"
+
+stopkey     "hsssd.DISPSTOP"
+stopkey_timeout    3      # Max wait time before giving up on stopkey.
+
+stop_timeout       5      # Max wait time before giving up on a stop (sec)
+
+var_run_dir $KROOT/var/run
+
+ps_anchor no        # Don't make it an anchored search
+ps_cmdonly no       # Don't restrict ps search
+
+
+# ====================================================================
+
+
+#
+#[ kpfpowerA ]
+#
+#description     "Eaton PDU's"
+#
+## ssh to runhost if that's a different host than us:
+#account		<runhost>
+#
+#super           kpfpowerA
+#prefuser        kpfrun
+#user		kpfrun
+#
+## What to execute:
+#progpath        $RELDIR/sbin/pdud
+#progargs        "-c $RELDIR/data/kpfpower/kpfpowerA.conf"
+#
+#stop_timeout        5      # Max wait time before giving up on a stop (sec)
+#
+#var_run_dir $KROOT/var/run
+#logfile     $KROOT/var/log/kpfpower.stderr
+#
+#
+## ====================================================================
+#[ kpfpowerB ]
+#
+#description     "Eaton PDU's"
+#
+## ssh to runhost if that's a different host than us:
+#account		<runhost>
+#
+#super           kpfpowerB
+#prefuser        kpfrun
+#user		kpfrun
+#
+## What to execute:
+#progpath        $RELDIR/sbin/pdud
+#progargs        "-c $RELDIR/data/kpfpower/kpfpowerB.conf"
+#
+#stop_timeout        5      # Max wait time before giving up on a stop (sec)
+#
+#var_run_dir $KROOT/var/run
+#logfile     $KROOT/var/log/kpfpower.stderr
+#
+#
+## ====================================================================
+

@@ -1,0 +1,11 @@
+#! @BASH@
+
+configroot=@RELDIR@
+instrument=@INSTRUMENT@
+component=`basename $0`
+
+# Make sure that if envvar's KROOT and RELDIR are set, they are correct:
+. @RELDIR@/etc/init.d/enforceRootEnv
+
+# Source the generic lickSysV script:
+. $RELDIR/etc/init.d/lickSysV

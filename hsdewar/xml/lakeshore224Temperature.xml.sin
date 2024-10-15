@@ -1,0 +1,114 @@
+<?xml version="1.0" ?>
+<bundle name="TEMP_$(DISPNUM)" service="$(KTLSERVICE)" xmlns:xsi="http://www.w3.org/2001/XML-Schema-instance">
+	<dispatcher>
+		<name>+service+_dispatch_$(DISPNUM)</name>
+	</dispatcher>
+	<keyword>
+		<name>$(CHANNEL_A_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel A temperature</help>
+		<help level="verbose">Channel A temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(CHANNEL_B_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel B temperature</help>
+		<help level="verbose">Channel B temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(CHANNEL_C1_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel C1 temperature</help>
+		<help level="verbose">Channel C1 temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(CHANNEL_C2_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel C2 temperature</help>
+		<help level="verbose">Channel C2 temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(CHANNEL_C3_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel C3 temperature</help>
+		<help level="verbose">Channel C3 temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(CHANNEL_C4_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel C4 temperature</help>
+		<help level="verbose">Channel C4 temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(CHANNEL_C5_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel C5 temperature</help>
+		<help level="verbose">Channel C5 temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(CHANNEL_D1_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel D1 temperature</help>
+		<help level="verbose">Channel D1 temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(CHANNEL_D2_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel D2 temperature</help>
+		<help level="verbose">Channel D2 temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(CHANNEL_D3_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel D3 temperature</help>
+		<help level="verbose">Channel D3 temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(CHANNEL_D4_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel D4 temperature</help>
+		<help level="verbose">Channel D4 temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(CHANNEL_D5_NAME)</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<units>degC</units>
+		<help level="brief">Channel D5 temperature</help>
+		<help level="verbose">Channel D5 temperature</help>
+		<capability type="write">False</capability>
+	</keyword>
+</bundle>

@@ -1,0 +1,351 @@
+<?xml version="1.0" ?>
+<bundle name="$(DISPNAME)_output" service="$(KTLSERVICE)" xmlns:xsi="http://www.w3.org/2001/XML-Schema-instance">
+	<dispatcher>
+		<name>$(KTLSERVICE)_dispatch_$(DISPNUM)</name>
+	</dispatcher>
+#ifdef OUTPUT
+#foreach __output $(OUTPUT)
+	<keyword>
+		<name>$(__output)CHA</name>
+		<type>integer</type>
+		<units>channel</units>
+		<help level="brief">Output channel</help>
+		<help level="verbose">Channel identifier for the output associated with this keyword prefix. This parameter is set in the configuration file for the dispatcher.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(__output)DER</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<range>
+			<minimum>0.0</minimum>
+			<maximum>200.0</maximum>
+		</range>
+		<help level="brief">Derivative term (PID)</help>
+		<help level="verbose">Derivative term for the PID control loop associated with this heater output.</help>
+	</keyword>
+	<keyword>
+		<name>$(__output)DIS</name>
+		<type>enumerated</type>
+		<help level="brief">Output display format</help>
+		<help level="verbose">Select the output format that will be used for the front panel display.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Unknown</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>Current</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Power</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__output)INP</name>
+		<type>enumerated</type>
+		<help level="brief">Control input</help>
+		<help level="verbose">Select the input probe that will be used as the reference control point for the heater control loop.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>None</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>A</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>B</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>C</value>
+			</entry>
+			<entry>
+				<key>4</key>
+				<value>D</value>
+			</entry>
+			<entry>
+				<key>5</key>
+				<value>D2</value>
+			</entry>
+			<entry>
+				<key>6</key>
+				<value>D3</value>
+			</entry>
+			<entry>
+				<key>7</key>
+				<value>D4</value>
+			</entry>
+			<entry>
+				<key>8</key>
+				<value>D5</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__output)INT</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<range>
+			<minimum>0.1</minimum>
+			<maximum>1000.0</maximum>
+		</range>
+		<help level="brief">Integral term (PID)</help>
+		<help level="verbose">Integral term for the PID control loop associated with this heater output.</help>
+	</keyword>
+	<keyword>
+		<name>$(__output)MAX</name>
+		<type>double</type>
+		<units>amps</units>
+		<format>%.3f</format>
+		<range>
+			<minimum>0.0</minimum>
+			<maximum>2.0</maximum>
+		</range>
+		<help level="brief">Output maximum current</help>
+		<help level="verbose">Maximum current (in amps) for this channel. The user manual contains lengthly descriptions on how to properly set the maximum current for a given resistive load.</help>
+	</keyword>
+	<keyword>
+		<name>$(__output)MOD</name>
+		<type>enumerated</type>
+		<help level="brief">Control mode</help>
+		<help level="verbose">The type of control used for this output. Modes 4 and 5 are only valid for analog outputs, not heater outputs.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>Closed loop PID</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Zone</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>Open loop</value>
+			</entry>
+			<entry>
+				<key>4</key>
+				<value>Monitor out</value>
+			</entry>
+			<entry>
+				<key>5</key>
+				<value>Warmup supply</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__output)OHM</name>
+		<type>enumerated</type>
+		<help level="brief">Output resistance</help>
+		<help level="verbose">Select the resistance in ohms for the heating element associated with this channel. The user manual contains lengthly descriptions on how to properly select the resistance and max current for a given configuration.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Unknown</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>25</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>50</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__output)OUT</name>
+		<type>double</type>
+		<units>percent</units>
+		<format>%.1f</format>
+		<range>
+			<minimum>0.0</minimum>
+			<maximum>100.0</maximum>
+		</range>
+		<help level="brief">Output level</help>
+		<help level="verbose">Instantaneous output level for this heater channel. This value is polled and may not properly capture any high-frequency changes commanded by the controller.</help>
+	</keyword>
+	<keyword>
+		<name>$(__output)POW</name>
+		<type>boolean</type>
+		<help level="brief">Power up enable</help>
+		<help level="verbose">Whether this control loop will be enabled when the controller first powers up.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>On</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__output)PRO</name>
+		<type>double</type>
+		<format>%.1f</format>
+		<range>
+			<minimum>0.1</minimum>
+			<maximum>1000.0</maximum>
+		</range>
+		<help level="brief">Proportional term (PID)</help>
+		<help level="verbose">Proportional term for the PID control loop associated with this heater output.</help>
+	</keyword>
+	<keyword>
+		<name>$(__output)RMO</name>
+		<type>boolean</type>
+		<help level="brief">Ramp on/off</help>
+		<help level="verbose">Whether this control loop is using the ramping functionality to control the rate of temperature change.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>On</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__output)RMP</name>
+		<type>double</type>
+		<units>deg K/min</units>
+		<format>%.1f</format>
+		<range>
+			<minimum>0.0</minimum>
+			<maximum>100.0</maximum>
+		</range>
+		<help level="brief">Ramp value</help>
+		<help level="verbose">Rate of temperature change for this control loop.</help>
+	</keyword>
+	<keyword>
+		<name>$(__output)RNG</name>
+		<type>enumerated</type>
+		<help level="brief">Output enabled</help>
+		<help level="verbose">Select whether this heater channel is active or inactive. This implements the Lakeshore RANGE command. The Heater Range setting is used for turning a control output on, as well as setting the output power range for the heater outputs. All four outputs provide an Off setting for turning the output off. The heater outputs, 1 and 2, provide Low, Medium (Med), and High settings which provide decade steps in power, based on the maximum output power available to the connected heater. The High range provides the maximum power, the Med range provides (maximum power)/10 and the Low range provides (maximum power)/100.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>Low</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Medium</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>High</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__output)STA</name>
+		<type>enumerated</type>
+		<help level="brief">Output status code</help>
+		<help level="verbose">Status code for the scam heater output. The value is reset by the controlller after being read.</help>
+		<capability type="write">False</capability>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>No errors</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>Heater open load</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Heater short</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__output)TRG</name>
+		<type>double</type>
+		<units>deg K</units>
+		<format>%.3f</format>
+		<help level="brief">Target temperature</help>
+		<help level="verbose">Target temperature (setpoint) for this heater control loop.</help>
+	</keyword>
+	<keyword>
+		<name>$(__output)TRI</name>
+		<type>string</type>
+		<help level="brief">Tracking inputs</help>
+		<help level="verbose">Defines keywords that will be used as inputs for the offset tracking (TRK) control, in servicename.KEYWORDNAME format. The local KTL service is assumed if no service name is specified.</help>
+		<capability type="write">False</capability>
+		<serverside>
+			<initialize>
+#ifdef TRACK_INPUTS
+				<value>$(TRACK_INPUTS)</value>
+#else
+				<value></value>
+#endif
+			</initialize>
+		</serverside>
+	</keyword>
+	<keyword>
+		<name>$(__output)TRK</name>
+		<type>boolean</type>
+		<help level="brief">Tracking enabled</help>
+		<help level="verbose">Whether the target temperature for the SPEC heater loop should track dewar temperatures. The tracking offset is set via the TRO keyword; it is applied to a calculated notion of what's warmest in the dewar.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>On</value>
+			</entry>
+		</values>
+		<serverside>
+			<initialize>
+				<use_cache>True</use_cache>
+			</initialize>
+		</serverside>
+	</keyword>
+	<keyword>
+		<name>$(__output)TRO</name>
+		<type>double</type>
+		<units>deg K</units>
+		<format>%.3f</format>
+		<help level="brief">Tracking offset</help>
+		<help level="verbose">Offset that will be applied to the temperature tracking enabled by the TRK keyword.</help>
+		<serverside>
+			<initialize>
+				<use_cache>True</use_cache>
+			</initialize>
+		</serverside>
+	</keyword>
+	<keyword>
+		<name>$(__output)TRS</name>
+		<type>double</type>
+		<units>deg K</units>
+		<format>%.3f</format>
+		<help level="brief">Cached target temperature</help>
+		<help level="verbose">Target temperature (setpoint) for this heater control loop. This keyword caches the last value written to the TRG keyword; if the TRS keyword is written the request is rewritten to the TRG keyword.</help>
+		<serverside>
+			<initialize>
+				<use_cache>True</use_cache>
+			</initialize>
+		</serverside>
+	</keyword>
+#end
+#endif
+</bundle>

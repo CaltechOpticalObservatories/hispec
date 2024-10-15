@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<index service="$(KTLSERVICE)">
+	<directories>
+	</directories>
+	<files>
+#foreach SUBSYSTEM $(SUBSYSTEMS)
+		<file>
+			<name>Dispatcher $(SUBSYSTEM)</name>
+			<location>$(SUBSYSTEM)_dispatcher.xml</location>
+			<comment>Keywords for dispatcher $(SUBSYSTEM)</comment>
+		</file>
+		<file>
+			<name>Strip $(SUBSYSTEM)</name>
+			<location>$(SUBSYSTEM)_strip.xml</location>
+			<comment>Keywords for strip $(SUBSYSTEM)</comment>
+		</file>
+		<file>
+			<name>Outlets $(SUBSYSTEM)</name>
+			<location>$(SUBSYSTEM)_outlets.xml</location>
+			<comment>Keywords for strip $(SUBSYSTEM) outlets</comment>
+		</file>
+#end
+        <file>
+			<name>messages</name>
+			<location>messages.xml</location>
+			<comment>Music message numbers</comment>
+		</file>
+		<file>
+			<name>keyword_ids</name>
+			<location>keyword_ids.xml</location>
+			<comment>Keyword-keyid mapping</comment>
+		</file>
+	</files>
+</index>

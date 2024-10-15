@@ -1,0 +1,95 @@
+<?xml version="1.0" ?>
+<bundle name="DISPATCHER_$(DISPNUM)" service="$(KTLSERVICE)" xmlns:xsi="http://www.w3.org/2001/XML-Schema-instance">
+	<dispatcher>
+		<name>+service+_dispatch_$(DISPNUM)</name>
+	</dispatcher>
+	<keyword>
+		<name>DISP$(DISPNUM)CLK</name>
+		<type>integer</type>
+		<units>seconds</units>
+		<help level="brief">$(KTLSERVICE) dispatcher uptime clock</help>
+		<help level="verbose">Dispatcher clock: counts seconds since dispatcher began running.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>DISP$(DISPNUM)ERR</name>
+		<type>integer</type>
+		<help level="brief">$(KTLSERVICE) error number</help>
+		<help level="verbose">Last error number associated with any request. Closely related to DISPMSG.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>DISP$(DISPNUM)MEM</name>
+		<type>integer</type>
+		<units>kilobytes</units>
+		<help level="brief">Maximum resident memory of dispatcher</help>
+		<help level="verbose">The maximum amount of resident memory used by this dispatcher. In all likelihood, this number should be very close to the current memory usage. Expected behavior is that the memory usage is stable over time.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>DISP$(DISPNUM)MSG</name>
+		<type>string</type>
+		<help level="brief">$(KTLSERVICE) message</help>
+		<help level="verbose">Dispatcher status message. Last status message associated with overall dispatcher state, in particular providing additional feedback in the event of an error on a request.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>DISP$(DISPNUM)CONN</name>
+		<type>string</type>
+		<help level="brief">$(KTLSERVICE) connection details</help>
+		<help level="verbose">The IP address and port for the Vaisala.</help>
+		<capability type="write">False</capability>
+	</keyword>
+        <keyword>
+                <name>DISP$(DISPNUM)REQ</name>
+                <type>string</type>
+                <longname>$(KTLSERVICE)-dispatcher$(DISPNUM)-last-request</longname>
+                <help level="brief">$(KTLSERVICE) last request</help>
+                <help level="full">All modify requests for dispatcher $(DISPNUM) are recorded in this keyword as 'kwd value'.  This is done just before executing t\
+he request.</help>
+                <capability type="write">False</capability>
+        </keyword>
+	<keyword>
+		<name>DISP$(DISPNUM)STA</name>
+		<type>enumerated</type>
+		<help level="brief">$(KTLSERVICE) dispatcher status</help>
+		<help level="verbose">Current state of the dispatcher, which generally only changes at startup/shutdown, or in the event of communications failure. If the CONN keyword is set to On, the dispatcher will attempt to make a connection and the value will be set to Connecting. Upon success, the dispatcher will be Ready. If connection is turned off or fails, the keyword will be set to Not Connected.</help>
+		<capability type="write">False</capability>
+		<values>
+			<entry><key>0</key><value>Ready</value></entry>
+			<entry><key>1</key><value>Initializing</value></entry>
+			<entry><key>2</key><value>Shutting down</value></entry>
+			<entry><key>3</key><value>Connecting</value></entry>
+			<entry><key>4</key><value>Not Connected</value></entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>DISP$(DISPNUM)STOP</name>
+		<type>boolean</type>
+		<help level="brief">$(KTLSERVICE) dispatcher shutdown</help>
+		<help level="verbose">Dispatcher shutdown command. Tells dispatcher to execute a clean shutdown.</help>
+		<values>
+			<entry><key>0</key><value>No</value></entry>
+			<entry><key>1</key><value>Yes</value></entry>
+		</values>
+	</keyword>
+        <keyword>
+                <name>DISP$(DISPNUM)DEV</name>
+                <type>string</type>
+                <help level="brief">The name of the device.</help>
+                <help level="verbose">This is the name of the device that dispatcher $(DISPNUM) is connected to.</help>
+		<capability type="write">False</capability>
+                <serverside>
+                        <initialize>
+                                <use_cache>True</use_cache>
+                        </initialize>
+                </serverside>
+        </keyword>
+	<keyword>
+		<name>DISP$(DISPNUM)VER</name>
+		<type>string</type>
+		<help level="brief">$(KTLSERVICE) dispatcher version</help>
+		<help level="verbose">Version number for the running dispatcher.</help>
+		<capability type="write">False</capability>
+	</keyword>
+</bundle>

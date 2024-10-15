@@ -1,0 +1,180 @@
+<?xml version="1.0" ?>
+<bundle name="$(DISPNAME)_input" service="$(KTLSERVICE)" xmlns:xsi="http://www.w3.org/2001/XML-Schema-instance">
+	<dispatcher>
+		<name>$(KTLSERVICE)_dispatch_$(DISPNUM)</name>
+	</dispatcher>
+#ifdef INPUT
+#foreach __input $(INPUT)
+	<keyword>
+		<name>$(__input)ARN</name>
+		<type>boolean</type>
+		<help level="brief">Temperature autorange</help>
+		<help level="verbose">Whether automatic range detection is enabled.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>On</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__input)CHA</name>
+		<type>enumerated</type>
+		<help level="brief">Temperature channel</help>
+		<help level="verbose">Channel identifier for the input associated with this keyword prefix. This parameter is set in the configuration file for the dispatcher.</help>
+		<capability type="write">False</capability>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>A</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>B</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>C</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>D</value>
+			</entry>
+			<entry>
+				<key>4</key>
+				<value>D2</value>
+			</entry>
+			<entry>
+				<key>5</key>
+				<value>D3</value>
+			</entry>
+			<entry>
+				<key>6</key>
+				<value>D4</value>
+			</entry>
+			<entry>
+				<key>7</key>
+				<value>D5</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__input)CMP</name>
+		<type>boolean</type>
+		<help level="brief">Temperature compensation</help>
+		<help level="verbose">Whether input compensation is enabled. Reversal for thermal EMF compensation if input is resistive, room compensation if input is thermocouple. Always off if input is a diode.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>On</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__input)DOT</name>
+		<type>double</type>
+		<units>deg K/min</units>
+		<format>%.2f</format>
+		<help level="brief">Temperature rate of change</help>
+		<help level="verbose">Ten second average rate of change for the temperature input. This value should not exceed the ramp (if used). DOT is short for T-dot, dT/dt.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>$(__input)LIM</name>
+		<type>integer</type>
+		<units>degrees K</units>
+		<help level="brief">Temperature limit</help>
+		<help level="verbose">If the temperature input exceeds this value all heater outputs on this controller will be shut off. A limit of zero deactivates the safety cutoff functionality.</help>
+	</keyword>
+	<keyword>
+		<name>$(__input)RNG</name>
+		<type>enumerated</type>
+		<help level="brief">Temperature input range</help>
+		<help level="verbose">The range covered by the temperature input probe. The values reported here depend on the input type; the enumeration will be configured to match the actual probe type. Refer to the INTYPE command in the LakeShore manual for details.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>2.5V</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>10V</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__input)TYP</name>
+		<type>enumerated</type>
+		<help level="brief">Temperature input type</help>
+		<help level="verbose">The physical sensor type used for this temperature input.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Disabled</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>Diode</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Platinum RTD</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>NTC RTD</value>
+			</entry>
+			<entry>
+				<key>4</key>
+				<value>Thermocouple</value>
+			</entry>
+			<entry>
+				<key>5</key>
+				<value>Capacitance</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__input)UNI</name>
+		<type>enumerated</type>
+		<help level="brief">Temperature units</help>
+		<help level="verbose">Temperature units associated with this temperature input. The raw units (if used) are a direct representation of the analog-to-digital reading by the controller.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Unknown</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>Kelvin</value>
+			</entry>
+			<entry>
+				<key>2</key>
+				<value>Celsius</value>
+			</entry>
+			<entry>
+				<key>3</key>
+				<value>Raw</value>
+			</entry>
+		</values>
+	</keyword>
+	<keyword>
+		<name>$(__input)VAL</name>
+		<type>double</type>
+		<units>deg K</units>
+		<format>%.3f</format>
+		<help level="brief">Temperature value</help>
+		<help level="verbose">Instantaneous reading of the temperature input.</help>
+		<capability type="write">False</capability>
+	</keyword>
+#end
+#endif
+</bundle>

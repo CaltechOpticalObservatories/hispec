@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<index service="@KTLSERVICE@">
+        <include type="service">ktlssd</include>
+</index>
+

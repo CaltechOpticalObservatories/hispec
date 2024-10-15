@@ -1,0 +1,91 @@
+# stdiosvc requires that "words" be on separate lines of the config
+# file; this simplifies the parsing substantially, especially if any
+# parameters include embedded whitespace. For example, say
+#
+#	modify
+#	*
+#
+# ...instead of:
+#
+#	modify *
+
+# Don't exit on signals. Rely instead on the
+# closing of the input/output sockets.
+
+-ignore
+	sigint,sigterm
+
+
+# There are multiple dispatchers in the $(KTLSERVICE) service.
+
+-dispatchers
+	$(KTLSERVICE)_dispatch_$(DISPNUM)
+
+-cachefile
+	$(KROOT)/var/state/$(KTLSERVICE)/$(KTLSERVICE)$(DISPNUM).cache
+
+
+# Logging options.
+
+-logfac
+	key:<<svc>>-$(DISPNUM)_log
+
+-autolog
+	modify
+	*
+
+-autolog
+	modifydone
+	*
+
+# -logio
+
+
+# Send cached values to the dispatcher backend on startup.
+
+-sendcache
+
+
+# Don't broadcast values immediately on startup;
+# without setting this option, stdiosvc will initialize
+# (for example) floating point values to 0, and broadcast.
+
+-initialbcast
+	false
+
+# Fire off broadcasts without delay.
+
+-immediate
+	*
+	true
+
+
+# Error and message keywords.
+
+-errkey
+	*
+	DISP$(DISPNUM)ERR
+
+-msgkey
+	*
+	DISP$(DISPNUM)MSG
+
+-requestkey
+    DISP$(DISPNUM)REQ
+
+
+# Heartbeat keyword, handled entirely by stdiosvc.
+
+-heartbeat
+	DISP$(DISPNUM)CLK
+
+
+# Broadcast specific keywords regardless of whether the value doesn't appear
+# to have changed. This is usually relevant for numeric keywords which
+# initialize to zero, and when the DFW backend attempts to set an initial
+# value of zero, it does not get broadcast by stdiosvc unless the -bcwrite
+# flag is set for that keyword.
+
+-bcwrite
+	*STOP
+	true

@@ -1,0 +1,15 @@
+#! @BASH@
+
+# Define the pair of variables that guides lickStartStop:
+#
+configroot=${RELDIR:=@RELDIR@}
+instrument=@INSTRUMENT@
+
+# Get the environment for running $instrument s/w:
+#
+. $configroot/data/$instrument/init/instrument.env.sh
+
+# And source the lickStartStop script:
+#
+path=@RELDIR@/etc/init.d/lickStartStop
+. $path $path -name `basename $0` "$@"

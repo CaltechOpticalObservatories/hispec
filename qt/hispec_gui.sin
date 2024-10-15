@@ -1,0 +1,79 @@
+#! @KPYTHON@
+#
+# kpython safely sets RELDIR, KROOT, LROOT, and PYTHONPATH before invoking
+# the actual Python interpreter.
+
+import ktl
+from PyQt5 import QtCore, QtGui, QtWidgets
+import sys
+import traceback
+
+import hispecQt
+import kPyQt
+
+
+def main ():
+
+    application = QtWidgets.QApplication (sys.argv)
+    main.application = application
+
+    main_window = MainWindow ()
+    main_window.setupUi ()
+    main_window.show ()
+
+    return kPyQt.run (application)
+
+main.application = None
+
+
+
+class MainWindow (QtWidgets.QMainWindow):
+
+    def __init__ (self, *args, **kwargs):
+
+        self.popups = {}
+        self.template = None
+
+        QtWidgets.QMainWindow.__init__ (self, *args, **kwargs)
+
+
+    def setupUi (self):
+
+        template = hispecQt.Main.Ui_MainWindow ()
+        template.setupUi (self)
+        self.template = template
+
+        hsowenv_rspec = ktl.cache('hsowenv')
+        rspec_temp = hsowenv_rspec['OWENV1TEMP']
+        rspec_temp = kPyQt.kFactory(rspec_temp)
+        rspec_temp.stringCallback.connect(template.hsowenvRSPECTemp.display)
+        
+        hspower_rspec = ktl.cache('hspower')
+        rspec_ups_output_current = hspower_rspec['UPS1AMPOUT']
+        rspec_ups_output_current = kPyQt.kFactory(rspec_ups_output_current)
+        rspec_ups_output_current.stringCallback.connect(template.hspowerRSPEC1Current.display)
+
+        # Qt connections are established here. The PyQt-based
+        # HIRES and LRIS interfaces can be used as examples.
+
+
+    def closePopups (self, *ignored, **also_ignored):
+        for popup in self.popups.values ():
+            popup.close ()
+
+
+    def closeEvent (self, *args, **kwargs):
+        self.closePopups ()
+        return QtGui.QMainWindow.closeEvent (self, *args, **kwargs)
+
+
+# end of class MainWindow
+
+
+
+if __name__ == '__main__':
+    status = main ()
+    sys.exit (status)
+
+
+# vim: set expandtab tabstop=8 softtabstop=4 shiftwidth=4 autoindent:

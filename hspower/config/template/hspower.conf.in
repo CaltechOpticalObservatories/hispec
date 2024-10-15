@@ -1,0 +1,51 @@
+# Configuration file for a power distribution unit (PDU). This file is generated
+# from a common template installed from util/kpdu.
+#
+# The configuration file is broken into named sections, with each section
+# labelled in the following manner:
+#
+#	[label]
+#
+# Configuration directives are of the form:
+#
+#	Option = value
+#
+# Option names are case-insensitive; values typically are case sensitive.
+# Values should not be quoted, even if there is embedded whitespace.
+# The hash (#) character starts a comment, as does a semi-colon (;); only
+# the semi-colon may be used for inline comments.
+#
+# For more information on the parsing of the file, see the Python documentation:
+#
+#	http://docs.python.org/2/library/configparser.html
+
+
+################################################################################
+# The [main] section covers high level options.
+
+[main]
+Service = $(KTLSERVICE)
+Type = $(TYPE)
+Device = $(DEVICE)
+Subsystem = $(SUBSYSTEM)
+StdioSvc = $(RELDIR)/data/$(KTLSERVICE)/$(KTLSERVICE)_$(SUBSYSTEM)$(DISPNUM)_stdiosvc.conf
+Dispatcher = $(KTLSERVICE)_dispatch_$(DISPNUM)
+Strip = $(STRIP)
+Outlets = $(OUTLETS)
+#ifdefnotzero BREAKERS
+Breakers = $(BREAKERS)
+#endif
+#ifdef MAPS
+MapSeparator = $(MAP_SEP)
+Maps = $(MAPS)
+#endif
+
+
+################################################################################
+# The [snmp] section sets the parameters required to make SNMP queries
+# to the PDU.
+
+[snmp]
+Hostname = $(ADDRESS)
+Read = public
+Write = private

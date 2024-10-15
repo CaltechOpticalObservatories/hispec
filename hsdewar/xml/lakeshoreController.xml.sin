@@ -1,0 +1,64 @@
+<?xml version="1.0" ?>
+<bundle name="$(DISPNAME)_controller" service="$(KTLSERVICE)" xmlns:xsi="http://www.w3.org/2001/XML-Schema-instance">
+	<dispatcher>
+		<name>$(KTLSERVICE)_dispatch_$(CTRLNUM)</name>
+	</dispatcher>
+        <keyword>
+                <name>CTRL$(CTRLNUM)ADDRESS</name>
+                <type>string</type>
+                <help level="brief">Controller address</help>
+                <help level="verbose">Configured address for the controller. This could be an IP address and port number, or a filesystem location.</help>
+        </keyword>
+	<keyword>
+		<name>CTRL$(CTRLNUM)AUX</name>
+		<type>string</type>
+		<help level="brief">Controller auxiliary debug command</help>
+		<help level="verbose">Send a command directly to the controller, and return the response.</help>
+	</keyword>
+	<keyword>
+		<name>CTRL$(CTRLNUM)FIRMWARE</name>
+		<type>string</type>
+		<help level="brief">Controller firmware revision</help>
+		<help level="verbose">Firmware revision of the LakeShore controller. The format will vary depending on the controller model, refer to the user manual for guidance.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>CTRL$(CTRLNUM)MAKE</name>
+		<type>string</type>
+		<help level="brief">Controller manufacturer</help>
+		<help level="verbose">Manufacturer of the LakeShore controller. Be surprised if it's not 'LSCI'.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>CTRL$(CTRLNUM)MODEL</name>
+		<type>string</type>
+		<help level="brief">Controller model identifier</help>
+		<help level="verbose">Model number of the LakeShore controller.</help>
+		<capability type="write">False</capability>
+	</keyword>
+#ifdefnotzero HAS_PANEL
+	<keyword>
+		<name>CTRL$(CTRLNUM)PANEL</name>
+		<type>boolean</type>
+		<help level="brief">Controller panel display</help>
+		<help level="verbose">Turn on/off the panel display and LEDs on the controller.</help>
+		<values>
+			<entry>
+				<key>0</key>
+				<value>Off</value>
+			</entry>
+			<entry>
+				<key>1</key>
+				<value>On</value>
+			</entry>
+		</values>
+	</keyword>
+#endif
+	<keyword>
+		<name>CTRL$(CTRLNUM)SERIAL</name>
+		<type>string</type>
+		<help level="brief">Controller serial number</help>
+		<help level="verbose">Serial number of the LakeShore controller. The format will vary depending on the controller model, refer to the user manual for guidance.</help>
+		<capability type="write">False</capability>
+	</keyword>
+</bundle>

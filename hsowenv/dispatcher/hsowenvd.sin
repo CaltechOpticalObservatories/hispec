@@ -1,0 +1,229 @@
+#! @KPYTHON3@
+#
+# kpython safely sets RELDIR, KROOT, LROOT, and PYTHONPATH before invoking
+# the actual Python interpreter.
+
+# KTL dispatcher to interface with a 1-Wire environmental sensor via SNMP.
+
+# The MIBS and MIBDIRS environment variables must be adjusted before
+# importing netsnmp. The MIB is necessary in order for string writes
+# to succeed-- otherwise you get a type error when using the numeric OID.
+# The PYSNMP_* variables accomplish similar objectives for the pysnmp module.
+
+import atexit
+import configparser
+import getopt
+import os
+import pysnmp.hlapi
+import signal
+import sys
+import threading
+
+import DFW
+import hsOWENV
+
+#
+# #
+# Main execution, invoked by a check at the tail end of this file.
+# #
+#
+
+def main():
+
+    parseCommandLine()      # Need to know where the config file is.
+    parseConfigFile()
+    parseCommandLine()      # Parse the command line again, so that
+                            # overwrites options set by the config file.
+                            # This feature is not currently used.
+    checkSanity()
+    
+    # Set handlers to shut down cleanly in all situations.
+    atexit.register(shutdown)
+    signal.signal(signal.SIGINT, shutdown)
+    signal.signal(signal.SIGTERM, shutdown)
+    
+    # Start up our KTL backend.
+    main.Service = DFW.Service(main.config.get('main', 'service'),
+                               main.config.get('main', 'stdiosvc'),
+                               setupKeywords)
+    
+    # Everything is now running.
+    
+    status = 'DISP%dSTA' % (main.dispatcher)
+    main.Service[status].set('ready')
+    
+    while main.shutdown.isSet() == False:
+        try:
+            main.shutdown.wait(300)
+        except (KeyboardInterrupt, SystemExit):
+            break
+    
+    # End of execution.
+
+main.config = configparser.ConfigParser()
+main.config_file = None
+main.dispatcher = 1
+main.Service = None
+main.shutdown = threading.Event()
+main.version = '$Revision: 100000 $'.split()[1]
+
+main.owenv = None
+
+def shutdown(*ignored):
+    
+    main.shutdown.set()
+    
+    try:
+        main.owenv.json_handle.queueStop()
+    except AttributeError:
+        pass
+    
+    if main.Service is not None:
+        status = "DISP%dSTA" % (main.dispatcher)
+        main.Service[status].set('shutting down')
+        main.Service.shutdown()
+        main.Service = None
+
+#
+# #
+# All Keyword values, with the exception of those that are handled
+# purely by the stdiosvc backend, are instantiated in the following
+# function, which gets called when our DFW.Service instance is
+# initialized in main().
+# #
+#
+
+def setupKeywords(service):
+    
+    dispatcher = main.dispatcher
+    
+    # Dispatcher Keywords
+    prefix = 'DISP' + str(dispatcher)
+    DFW.Keyword.Enumerated(prefix + 'STA', service, 'initializing')
+    StopKeyword(prefix + 'STOP', service, False)
+    DFW.Keyword.String(prefix + 'VER', service, main.version)
+    
+    main.owenv = hsOWENV.owenv.OWENV(service, main.config_file)
+    main.owenv.setupKeywords()
+
+#
+# #
+# Helper functions.
+# #
+#
+class StopKeyword(DFW.Keyword.Boolean):
+    
+    def write(self, value):
+        if value == '1':
+            main.shutdown.set()
+            
+# end of class StopKeyword
+
+def usage(verbose=False):
+    """ How to invoke this program.
+    """
+    
+    output = "Usage: %s -c config_file [options]" % (sys.argv[0])
+    
+    if verbose == False:
+        print(output)
+        return
+    
+    output = output + '''
+        Required flags:
+
+            -c filename        Overall configuration file location
+            --config=filename        Default: None
+
+        Optional flags:
+
+            -h,-?            Print verbose help(this output)
+            --help
+    ''' 
+    
+    print(output)
+
+def parseCommandLine():
+    
+    executable = sys.argv[0]
+    arguments = sys.argv[1:]
+    
+    if len(arguments) == 0:
+        help = True
+    else:
+        help = False
+        
+    flags = '?c:h'
+    long_options = ('config=', 'help')
+    
+    options, arguments = getopt.gnu_getopt(arguments, flags, long_options)
+    
+    for option, value in options:
+        
+        if option == '-?' or option == '-h' or option == '--help':
+            help = True
+        elif option == '-c' or option == '--config':
+            main.config_file = validateFile(value)
+    
+    if help == True:
+        usage(verbose=True)
+        sys.exit(0)
+    
+def validateFile(filename):
+    
+    if os.path.isabs(filename):
+        pass
+    else:
+        filename = os.path.abspath(filename)
+        
+    if os.path.isfile(filename):
+        pass
+    else:
+        raise ValueError("file does not exist: '%s'" % (filename))
+    
+    return filename
+
+def parseConfigFile():
+    
+    if main.config_file is None:
+        return
+    
+    main.config.read(main.config_file)
+    
+    dispatcher = main.config.get('main', 'dispatcher')
+    (service, dispatch, number) = dispatcher.split('_')
+    main.dispatcher = int(number)
+    
+    main.snmp_host = main.config.get('snmp', 'hostname')
+    main.snmp_read = main.config.get('snmp', 'read')
+    main.snmp_wite = main.config.get('snmp', 'write')
+    
+def checkSanity():
+    """ Raise exceptions if something is wrong with the runtime
+        configuration, as specified by the configuration file and
+        on the command line.
+    """
+    
+    if main.config_file is None:
+        raise ValueError('no configuration file specified')
+    
+    sections = ('main', 'snmp')
+    
+    for section in sections:
+        if main.config.has_section(section):
+            pass
+        else: raise configparser.NoSectionError("[%s]" % (section))
+        
+    main.config.get('main', 'service')
+    main.config.get('main', 'stdiosvc')
+
+#
+# #
+# Execute the main() function defined at the head of the file.
+# #
+#
+
+if __name__ == '__main__':
+    main()
+    
+# vim: set expandtab tabstop=8 softtabstop=4 shiftwidth=4 autoindent:   

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<index service="$(KTLSERVICE)">
+	<directories>
+	</directories>
+	<files>
+#foreach 336_DISPATCHER $(336_DISPATCHERS)
+	    <file>
+		<name>Dispatcher $(336_DISPATCHER)</name>
+		<location>$(336_DISPATCHER)_dispatcher.xml</location>
+		<comment>Keywords relating to $(336_DISPATCHER) dispatcher.</comment>
+	    </file>
+	    <file>
+		<name>Controller $(336_DISPATCHER)</name>
+		<location>$(336_DISPATCHER)_controller.xml</location>
+		<comment>Keywords relating to $(336_DISPATCHER) controller.</comment>
+	    </file>
+	    <file>
+		<name>Input $(336_DISPATCHER)</name>
+		<location>$(336_DISPATCHER)_input.xml</location>
+		<comment>Keywords relating to $(336_DISPATCHER) inputs.</comment>
+	    </file>
+	    <file>
+		<name>Output $(336_DISPATCHER)</name>
+		<location>$(336_DISPATCHER)_output.xml</location>
+		<comment>Keywords relating to $(336_DISPATCHER) outputs.</comment>
+	    </file>
+#end
+#foreach 224_DISPATCHER $(224_DISPATCHERS)
+	    <file>
+		<name>Dispatcher $(224_DISPATCHER)</name>
+		<location>$(224_DISPATCHER)_dispatcher.xml</location>
+		<comment>Keywords relating to $(224_DISPATCHER) dispatcher.</comment>
+	    </file>
+	    <file>
+			<name>Device $(224_DISPATCHER)</name>
+			<location>$(224_DISPATCHER)_device.xml</location>
+			<comment>Keywords relating to $(224_DISPATCHER) device.</comment>
+		</file>
+	    <file>
+			<name>Temperature $(224_DISPATCHER)</name>
+			<location>$(224_DISPATCHER)_temperature.xml</location>
+			<comment>Keywords relating to $(224_DISPATCHER) temperature inputs.</comment>
+		</file>
+#end
+	    <file>
+		<name>messages</name>
+		<location>messages.xml</location>
+		<comment>Music message numbers</comment>
+	    </file>
+	    <file>
+		<name>keyword_ids</name>
+		<location>keyword_ids.xml</location>
+		<comment>Keyword-keyid mapping</comment>
+	    </file>
+    </files>
+</index>

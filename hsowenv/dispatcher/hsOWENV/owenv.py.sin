@@ -1,0 +1,117 @@
+# Library for the 1-Wire Environmental Sensor with SNMP v1 communication
+
+import configparser
+
+import DFW
+
+from . import snmp
+
+class OWENV:
+    
+    def __init__(self, service, config_file):
+        
+        self.service = service
+        self.config_file = config_file
+        self.periods = dict()
+        
+        self.polling = False
+        self.failures = 0
+        self.failure_threshold = 6
+        
+        # Variables populated by config file
+        self.snmp_host = None
+        self.snmp_read = None
+        self.snmp_write = None
+        
+        self.config = configparser.ConfigParser()
+        self.parseConfigFile()
+        self.checkSanity()
+        
+        self.snmp_object = snmp.Commands(self.snmp_host, self.snmp_read, self.snmp_write)
+        
+    def parseConfigFile(self):
+        
+        if self.config_file is None:
+            return
+        
+        self.config.read(self.config_file)
+        
+        self.snmp_host = self.config.get('snmp', 'hostname')
+        self.snmp_read = self.config.get('snmp', 'read')
+        self.snmp_write = self.config.get('snmp', 'write')
+        
+    def checkSanity(self):
+        """ 
+        Raise exceptions if something is wrong with the runtime
+        configuration, as specified by the configuration file and
+        on the command line.
+        """
+        
+        if self.config_file is None:
+            raise ValueError('no configuration file specified')
+        
+        sections = ('main', 'snmp')
+        
+        for section in sections:
+            if self.config.has_section(section):
+                pass
+            else:
+                raise configparser.NoSectionError("[%s]" & (section))
+            
+        self.config.get('main', 'service')
+        self.config.get('main', 'stdiosvc')
+        
+    def setupKeywords(self):
+        
+        service = self.service
+        periods = self.periods
+        # snmp = self.snmp_object
+        
+        disp_num = 1
+        
+        # OWENV Keywords
+        prefix = "OWENV%d" % (disp_num)
+        DFW.Keyword.String(prefix + 'ADDRESS', service, self.snmp_host)
+        
+        temp_oid = ".1.3.6.1.4.1.31440.10.12.1.1.1"
+        humidity_oid = ".1.3.6.1.4.1.31440.10.12.1.2.1"
+        dew_point_oid = ".1.3.6.1.4.1.31440.10.12.1.3.1"
+        humidex_oid = ".1.3.6.1.4.1.31440.10.12.1.4.1"
+        heat_index_oid = ".1.3.6.1.4.1.31440.10.12.1.5.1"
+  
+        temp_key = prefix + "TEMP"
+        periods[temp_key] = 2
+        humidity_key = prefix + "HUMD"
+        periods[humidity_key] = 2
+        dew_point_key = prefix + "DEWP"
+        periods[dew_point_key] = 2
+        humidex_key = prefix + "HUIX"
+        periods[humidex_key] = 2
+        heat_index_key = prefix + "HEIX"
+        periods[heat_index_key] = 2
+ 
+        snmp.Double(temp_key, service, self, temp_oid, periods[temp_key])
+        snmp.Double(humidity_key, service, self, humidity_oid, periods[humidity_key])
+        snmp.Double(dew_point_key, service, self, dew_point_oid, periods[dew_point_key])
+        snmp.Double(humidex_key, service, self, humidex_oid, periods[humidex_key])
+        snmp.Double(heat_index_key, service, self, heat_index_oid, periods[heat_index_key])
+        
+    def getOverallStatus(self):
+        """ Return the current SNMP status (online, refusing snmp, etc.) for
+            this OWENV. Return None if status is not available.
+        """
+
+        status = "OWENV_SNMP"
+
+        try:
+            status = self.service[status]
+        except KeyError:
+            return
+
+        if status.value is None:
+            return
+
+        current_status = status.mapped(lower=True)
+        return current_status
+
+ # end of class OWENV

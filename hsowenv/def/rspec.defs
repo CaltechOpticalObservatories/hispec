@@ -1,0 +1,8 @@
+ifndef KTLSERVICE
+    include ../Mk.service
+endif
+
+SUBSYSTEM = rspec
+DISPNUM = 1
+DISPNAME = rspec
+ADDRESS = 10.97.180.141

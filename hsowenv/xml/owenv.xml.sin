@@ -1,0 +1,56 @@
+<?xml version="1.0" ?>
+<bundle name="OWENV_$(SUBSYSTEM)" service="$(KTLSERVICE)" xmlns:xsi="http://www.w3.org/2001/XML-Schema-instance">
+	<dispatcher>
+		<name>$(KTLSERVICE)_dispatch_$(DISPNUM)</name>
+	</dispatcher>
+	<keyword>
+		<name>OWENV$(DISPNUM)ADDRESS</name>
+		<type>string</type>
+		<help level="brief">OWENV IP address</help>
+		<help level="verbose">Network address for this 1-Wire Environmental Sensor unit.</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>OWENV$(DISPNUM)TEMP</name>
+		<type>double</type>
+		<units>deg C</units>
+		<format>%.3f</format>
+		<help level="brief">Temperature readout value</help>
+		<help level="verbose">1-Wire Environmental Sensor temperature readout value</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>OWENV$(DISPNUM)HUMD</name>
+		<type>double</type>
+		<units>%</units>
+		<format>%.3f</format>
+		<help level="brief">Humidity readout value</help>
+		<help level="verbose">1-Wire Environmental Sensor humidity readout value</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>OWENV$(DISPNUM)DEWP</name>
+		<type>double</type>
+		<units>deg C</units>
+		<format>%.3f</format>
+		<help level="brief">Dew point readout value</help>
+		<help level="verbose">1-Wire Environmental Sensor dew point temperature readout value</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>OWENV$(DISPNUM)HUIX</name>
+		<type>double</type>
+		<format>%.3f</format>
+		<help level="brief">Humidex readout value</help>
+		<help level="verbose">1-Wire Environmental Sensor humidex readout value</help>
+		<capability type="write">False</capability>
+	</keyword>
+	<keyword>
+		<name>OWENV$(DISPNUM)HEIX</name>
+		<type>double</type>
+		<format>%.3f</format>
+		<help level="brief">Heat index readout value</help>
+		<help level="verbose">1-Wire Environmental Sensor heat index readout value</help>
+		<capability type="write">False</capability>
+	</keyword>
+</bundle>
