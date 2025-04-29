@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pi_controller"
+version = "0.1.0"
+description = "Python library to control PI 863 and PI 663 controllers."
+authors = [{ name="Michael Langmayr", email="langmayr@caltech.edu" }]
+dependencies = [
+    "pipython >= 2.11",
+    "pytest",
+]
+requires-python = ">=3.7"
