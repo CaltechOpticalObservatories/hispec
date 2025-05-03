@@ -1,6 +1,4 @@
 import pytest
-import time
-from unittest.mock import patch, MagicMock
 from pi_controller.controller import PIControllerBase
 
 def test_connection_fail():
@@ -15,4 +13,3 @@ def test_connection_fail():
 #         assert controller.is_connected()
 #     finally:
 #         controller.disconnect()
-    
