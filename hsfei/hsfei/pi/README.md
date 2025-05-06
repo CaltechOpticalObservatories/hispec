@@ -32,3 +32,12 @@ Low-level Python library to control PI 863 and PI 663 motion controllers using t
 
     controller.disconnect()
 ```
+
+## 🧪 Testing
+Unit tests are located in `tests/` directory and use `pytest` with `unittest.mock` to simulate hardware behavior — no physical PI controller is required.
+
+To run all tests from the project root:
+
+```bash
+pytest
+```
