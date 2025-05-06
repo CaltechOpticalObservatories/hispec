@@ -1,5 +1,5 @@
 import pytest
-from pi_controller.controller import PIControllerBase
+from hsfei import PIControllerBase
 
 def test_connection_fail():
     with pytest.raises(Exception):

@@ -1,5 +1,4 @@
-from pi_controller.controller import PIControllerBase
-
+from hsfei import PIControllerBase
 
 if __name__ == "__main__":
     controller = PIControllerBase()
@@ -8,6 +7,5 @@ if __name__ == "__main__":
     print(controller.getSerialNumber())
     print(controller.get_axes())
     print(controller.get_position(0))
-
 
     controller.disconnect()
