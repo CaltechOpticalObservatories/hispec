@@ -3,14 +3,17 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sunpower_controller"
+name = "hsfei"
 version = "0.1.0"
-description = "Async Python interface for controlling Sunpower cryocoolers via serial"
+description = "Low level libraries for HISPEC FEI components"
 authors = [
-    { name="Your Name", email="your.email@example.com" }
+    { name="Michael Langmayr", email="langmayr@caltech.edu" }
 ]
 readme = "README.md"
 requires-python = ">=3.7"
 dependencies = [
     "pyserial"
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]

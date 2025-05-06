@@ -1,4 +1,3 @@
-import asyncio
 import serial
 import io
 
