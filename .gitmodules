@@ -3,4 +3,4 @@
 	url = https://github.com/PI-PhysikInstrumente/PIPython
 [submodule "etc/camera-interface"]
 	path = etc/camera-interface
-	url = git@github.com:CaltechOpticalObservatories/camera-interface.git
+	url = https://github.com/CaltechOpticalObservatories/camera-interface 
