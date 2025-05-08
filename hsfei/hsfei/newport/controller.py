@@ -25,7 +25,7 @@ OH    Set/Get HOME search velocity
 OR  * Execute HOME search
 OT    Set/Get HOME search time-out
 PA  * Move absolute
-PR    Move relative
+PR  * Move relative
 PT    Get motion time for a relative move
 PW  * Enter/Leave CONFIGURATION state
 QI    Set/Get motor’s current limits
@@ -65,12 +65,10 @@ For stage 1 & 2 current values are:
 import logging
 from logging import Logger
 from logging.handlers import TimedRotatingFileHandler
-import traceback
 import time
 import socket
 import os
 import sys
-import json
 
 logger: Logger = logging.getLogger("stageControllerLogger")
 logger.setLevel(logging.DEBUG)
@@ -101,113 +99,125 @@ class NewportController:
     pylint: disable=too-many-instance-attributes
     """
 
-    def __init__(self, host=None, port=None):
+    controller_commands = ["PA",    # Absolute move
+                           "OR",    # Execute HOME search
+                           "SL",    # Set/Get positive software limit
+                           "SR",    # Set/Get negative software limit
+                           "TE",    # Get last command error
+                           "TS",    # Get positioner error and controller state
+                           "TP",    # Get current position
+                           "ZT",    # Get all axis parameters
+                           "RS",    # Reset controller
+                           "PR"     # Move relative
+                           ]
+    return_value_commands = ["TS", "TP", "TE"]
+    parameter_commands = ["PA", "PR"]
+    end_code_list = ['32', '33', '34', '35']
+    not_ref_list = ['0A', '0B', '0C', '0D', '0F', '10', '11']
+    moving_list = ['28']
+    msg = {
+        "0A": "NOT REFERENCED from reset.",
+        "0B": "NOT REFERENCED from HOMING.",
+        "0C": "NOT REFERENCED from CONFIGURATION.",
+        "0D": "NOT REFERENCED from DISABLE.",
+        "0E": "NOT REFERENCED from READY.",
+        "0F": "NOT REFERENCED from MOVING.",
+        "10": "NOT REFERENCED ESP stage error.",
+        "11": "NOT REFERENCED from JOGGING.",
+        "14": "CONFIGURATION.",
+        "1E": "HOMING commanded from RS-232-C.",
+        "1F": "HOMING commanded by SMC-RC.",
+        "28": "MOVING.",
+        "32": "READY from HOMING.",
+        "33": "READY from MOVING.",
+        "34": "READY from DISABLE.",
+        "35": "READY from JOGGING.",
+        "3C": "DISABLE from READY.",
+        "3D": "DISABLE from MOVING.",
+        "3E": "DISABLE from JOGGING.",
+        "46": "JOGGING from READY.",
+        "47": "JOGGING from DISABLE."
+    }
+    error = {
+        "@": "No error.",
+        "A": "Unknown message code or floating point controller address.",
+        "B": "Controller address not correct",
+        "C": "Parameter missing or out of range.",
+        "D": "Command not allowed.",
+        "E": "Home sequence already started.",
+        "F": "ESP stage name unknown.",
+        "G": "Displacement out of limits.",
+        "H": "Command not allowed in NOT REFERENCED state.",
+        "I": "Command not allowed in CONFIGURATION state.",
+        "J": "Command not allowed in DISABLE state.",
+        "K": "Command not allowed in READY state.",
+        "L": "Command not allowed in HOMING state.",
+        "M": "Command not allowed in MOVING state.",
+        "N": "Current position out of software limit.",
+        "S": "Communication Time Out.",
+        "U": "Error during EEPROM access.",
+        "V": "Error durring command execution.",
+        "W": "Command not allowed for PP version.",
+        "X": "Command not allowed for CC version."
+    }
+
+    def __init__(self):
 
         """
         Class to handle communications with the stage controller and any faults
-
-        :param host: host ip
-        :param port: port socket number
-
         """
 
-        with open(os.path.join('./', 'stages.json'), encoding='utf-8') as df:
-            self.stage_config = json.load(df)
-
-        if not host:
-            self.host = self.stage_config['host']
-        else:
-            self.host = host
-        if not port:
-            self.port = self.stage_config['port']
-        else:
-            self.port = port
-
-        logger.info("Initiating stage controller on host:"
-                    " %(host)s port: %(port)s", {'host': self.host,
-                                                 'port': self.port})
-
+        # Set up socket
         self.socket = socket.socket()
-
-        # nominal positions
-        self.stage1_nom = self.stage_config['stage1']
-        self.stage2_nom = self.stage_config['stage2']
+        self.connected = False
 
         # stage rate
-        self.move_rate = self.stage_config['deg_per_sec']
+        self.move_rate = 5.0
 
         # current position
         self.current_position = [0.0, 0.0, 0.0]
 
-        self.controller_commands = ["PA", "SU", "ZX1", "ZX2", "ZX3", "OR",
-                                    "PW1", "PW0", "SL", "SR", "HT1", "TE",
-                                    "TS", "TP", "ZT", "RS", "PR"]
-
-        self.return_value_commands = ["TS", "TP", "TE"]
-        self.parameter_commands = ["PA", "PR", "SU"]
-        self.end_code_list = ['32', '33', '34', '35']
-        self.not_ref_list = ['0A', '0B', '0C', '0D', '0F', '10', '11']
-        self.moving_list = ['28']
-        self.msg = {
-            "0A": "NOT REFERENCED from reset.",
-            "0B": "NOT REFERENCED from HOMING.",
-            "0C": "NOT REFERENCED from CONFIGURATION.",
-            "0D": "NOT REFERENCED from DISABLE.",
-            "0E": "NOT REFERENCED from READY.",
-            "0F": "NOT REFERENCED from MOVING.",
-            "10": "NOT REFERENCED ESP stage error.",
-            "11": "NOT REFERENCED from JOGGING.",
-            "14": "CONFIGURATION.",
-            "1E": "HOMING commanded from RS-232-C.",
-            "1F": "HOMING commanded by SMC-RC.",
-            "28": "MOVING.",
-            "32": "READY from HOMING.",
-            "33": "READY from MOVING.",
-            "34": "READY from DISABLE.",
-            "35": "READY from JOGGING.",
-            "3C": "DISABLE from READY.",
-            "3D": "DISABLE from MOVING.",
-            "3E": "DISABLE from JOGGING.",
-            "46": "JOGGING from READY.",
-            "47": "JOGGING from DISABLE."
-        }
-        self.error = {
-            "@": "No error.",
-            "A": "Unknown message code or floating point controller address.",
-            "B": "Controller address not correct",
-            "C": "Parameter missing or out of range.",
-            "D": "Command not allowed.",
-            "E": "Home sequence already started.",
-            "F": "ESP stage name unknown.",
-            "G": "Displacement out of limits.",
-            "H": "Command not allowed in NOT REFERENCED state.",
-            "I": "Command not allowed in CONFIGURATION state.",
-            "J": "Command not allowed in DISABLE state.",
-            "K": "Command not allowed in READY state.",
-            "L": "Command not allowed in HOMING state.",
-            "M": "Command not allowed in MOVING state.",
-            "N": "Current position out of software limit.",
-            "S": "Communication Time Out.",
-            "U": "Error during EEPROM access.",
-            "V": "Error durring command execution.",
-            "W": "Command not allowed for PP version.",
-            "X": "Command not allowed for CC version."
-        }
         self.custom_command = False
 
-    def __connect(self):
+    def connect(self, ip=None, port=None):
+        """ Connect to stage controller.
+
+        :param ip: host ip
+        :param port: port socket number
+        """
         try:
-            self.socket.connect((self.host, self.port))
+            self.socket.connect((ip, port))
             logger.info("Connected to %(host)s:%(port)s", {
-                'host': self.host,
-                'port': self.port
+                'host': ip,
+                'port': port
             })
+            self.connected = True
             return None
         except OSError:
             logger.info("Already connected")
+            self.connected = True
             return None
         except Exception as e:
             logger.info("Error connecting to the socket", exc_info=True)
+            self.connected = False
+            return e
+
+    def disconnect(self):
+        """ Disconnect stage controller.
+        """
+        try:
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
+            logger.info("Disconnected controller")
+            self.connected = False
+            return None
+        except OSError:
+            logger.info("Not connected")
+            self.connected = False
+            return None
+        except Exception as e:
+            logger.info("Error disconnecting to the socket", exc_info=True)
+            self.connected = False
             return e
 
     def __send_serial_command(self, stage_id=1, cmd='', timeout=15):
@@ -215,6 +225,7 @@ class NewportController:
 
         :param stage_id:
         :param cmd:
+        :param timeout:
         :return:
         """
 
@@ -223,10 +234,11 @@ class NewportController:
         logger.info("Sending command:%s", cmd_send)
         cmd_encoded = cmd_send.encode('utf-8')
 
-        # Make connection
-        constat = self.__connect()
-        if constat:
-            traceback.print_exception(constat)
+        # check connection
+        if not self.connected:
+            logger.error("Not connected to controller!")
+            return None
+
         self.socket.settimeout(30)
 
         # Send command
@@ -318,17 +330,29 @@ class NewportController:
 
         :param cmd: string command to send to the camera socket
         :param parameters: list of parameters associated with cmd
+        :param stage_id: stage id of the stage controller
+        :param timeout:
         :return: Tuple (bool,string)
         """
         start = time.time()
 
-        if not self.custom_command:
-            if cmd.rstrip().upper() not in self.controller_commands:
-                return {'elaptime': time.time()-start,
-                        'error': f"{cmd} is not a valid command"
-                }
+        msg_type = None
+        msg_text = None
 
-        logger.info("Input command: %s", cmd)
+        # Do we have a connection?
+        if not self.connected:
+            msg_type = 'error'
+            msg_text = 'Not connected to controller'
+
+        else:
+            # Do we have a legal command?
+            if not self.custom_command:
+                if cmd.rstrip().upper() not in self.controller_commands:
+                    msg_type = 'error'
+                    msg_text = f"{cmd} is not a valid command"
+
+        if 'error' in msg_type:
+            return {'elaptime': time.time() - start, msg_type: msg_text}
 
         # Check if the command should have parameters
         if cmd in self.parameter_commands and parameters:
@@ -336,12 +360,13 @@ class NewportController:
             parameters = [str(x) for x in parameters]
             parameters = " ".join(parameters)
             cmd += parameters
-            logger.info(cmd)
+
+        logger.info("Input command: %s", cmd)
 
         # Send command
         response = self.__send_serial_command(stage_id, cmd, timeout)
         response = str(response.decode('utf-8'))
-        logger.info("Response from stage controller %d:\n%s",
+        logger.info("Response from stage %d:\n%s",
                     stage_id, response)
 
         # Parse response
@@ -353,31 +378,41 @@ class NewportController:
             # Parse position return
             if cmd.upper() == 'TP':
                 response = response.rstrip()
-                retval = {'elaptime': time.time() - start, 'data': response[3:]}
+                msg_type = 'data'
+                msg_text = response[3:]
 
+            # Parse error return
             elif cmd.upper() == 'TE':
                 response = response.rstrip()
                 errmsg = self.__return_parse_error(response)
-                retval = {'elaptime': time.time() - start, 'error': errmsg}
+                msg_type = 'error'
+                msg_text = errmsg
+
+            # Return whole message (usually from TS)
             else:
-                # Return whole message (usually from TS)
-                retval = {'elaptime': time.time() - start, 'data': message}
+                msg_type = 'data'
+                msg_text = message
 
-            return retval
+            return {'elaptime': time.time() - start, msg_type: msg_text}
 
+        # Get parameters response
         if cmd.upper() == 'ZT':
-            response = response.rstrip()
-            return {'elaptime': time.time() - start, 'data': response}
+            msg_type = 'data'
+            msg_text = response.strip()
+            return {'elaptime': time.time() - start, msg_type: msg_text}
 
         # Non-return value command, but stage in unknown state
-        if cmd not in self.return_value_commands and \
-                message == "Unknown state":
-            return {'elaptime': time.time() - start, 'error': response}
+        if cmd not in self.return_value_commands and message == "Unknown state":
+            msg_type = 'error'
+            msg_text = response
+            return {'elaptime': time.time() - start, msg_type: msg_text}
 
         # Not referenced (needs to be homed)
         if 'REFERENCED' in message:
             logger.info("State is NOT REFERENCED, recommend homing")
-            return {'elaptime': time.time() - start, 'error': message}
+            msg_type = 'error'
+            msg_text = message
+            return {'elaptime': time.time() - start, msg_type: msg_text}
 
         # Valid state achieved after command
         return {'elaptime': time.time() - start, 'data': message}
@@ -473,113 +508,16 @@ class NewportController:
                    'error': 'Unable to send stage command'}
         return ret
 
-    # Not Used
-    def enter_config_state(self, stage_id=1):
-        """
+    def get_move_rate(self):
+        """ Current move rate """
+        start = time.time()
+        return {'elaptime': time.time()-start, 'data': self.move_rate}
 
-        :param stage_id:
-        :return:
-        """
-        # cmd = ""
-        # end_code = None
-
-        logger.warning("WARNING YOU ARE ABOUT TO ENTER THE CONFIGURATION "
-                       "STATE.\nPLEASE DON'T MAKE ANY CHANGES UNLESS YOU "
-                       "KNOW WHAT YOU ARE DOING")
-        input("Press Enter to Continue")
-
-        message = (
-            "Choose the number to change the configuration state. "
-            "1. Set HOME position\n"
-            "2. Set negative software limit\n"
-            "3. Set positive software limit\n"
-            "4. Set encoder increment value\n"
-            "5. Use custom command\n"
-            "6.Save and Exit Configuration State\n")
-
-        value = int(input("Choose Configuration to Change"))
-
-        if value == 6:
-            logger.info("Exiting configuration")
-            return
-        self.custom_command = False
-
-        # Enter configuration state
-        ret = self.__send_command(cmd='PW1', stage_id=stage_id)
-
-        logger.info(ret)
-        while True:
-
-            if value == 0:
-                logger.info(message)
-                value = int(input("Choose Configuration to Change"))
-
-            if value == 1:      # Set HOME position
-                cmd = "HT1"
-
-            elif value == 2:    # Set negative software limit
-                cmd = "SL"
-                value = input("Enter value between -10^12 to 0")
-
-            elif value == 3:    # Set positive software limit
-                cmd = "SR"
-                value = input("Enter value between 0 to 10^12")
-
-            elif value == 4:    # Set encoder increment value
-                cmd = "SU"
-                value = input("Enter value between 10^-6 to 10^12")
-
-            elif value == 5:
-                cmd = input("Enter custom command")
-                self.custom_command = True
-            elif value == 6:
-                # Exit configuration state
-                ret = self.__send_command(cmd='PW0', stage_id=stage_id)
-                logger.info(ret)
-                break
-            else:
-                logger.info("Value not recognized, exiting config state.")
-                ret = self.__send_command(cmd='PW0', stage_id=stage_id)
-                logger.info(ret)
-                return
-
-            logger.info(ret, value, self.custom_command)
-
-            # Send command
-            ret = self.__send_command(cmd=cmd, stage_id=stage_id)
-            logger.info(ret)
-
-            # Reset for next round of commands
-            value = 0
-            logger.info(value)
-            time.sleep(3)
-            self.custom_command = False
-
-    # Not Used
-    def set_encoder_value(self, value=12.5, stage_id=1):
-        """
-        Set encoder increment value
-
-        :return:bool, status message
-        """
-        return self.__send_command(cmd="SU", stage_id=stage_id,
-                                   parameters=[value])
-
-    # Not Used
-    def disable_esp(self, stage_id=1):
-        """
-        Disable loading stage eeprom data on power up
-        :return: bool, status message
-        """
-        return self.__send_command(cmd='ZX1', stage_id=stage_id)
-
-    # Not Used
-    def enable_esp(self, stage_id=1):
-        """
-        Enable loading stage eeprom data on power up
-        :return: bool, status message
-        """
-        return self.__send_command(cmd='ZX3', stage_id=stage_id)
+    def set_move_rate(self, rate=5.0):
+        """ Set move rate """
+        start = time.time()
+        self.move_rate = rate
+        return {'elaptime': time.time()-start, 'data': self.move_rate}
 
     # Not Used
     def reset(self, stage_id=1):
