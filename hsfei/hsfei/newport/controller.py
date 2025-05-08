@@ -97,6 +97,8 @@ logger.info("Starting Logger: Logger file is %s",
 class NewportController:
     """
     Controller class for Newport SMC100PP Controller.
+
+    pylint: disable=too-many-instance-attributes
     """
 
     def __init__(self, host=None, port=None):
@@ -191,6 +193,7 @@ class NewportController:
             "W": "Command not allowed for PP version.",
             "X": "Command not allowed for CC version."
         }
+        self.custom_command = False
 
     def __connect(self):
         try:
@@ -281,12 +284,8 @@ class NewportController:
                 recv = recv.rstrip()
                 code = str(recv[-2:].decode('utf-8'))
 
-                # Valid end code (done)
-                if code in self.end_code_list:
-                    return recv
-
-                # Not referenced code (done)
-                if code in self.not_ref_list:
+                # Valid end code or not referenced code (done)
+                if code in self.end_code_list or code in self.not_ref_list:
                     return recv
 
                 if print_it >= 10:
@@ -312,8 +311,7 @@ class NewportController:
                        self.msg.get(code, "Unknown state"))
         return recv
 
-    def __send_command(self, cmd="", parameters=None, stage_id=1,
-                       custom_command=False, timeout=15):
+    def __send_command(self, cmd="", parameters=None, stage_id=1, timeout=15):
         """
         Send a command to the stage controller and keep checking the state
         until it matches one in the end_code
@@ -324,7 +322,7 @@ class NewportController:
         """
         start = time.time()
 
-        if not custom_command:
+        if not self.custom_command:
             if cmd.rstrip().upper() not in self.controller_commands:
                 return {'elaptime': time.time()-start,
                         'error': f"{cmd} is not a valid command"
@@ -412,64 +410,6 @@ class NewportController:
         error = error.rstrip()
         code = error[-1:]
         return self.error.get(code, "Unknown error")
-
-    def initialize(self, stage_id=1):
-        """
-        :param stage_id: id of the stage controller
-        Initialize stage positions and home and reset them if necessary
-        :return: {'elaptime': float, 'data': str}
-        """
-        start = time.time()
-
-        nom_pos = float(self.stage_config[f'stage{stage_id}'])
-
-        ret = self.get_state(stage_id=stage_id)
-
-        if 'data' in ret:
-            message = ret['data']
-            logger.info("STATE: %s", message)
-            if "READY" in message:
-                self.get_position(stage_id=stage_id)
-                logger.info("Stage %d initialized", stage_id)
-                return {'elaptime': time.time() - start, 'data': message}
-            if "DISABLE" in message:
-                logger.error("Stage %d disabled", stage_id)
-                return {'elaptime': time.time() - start, 'data': message}
-            if "HOMING" in message or "MOVING" in message or \
-                    "JOGGING" in message:
-                logger.error("Stage %d is moving", stage_id)
-                return {'elaptime': time.time() - start, 'data': message}
-            if "NOT REFERENCED" in message:
-                # Home stage and set to nominal position
-                logger.info("Homing stage %d", stage_id)
-                home_ret = self.home(stage_id=stage_id)
-                if 'data' in home_ret:
-                    if "READY" in home_ret['data']:
-                        logger.info("Homing complete, "
-                                    "moving to nominal position")
-                        move_ret = self.move_abs(nom_pos, stage_id=stage_id)
-                        if 'data' in move_ret:
-                            if "READY" in move_ret['data']:
-                                message = f"Move complete, at nominal position = {nom_pos:.4f}"
-                                logger.info(message)
-                                self.current_position[stage_id] = nom_pos
-                            else:
-                                message = f"Move error! STATE: {move_ret['data']}"
-                                logger.error(message)
-                        else:
-                            message = "Move return error!"
-                            logger.error(message)
-                    else:
-                        message = f"Homing error! STATE: {home_ret['data']}"
-                        logger.error(message)
-                else:
-                    message = "Homing return error!"
-                    logger.error(message)
-        else:
-            message = "Status return error!"
-            logger.error(message)
-
-        return {'elaptime': time.time() - start, 'data': message}
 
     def home(self, stage_id=1):
         """
@@ -562,7 +502,7 @@ class NewportController:
         if value == 6:
             logger.info("Exiting configuration")
             return
-        custom_command = False
+        self.custom_command = False
 
         # Enter configuration state
         ret = self.__send_command(cmd='PW1', stage_id=stage_id)
@@ -591,7 +531,7 @@ class NewportController:
 
             elif value == 5:
                 cmd = input("Enter custom command")
-                custom_command = True
+                self.custom_command = True
             elif value == 6:
                 # Exit configuration state
                 ret = self.__send_command(cmd='PW0', stage_id=stage_id)
@@ -603,18 +543,17 @@ class NewportController:
                 logger.info(ret)
                 return
 
-            logger.info(ret, value, custom_command)
+            logger.info(ret, value, self.custom_command)
 
             # Send command
-            ret = self.__send_command(cmd=cmd, stage_id=stage_id,
-                                      custom_command=custom_command)
+            ret = self.__send_command(cmd=cmd, stage_id=stage_id)
             logger.info(ret)
 
             # Reset for next round of commands
             value = 0
             logger.info(value)
             time.sleep(3)
-            custom_command = False
+            self.custom_command = False
 
     # Not Used
     def set_encoder_value(self, value=12.5, stage_id=1):
@@ -662,15 +601,14 @@ class NewportController:
             if not cmd:
                 break
 
-            ret = self.__send_command(cmd=cmd, stage_id=stage_id,
-                                      custom_command=True)
+            self.custom_command = True
+            ret = self.__send_command(cmd=cmd, stage_id=stage_id)
+            self.custom_command = False
             logger.info("End: %s", ret)
 
 
 if __name__ == "__main__":
     s = NewportController()
-    s.initialize(1)
-    s.initialize(2)
     logger.info(s.get_params(stage_id=1))
     logger.info(s.get_params(stage_id=2))
     logger.info(s.get_state(1))
