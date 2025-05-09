@@ -549,31 +549,3 @@ class NewportController:
             ret = self.__send_command(cmd=cmd, stage_id=stage_id)
             self.custom_command = False
             logger.info("End: %s", ret)
-
-
-if __name__ == "__main__":
-    s = NewportController()
-    logger.info(s.get_params(stage_id=1))
-    logger.info(s.get_params(stage_id=2))
-    logger.info(s.get_state(1))
-    logger.info(s.get_state(2))
-    logger.info(s.get_position(stage_id=1))
-    logger.info(s.get_position(stage_id=2))
-    logger.info(s.move_abs(180., stage_id=1))
-    logger.info(s.move_abs(180., stage_id=2))
-    logger.info(s.get_position(stage_id=1))
-    logger.info(s.get_position(stage_id=2))
-    logger.info(s.get_last_error(stage_id=1))
-    logger.info(s.get_last_error(stage_id=2))
-    # logger.info(s.home(1))
-    # logger.info(s.home(2))
-
-    # logger.info(s.disable_esp(1))
-    # time.sleep(3)
-
-    # s.run_manually(1)
-    # s.enter_config_state(1)
-    # logger.info(s.reset(1))
-    # logger.info(s.enable_esp(1))
-    # logger.info(s.disable_esp(1))
-    # logger.info(s.set_encoder_value(value=.000244140625, stage_id=1))
