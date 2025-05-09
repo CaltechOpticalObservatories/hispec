@@ -335,8 +335,8 @@ class NewportController:
         """
         start = time.time()
 
-        msg_type = None
-        msg_text = None
+        msg_type = ''
+        msg_text = ''
 
         # Do we have a connection?
         if not self.connected:
