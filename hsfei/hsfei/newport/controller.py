@@ -1,3 +1,4 @@
+# coding=utf-8
 """
 The following stage controller commands are available. Note that many
 are not implemented at the moment.  The asterisk indicates the commands
@@ -61,7 +62,6 @@ For stage 1 & 2 current values are:
 
 """
 
-# coding=utf-8
 import logging
 from logging import Logger
 from logging.handlers import TimedRotatingFileHandler

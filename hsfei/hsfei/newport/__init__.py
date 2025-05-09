@@ -1,3 +1,3 @@
-from controller import NewportController
+from .controller import NewportController
 
 __all__ = ["NewportController"]
