@@ -1,5 +1,5 @@
 import pytest
-from hsfei import NewportController
+from hsfei.hsfei.newport import NewportController
 
 def test_initialization():
     controller = NewportController()
