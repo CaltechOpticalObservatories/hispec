@@ -8,4 +8,5 @@ def test_initialization():
 def test_connection_fail():
     with pytest.raises(Exception):
         controller = NewportController()
-        controller.connect(ip="10.0.0.1", port=50000)
+        controller.connect(ip="127.0.0.1", port=50000)
+        assert not controller.connected
