@@ -280,9 +280,9 @@ class NewportController:
 
         # Non-return value commands eventually return state output
         sleep_time = 0.1
-        command_time = 0.0
+        start_time = time.time()
         print_it = 0
-        while command_time < timeout:
+        while time.time() - start_time < timeout:
             # Check state
             statecmd = f'{stage_id}TS\r\n'
             statecmd = statecmd.encode('utf-8')
@@ -302,7 +302,7 @@ class NewportController:
 
                 if print_it >= 10:
                     print(
-                        f"{command_time:05.2f} {self.msg.get(code, 'Unknown state'):s}")
+                        f"{time.time()-start_time:05.2f} {self.msg.get(code, 'Unknown state'):s}")
                     print_it = 0
 
             # Invalid state return (done)
@@ -310,11 +310,10 @@ class NewportController:
                 logger.warning("Bad %dTS return: %s", stage_id, recv)
                 return recv
 
-            # Increment move time and read state again
-            command_time += sleep_time
+            # Increment tries and read state again
             print_it += 1
 
-        # end while t > 0  (tries still left)
+        # end while t > 0 (tries still left)
 
         # If we get here, we ran out of tries
         recv = recv.rstrip()
@@ -477,7 +476,10 @@ class NewportController:
 
         :return:bool, status message
         """
-        timeout = int(abs(position / self.move_rate))
+        if self.move_rate <= 0:
+            timeout = 5
+        else:
+            timeout = int(abs(position / self.move_rate))
         if timeout <= 0:
             timeout = 5
         logger.info("Timeout for move to relative position: %d", timeout)
@@ -516,7 +518,10 @@ class NewportController:
     def set_move_rate(self, rate=5.0):
         """ Set move rate """
         start = time.time()
-        self.move_rate = rate
+        if rate > 0:
+            self.move_rate = rate
+        else:
+            logger.error('set_move_rate input error, not changed')
         return {'elaptime': time.time()-start, 'data': self.move_rate}
 
     # Not Used
