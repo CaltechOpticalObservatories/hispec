@@ -459,13 +459,15 @@ class NewportController:
         :return:bool, status message
         """
         move_len = self.current_position[stage_id] - position
-        timeout = int(abs(move_len / self.move_rate))
+        if self.move_rate <= 0:
+            timeout = 5
+        else:
+            timeout = int(abs(move_len / self.move_rate))
         if timeout <= 0:
             timeout = 5
         logger.info("Timeout for move to absolute position: %d", timeout)
-        ret = self.__send_command(cmd="PA", stage_id=stage_id,
-                                  parameters=[position],
-                                  timeout=timeout)
+        ret = self.__send_command(cmd="PA", parameters=[position],
+                                  stage_id=stage_id, timeout=timeout)
         if 'error' not in ret:
             self.current_position[stage_id] = position
         return ret
@@ -483,9 +485,8 @@ class NewportController:
         if timeout <= 0:
             timeout = 5
         logger.info("Timeout for move to relative position: %d", timeout)
-        ret = self.__send_command(cmd="PR", stage_id=stage_id,
-                                  parameters=[position],
-                                  timeout=timeout)
+        ret = self.__send_command(cmd="PR", parameters=[position],
+                                  stage_id=stage_id, timeout=timeout)
         if 'error' not in ret:
             self.current_position[stage_id] += position
         return ret
