@@ -12,7 +12,7 @@ FD    Set/Get low pass filter for Kd Not for PP
 FE    Set/Get following error limit Not for PP
 FF    Set/Get friction compensation Not for PP
 FR    Set/Get stepper motor configuration Not for CC
-HT  * Set/Get HOME search type
+HT    Set/Get HOME search type
 ID    Set/Get stage identifier
 JD    Leave JOGGING state
 JM    Enable/disable keypad
@@ -28,7 +28,7 @@ OT    Set/Get HOME search time-out
 PA  * Move absolute
 PR  * Move relative
 PT    Get motion time for a relative move
-PW  * Enter/Leave CONFIGURATION state
+PW    Enter/Leave CONFIGURATION state
 QI    Set/Get motor’s current limits
 RA    Get analog input value
 RB    Get TTL input value
@@ -40,9 +40,9 @@ SE    Configure/Execute simultaneous started move
 SL  * Set/Get negative software limit
 SR  * Set/Get positive software limit
 ST    Stop motion
-SU  * Set/Get encoder increment value Not for PP
+SU    Set/Get encoder increment value Not for PP
 TB    Get command error string
-TE    Get last command error
+TE  * Get last command error
 TH    Get set-point position
 TP  * Get current position
 TS  * Get positioner error and controller state
@@ -50,7 +50,7 @@ VA    Set/Get velocity
 VB    Set/Get base velocity Not for CC
 VE    Get controller revision information
 ZT  * Get all axis parameters
-ZX  * Set/Get SmartStage configuration
+ZX    Set/Get SmartStage configuration
 
 The values below as of 2025-Apr-30
 
@@ -161,7 +161,7 @@ class NewportController:
         "X": "Command not allowed for CC version."
     }
 
-    def __init__(self):
+    def __init__(self, num_stages=2, move_rate=5.0):
 
         """
         Class to handle communications with the stage controller and any faults
@@ -170,9 +170,12 @@ class NewportController:
         # Set up socket
         self.socket = socket.socket()
         self.connected = False
+        
+        # number of daisy-chained stages
+        self.num_stages = num_stages
 
-        # stage rate
-        self.move_rate = 5.0
+        # stage rate in degrees per second
+        self.move_rate = move_rate
 
         # current position
         self.current_position = [0.0, 0.0, 0.0]
@@ -343,6 +346,11 @@ class NewportController:
             msg_type = 'error'
             msg_text = 'Not connected to controller'
 
+        # Is stage id valid?
+        elif not self.__verify_stage_id(stage_id):
+            msg_type = 'error'
+            msg_text = f"{stage_id} is not a valid stage"
+
         else:
             # Do we have a legal command?
             if not self.custom_command:
@@ -421,6 +429,19 @@ class NewportController:
         #     logger.error(str(e))
         #     return -1 * (time.time() - start), str(e)
 
+
+    def __verify_stage_id(self, stage_id):
+        """ Check that the stage id is legal
+        
+        :stage_id:int, stage number
+        """
+        if stage_id > self.num_stages or stage_id < 1:
+            is_valid = False
+        else:
+            is_valid = True
+            
+        return is_valid
+    
     def __return_parse_state(self, message=""):
         """
         Parse the return message from the controller.  The message code is
@@ -448,14 +469,15 @@ class NewportController:
     def home(self, stage_id=1):
         """
         Home the stage
+        :stage_id: int, stage position in daisy chain starting with 1
         :return: bool, status message
-        """
+        """ 
         return self.__send_command(cmd='OR', stage_id=stage_id)
 
     def move_abs(self, position=0.0, stage_id=1):
         """
         Move stage to absolute position and return when in position
-
+        :position:float, absolute position in degrees 
         :return:bool, status message
         """
         move_len = self.current_position[stage_id] - position
@@ -525,17 +547,14 @@ class NewportController:
             logger.error('set_move_rate input error, not changed')
         return {'elaptime': time.time()-start, 'data': self.move_rate}
 
-    # Not Used
     def reset(self, stage_id=1):
         """ Reset stage """
         return self.__send_command(cmd="RS", stage_id=stage_id)
 
-    # Not Used
     def get_params(self, stage_id=1):
         """ Get stage parameters """
         return self.__send_command(cmd="ZT", stage_id=stage_id)
 
-    # Not Used
     def run_manually(self, stage_id=1):
         """ Input stage commands manually """
         while True:
