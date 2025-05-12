@@ -340,28 +340,10 @@ class NewportController:
         """
         start = time.time()
 
-        msg_type = ''
-        msg_text = ''
-
-        # Do we have a connection?
-        if not self.connected:
-            msg_type = 'error'
-            msg_text = 'Not connected to controller'
-
-        # Is stage id valid?
-        elif not self.__verify_stage_id(stage_id):
-            msg_type = 'error'
-            msg_text = f"{stage_id} is not a valid stage"
-
-        else:
-            # Do we have a legal command?
-            if not self.custom_command:
-                if cmd.rstrip().upper() not in self.controller_commands:
-                    msg_type = 'error'
-                    msg_text = f"{cmd} is not a valid command"
-
-        if 'error' in msg_type:
-            return {'elaptime': time.time() - start, msg_type: msg_text}
+        # verify cmd and stage_id
+        ret = self.__verify_send_command(cmd, stage_id)
+        if 'error' in ret:
+            return ret
 
         # Check if the command should have parameters
         if cmd in self.parameter_commands and parameters:
@@ -426,6 +408,42 @@ class NewportController:
         # Valid state achieved after command
         return {'elaptime': time.time() - start, 'data': message}
 
+    def __verify_send_command(self, cmd, stage_id):
+        """ Verify cmd and stage_id
+
+        :param cmd: String, command to send to the stage controller
+        :param stage_id: Int, stage position in the daisy chain starting with 1
+        :return: dictionary {'elaptime': time, 'data|error': string_message}"""
+        start = time.time()
+
+        msg_type = ''
+        msg_text = ''
+
+        # Do we have a connection?
+        if not self.connected:
+            msg_type = 'error'
+            msg_text = 'Not connected to controller'
+
+        # Is stage id valid?
+        elif not self.__verify_stage_id(stage_id):
+            msg_type = 'error'
+            msg_text = f"{stage_id} is not a valid stage"
+
+        else:
+            # Do we have a legal command?
+            if cmd.rstrip().upper() in self.controller_commands:
+                msg_type = 'data'
+                msg_text = f"{cmd} is a valid or custom command"
+            else:
+                if not self.custom_command:
+                    msg_type = 'error'
+                    msg_text = f"{cmd} is not a valid command"
+                else:
+                    msg_type = 'data'
+                    msg_text = f"{cmd} is a custom command"
+
+        return {'elaptime': time.time() - start, msg_type: msg_text}
+
     def __verify_stage_id(self, stage_id):
         """ Check that the stage id is legal
 
@@ -472,14 +490,19 @@ class NewportController:
         """
         return self.__send_command(cmd='OR', stage_id=stage_id)
 
-    def move_abs(self, position=0.0, stage_id=1):
+    def move_abs(self, position=None, stage_id=None):
         """
         Move stage to absolute position and return when in position
+        TODO: check limits on position
 
         :param position: Float, absolute position in degrees
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
+        start = time.time()
+        if position is None or stage_id is None:
+            return {'elaptime': time.time() - start,
+                    'error': 'must specify both position and stage_id'}
         move_len = self.current_position[stage_id] - position
         if self.move_rate <= 0:
             timeout = 5
@@ -487,7 +510,7 @@ class NewportController:
             timeout = int(abs(move_len / self.move_rate))
         if timeout <= 0:
             timeout = 5
-        logger.info("Timeout for move to absolute position: %d", timeout)
+        logger.info("Timeout for move to absolute position: %d s", timeout)
         ret = self.__send_command(cmd="PA", parameters=[position],
                                   stage_id=stage_id, timeout=timeout)
         if 'error' not in ret:
@@ -497,18 +520,23 @@ class NewportController:
     def move_rel(self, position=0.0, stage_id=1):
         """
         Move stage to relative position and return when in position
+        TODO: check limits on position
 
         :param position: Float, relative position in degrees
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
+        start = time.time()
+        if position is None or stage_id is None:
+            return {'elaptime': time.time() - start,
+                    'error': 'must specify both position and stage_id'}
         if self.move_rate <= 0:
             timeout = 5
         else:
             timeout = int(abs(position / self.move_rate))
         if timeout <= 0:
             timeout = 5
-        logger.info("Timeout for move to relative position: %d", timeout)
+        logger.info("Timeout for move to relative position: %d s", timeout)
         ret = self.__send_command(cmd="PR", parameters=[position],
                                   stage_id=stage_id, timeout=timeout)
         if 'error' not in ret:
