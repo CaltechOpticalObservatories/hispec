@@ -170,7 +170,7 @@ class NewportController:
         # Set up socket
         self.socket = socket.socket()
         self.connected = False
-        
+
         # number of daisy-chained stages
         self.num_stages = num_stages
 
@@ -439,9 +439,9 @@ class NewportController:
             is_valid = False
         else:
             is_valid = True
-            
+
         return is_valid
-    
+
     def __return_parse_state(self, message=""):
         """
         Parse the return message from the controller.  The message code is
@@ -471,7 +471,7 @@ class NewportController:
         Home the stage
         :stage_id: int, stage position in daisy chain starting with 1
         :return: bool, status message
-        """ 
+        """
         return self.__send_command(cmd='OR', stage_id=stage_id)
 
     def move_abs(self, position=0.0, stage_id=1):
