@@ -1,4 +1,7 @@
 import time
+import serial
+import threading
+from .axis import Axis
 
 class Communication:
     ser = None  # Holds the serial connection.
@@ -110,3 +113,58 @@ class Communication:
         self.stop_thread = True
         time.sleep(0.1)
         self.ser.close()
+        
+    def stopMovements(self):
+        """
+        Just stop moving.
+        """
+        for axis in self.getAllAxis():
+            axis.sendCommand("STOP=0")
+            axis.was_valid_DPOS = False
+            
+    def reset(self):
+        """
+        :return: None
+        This function sends RESET to the controller, and resends all settings.
+        """
+        for axis in self.getAllAxis():
+            axis.reset()
+        time.sleep(0.2)
+
+        self.readSettings()  # Read settings file again
+
+    def getAllAxis(self):
+        """
+        :return: A list containing all axis objects belonging to this controller.
+        """
+        return self.axis_list
+
+    def addAxis(self, stage, axis_letter):
+        """
+        :param stage: Specify the type of stage that is connected.
+        :type stage: Stage
+        :return: Returns an Axis object
+        """
+        newAxis = Axis(self, axis_letter,
+                       stage)
+        self.axis_list.append(newAxis)  # Add axis to axis list.
+        self.axis_letter_list.append(axis_letter)
+        return newAxis
+
+    # End User Commands
+    def getCommunication(self):
+        """
+        :return: The communication class.
+        """
+        return self.comm
+
+    def getAxis(self, letter):
+        """
+        :param letter: Specify the axis letter
+        :return: Returns the correct axis object. Or None if the axis does not exist.
+        """
+        if self.axis_letter_list.count(letter) == 1:  # Axis letter found
+            indx = self.axis_letter_list.index(letter)
+            if len(self.getAllAxis()) > indx:
+                return self.getAllAxis()[indx]  # Return axis
+        return None
