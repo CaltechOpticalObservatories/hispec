@@ -64,19 +64,15 @@ For stage 1 & 2 current values are:
 import errno
 import logging
 from logging import Logger
-from logging.handlers import TimedRotatingFileHandler
 import time
 import socket
 import os
 import sys
 
-logger: Logger = logging.getLogger("stageControllerLogger")
+logger: Logger = logging.getLogger("NewportControllerLogger")
 logger.setLevel(logging.DEBUG)
 logging.Formatter.converter = time.gmtime
-logHandler = TimedRotatingFileHandler(os.path.join('./',
-                                                   'stage_controller.log'),
-                                      when='midnight', utc=True, interval=1,
-                                      backupCount=360)
+logHandler = logging.FileHandler(os.path.join('./', 'newport_controller.log'))
 
 formatter = logging.Formatter("%(asctime)s--%(name)s--%(levelname)s--"
                               "%(module)s--%(funcName)s--%(message)s")
@@ -90,27 +86,25 @@ consoleHandler.setFormatter(console_formatter)
 logger.addHandler(consoleHandler)
 
 logger.info("Starting Logger: Logger file is %s",
-            'stage_controller.log')
+            'newport_controller.log')
 
 class NewportController:
     """
     Controller class for Newport SMC100PP Controller.
-
-    pylint: disable=too-many-instance-attributes
     """
 
-    controller_commands = ["PA",    # Absolute move
-                           "OR",    # Execute HOME search
+    controller_commands = ["OR",    # Execute HOME search
+                           "PA",    # Absolute move
+                           "PR",    # Move relative
+                           "RS",    # Reset controller
                            "SL",    # Set/Get positive software limit
                            "SR",    # Set/Get negative software limit
                            "TE",    # Get last command error
-                           "TS",    # Get positioner error and controller state
                            "TP",    # Get current position
-                           "ZT",    # Get all axis parameters
-                           "RS",    # Reset controller
-                           "PR"     # Move relative
+                           "TS",    # Get positioner error and controller state
+                           "ZT"     # Get all axis parameters
                            ]
-    return_value_commands = ["TS", "TP", "TE"]
+    return_value_commands = ["TE", "TP", "TS"]
     parameter_commands = ["PA", "PR"]
     end_code_list = ['32', '33', '34', '35']
     not_ref_list = ['0A', '0B', '0C', '0D', '0F', '10', '11']
@@ -165,6 +159,9 @@ class NewportController:
 
         """
         Class to handle communications with the stage controller and any faults
+
+        :param num_stages: Int, number of stages daisey-chained
+        :param move_rate: Float, move rate in degrees per second
         """
 
         # Set up socket
@@ -185,8 +182,8 @@ class NewportController:
     def connect(self, ip=None, port=None):
         """ Connect to stage controller.
 
-        :param ip:str, Host ip
-        :param port:int, Port socket number
+        :param ip: String, host ip address
+        :param port: Int, Port number
         """
         start = time.time()
         if self.socket is None:
@@ -211,8 +208,7 @@ class NewportController:
         return ret
 
     def disconnect(self):
-        """ Disconnect stage controller.
-        """
+        """ Disconnect stage controller. """
         start = time.time()
         try:
             self.socket.shutdown(socket.SHUT_RDWR)
@@ -231,10 +227,11 @@ class NewportController:
 
     def __send_serial_command(self, stage_id=1, cmd='', timeout=15):
         """
+        Send serial command to stage controller.
 
-        :param stage_id:
-        :param cmd:
-        :param timeout:
+        :param stage_id: Int, stage position in the daisy chain starting with 1
+        :param cmd: String, command to send to stage controller
+        :param timeout: Int, timeout for sending command in seconds
         :return:
         """
 
@@ -310,8 +307,9 @@ class NewportController:
                     return recv
 
                 if print_it >= 10:
-                    print(
-                        f"{time.time()-start_time:05.2f} {self.msg.get(code, 'Unknown state'):s}")
+                    msg = (f"{time.time()-start_time:05.2f} "
+                           f"{self.msg.get(code, 'Unknown state'):s}")
+                    logger.info(msg)
                     print_it = 0
 
             # Invalid state return (done)
@@ -321,8 +319,6 @@ class NewportController:
 
             # Increment tries and read state again
             print_it += 1
-
-        # end while t > 0 (tries still left)
 
         # If we get here, we ran out of tries
         recv = recv.rstrip()
@@ -336,11 +332,11 @@ class NewportController:
         Send a command to the stage controller and keep checking the state
         until it matches one in the end_code
 
-        :param cmd: string command to send to the camera socket
-        :param parameters: list of parameters associated with cmd
-        :param stage_id: stage id of the stage controller
-        :param timeout:
-        :return: Tuple (bool,string)
+        :param cmd: String, command to send to the stage controller
+        :param parameters: List of string parameters associated with cmd
+        :param stage_id: Int, stage position in the daisy chain starting with 1
+        :param timeout: Int, timeout for sending command in seconds
+        :return: dictionary {'elaptime': time, 'data|error': string_message}
         """
         start = time.time()
 
@@ -430,16 +426,11 @@ class NewportController:
         # Valid state achieved after command
         return {'elaptime': time.time() - start, 'data': message}
 
-        # except Exception as e:
-        #     logger.error("Error in the stage controller return")
-        #     logger.error(str(e))
-        #     return -1 * (time.time() - start), str(e)
-
-
     def __verify_stage_id(self, stage_id):
         """ Check that the stage id is legal
-        
-        :stage_id:int, stage number
+
+        :param stage_id: Int, stage position in the daisy chain starting with 1
+        :return: True if stage id is legal
         """
         if stage_id > self.num_stages or stage_id < 1:
             is_valid = False
@@ -453,8 +444,8 @@ class NewportController:
         Parse the return message from the controller.  The message code is
         given in the last two string characters
 
-        :param message: message code from the controller
-        :return: string message
+        :param message: String message code from the controller
+        :return: String message
         """
         message = message.rstrip()
         code = message[-2:]
@@ -463,10 +454,10 @@ class NewportController:
     def __return_parse_error(self, error=""):
         """
         Parse the return error message from the controller.  The message code is
-        given in the last two string characters
+        given in the last string character
 
-        :param error: error code from the controller
-        :return: string message
+        :param error: Error code from the controller
+        :return: String message
         """
         error = error.rstrip()
         code = error[-1:]
@@ -475,16 +466,19 @@ class NewportController:
     def home(self, stage_id=1):
         """
         Home the stage
-        :stage_id: int, stage position in daisy chain starting with 1
-        :return: bool, status message
+
+        :param stage_id: Int, stage position in the daisy chain starting with 1
+        :return: return from __send_command
         """
         return self.__send_command(cmd='OR', stage_id=stage_id)
 
     def move_abs(self, position=0.0, stage_id=1):
         """
         Move stage to absolute position and return when in position
-        :position:float, absolute position in degrees 
-        :return:bool, status message
+
+        :param position: Float, absolute position in degrees
+        :param stage_id: Int, stage position in the daisy chain starting with 1
+        :return: return from __send_command
         """
         move_len = self.current_position[stage_id] - position
         if self.move_rate <= 0:
@@ -504,7 +498,9 @@ class NewportController:
         """
         Move stage to relative position and return when in position
 
-        :return:bool, status message
+        :param position: Float, relative position in degrees
+        :param stage_id: Int, stage position in the daisy chain starting with 1
+        :return: return from __send_command
         """
         if self.move_rate <= 0:
             timeout = 5
@@ -520,32 +516,46 @@ class NewportController:
         return ret
 
     def get_state(self, stage_id=1):
-        """ Current state of the stage """
+        """ Current state of the stage
+
+        :param stage_id: int, stage position in the daisy chain starting with 1
+        :return: return from __send_command
+        """
         return self.__send_command(cmd="TS", stage_id=stage_id)
 
     def get_last_error(self, stage_id=1):
-        """ Last error """
+        """ Last error
+
+        :param stage_id: int, stage position in the daisy chain starting with 1
+        :return: return from __send_command
+        """
         return self.__send_command(cmd="TE", stage_id=stage_id)
 
     def get_position(self, stage_id=1):
-        """ Current position """
-        start = time.time()
-        try:
-            ret = self.__send_command(cmd="TP", stage_id=stage_id)
+        """ Current position
+
+        :param stage_id: int, stage position in the daisy chain starting with 1
+        :return: return from __send_command
+        """
+        ret = self.__send_command(cmd="TP", stage_id=stage_id)
+        if 'data' in ret:
             self.current_position[stage_id] = float(ret['data'])
-        except Exception as e:
-            logger.error('get_position error: %s', str(e))
-            ret = {'elaptime': time.time()-start,
-                   'error': 'Unable to send stage command'}
         return ret
 
     def get_move_rate(self):
-        """ Current move rate """
+        """ Current move rate
+
+        :return: return from __send_command
+        """
         start = time.time()
         return {'elaptime': time.time()-start, 'data': self.move_rate}
 
     def set_move_rate(self, rate=5.0):
-        """ Set move rate """
+        """ Set move rate
+
+        :param rate: Float, move rate in degrees per second
+        :return: dictionary {'elaptime': time, 'data': move_rate}
+        """
         start = time.time()
         if rate > 0:
             self.move_rate = rate
@@ -554,15 +564,27 @@ class NewportController:
         return {'elaptime': time.time()-start, 'data': self.move_rate}
 
     def reset(self, stage_id=1):
-        """ Reset stage """
+        """ Reset stage
+
+        :param stage_id: int, stage position in the daisy chain starting with 1
+        :return: return from __send_command
+        """
         return self.__send_command(cmd="RS", stage_id=stage_id)
 
     def get_params(self, stage_id=1):
-        """ Get stage parameters """
+        """ Get stage parameters
+
+        :param stage_id: int, stage position in the daisy chain starting with 1
+        :return: return from __send_command
+        """
         return self.__send_command(cmd="ZT", stage_id=stage_id)
 
     def run_manually(self, stage_id=1):
-        """ Input stage commands manually """
+        """ Input stage commands manually
+
+        :param stage_id: int, stage position in the daisy chain starting with 1
+        :return: None
+        """
         while True:
 
             cmd = input("Enter Command")
