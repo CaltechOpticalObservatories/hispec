@@ -61,7 +61,7 @@ For stage 1 & 2 current values are:
 1.76994e-05 - units per encoder increment, from 1SU?
 
 """
-
+import errno
 import logging
 from logging import Logger
 from logging.handlers import TimedRotatingFileHandler
@@ -168,7 +168,7 @@ class NewportController:
         """
 
         # Set up socket
-        self.socket = socket.socket()
+        self.socket = None
         self.connected = False
 
         # number of daisy-chained stages
@@ -185,9 +185,12 @@ class NewportController:
     def connect(self, ip=None, port=None):
         """ Connect to stage controller.
 
-        :param ip: host ip
-        :param port: port socket number
+        :param ip:str, Host ip
+        :param port:int, Port socket number
         """
+        start = time.time()
+        if self.socket is None:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self.socket.connect((ip, port))
             logger.info("Connected to %(host)s:%(port)s", {
@@ -195,33 +198,36 @@ class NewportController:
                 'port': port
             })
             self.connected = True
-            return None
-        except OSError:
-            logger.info("Already connected")
-            self.connected = True
-            return None
-        except Exception as e:
-            logger.info("Error connecting to the socket", exc_info=True)
-            self.connected = False
-            return e
+            ret = {'elaptime': time.time()-start, 'data': 'connected'}
+        except OSError as e:
+            if e.errno == errno.EISCONN:
+                logger.info("Already connected")
+                self.connected = True
+                ret = {'elaptime': time.time()-start, 'data': 'already connected'}
+            else:
+                logger.error("Connection error: %s", e.strerror)
+                self.connected = False
+                ret = {'elaptime': time.time()-start, 'error': e.strerror}
+        return ret
 
     def disconnect(self):
         """ Disconnect stage controller.
         """
+        start = time.time()
         try:
             self.socket.shutdown(socket.SHUT_RDWR)
             self.socket.close()
+            self.socket = None
             logger.info("Disconnected controller")
             self.connected = False
-            return None
-        except OSError:
-            logger.info("Not connected")
+            ret = {'elaptime': time.time()-start, 'data': 'disconnected'}
+        except OSError as e:
+            logger.info("Disconnection error: %s", e.strerror)
             self.connected = False
-            return None
-        except Exception as e:
-            logger.info("Error disconnecting to the socket", exc_info=True)
-            self.connected = False
-            return e
+            self.socket = None
+            ret = {'elaptime': time.time()-start, 'error': e.strerror}
+
+        return ret
 
     def __send_serial_command(self, stage_id=1, cmd='', timeout=15):
         """
