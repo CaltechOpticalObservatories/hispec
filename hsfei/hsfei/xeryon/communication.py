@@ -3,13 +3,8 @@ import serial
 import threading
 from .axis import Axis
 
-class Communication:
-    ser = None  # Holds the serial connection.
-    readyToSend = None  # List that contains commands that are ready to send.
-    stop_thread = False  # Boolean for stopping the thread.
-    thread = None
-    xeryon_object = None  # Link to the "Xeryon" object.
 
+class Communication:
     def __init__(self, xeryon_object, COM_port, baud):
         self.xeryon_object = xeryon_object
         self.COM_port = COM_port
@@ -17,19 +12,21 @@ class Communication:
         self.readyToSend = []
         self.thread = None
         self.ser = None
-        pass
+        self.stop_thread = False
 
-    def start(self, external_communication_thread = False):
+    def start(self, external_communication_thread=False):
         """
         :return: None
         This starts the serial communication on the specified COM port and baudrate in a seperate thread.
         """
         if self.COM_port is None:
-            self.xeryon_object.findCOMPort()
-        if self.COM_port is None: #No com port found
-            raise Exception("No COM_port could automatically be found. You should provide it manually.")
+            self.xeryon_object.find_COM_port()
+        if self.COM_port is None:  # No com port found
+            raise Exception(
+                "No COM_port could automatically be found. You should provide it manually.")
 
-        self.ser = serial.Serial(self.COM_port, self.baud, timeout=1, xonxoff=True)
+        self.ser = serial.Serial(
+            self.COM_port, self.baud, timeout=1, xonxoff=True)
         self.ser.flush()
         # NOTE: (KPIC MOD) added flushInput() and flushOutput() per Xeryon's suggestion
         time.sleep(0.1)
@@ -43,9 +40,8 @@ class Communication:
             self.thread.start()
         else:
             return self.__processData
-        
 
-    def sendCommand(self, command):
+    def send_command(self, command):
         """
         :param command: The command that needs to be send.
         :return: None
@@ -54,11 +50,10 @@ class Communication:
         self.readyToSend.append(command)
         # self.ser.write(str.encode(command.rstrip("\n\r") + "\n"))
 
-    def setCOMPort(self, com_port):
+    def set_COM_port(self, com_port):
         self.COM_port = com_port
 
-
-    def __processData(self, external_while_loop = False):
+    def __processData(self, external_while_loop=False):
         """
         :return: None
         This function is ran in a seperate thread.
@@ -71,7 +66,7 @@ class Communication:
             It determines the correct axis and passes that data to that axis class.
         3. Thread stop command.
         """
-        
+
         while self.stop_thread is False:  # Infinte looe
             # dataToSend = list(self.readyToSend)  # Make a copy of this list
             # self.readyToSend = []  # Immediately remove the list
@@ -84,22 +79,23 @@ class Communication:
                 self.ser.write(str.encode(command.rstrip("\n\r") + "\n"))
 
             max_to_read = 10
-            while self.ser.in_waiting > 0 and max_to_read >0:  # While there is data to read
+            while self.ser.in_waiting > 0 and max_to_read > 0:  # While there is data to read
                 reading = self.ser.readline().decode()  # Read a single line
-         
+
                 if "=" in reading:  # Line contains a command.
 
-                    if len(reading.split(":")) == 2: #check if an axis is specified
-                        axis = self.xeryon_object.getAxis(reading.split(":")[0])
+                    if len(reading.split(":")) == 2:  # check if an axis is specified
+                        axis = self.xeryon_object.get_axis(
+                            reading.split(":")[0])
                         reading = reading.split(":")[1]
                         if axis is None:
                             axis = self.xeryon_object.axis_list[0]
-                        axis.receiveData(reading)
+                        axis.receive_data(reading)
 
                     else:
                         # It's a single axis system
                         axis = self.xeryon_object.axis_list[0]
-                        axis.receiveData(reading)
+                        axis.receive_data(reading)
 
                 max_to_read -= 1
             if external_while_loop is True:
@@ -107,39 +103,38 @@ class Communication:
 
             # NOTE: (KPIC MOD) we added a delay here so that we don't use as much CPU power on this loop
             time.sleep(0.01)
-  
 
-    def closeCommunication(self):
+    def close_communication(self):
         self.stop_thread = True
         time.sleep(0.1)
         self.ser.close()
-        
-    def stopMovements(self):
+
+    def stop_movements(self):
         """
         Just stop moving.
         """
-        for axis in self.getAllAxis():
-            axis.sendCommand("STOP=0")
+        for axis in self.get_all_axis():
+            axis.send_command("STOP=0")
             axis.was_valid_DPOS = False
-            
+
     def reset(self):
         """
         :return: None
         This function sends RESET to the controller, and resends all settings.
         """
-        for axis in self.getAllAxis():
+        for axis in self.get_all_axis():
             axis.reset()
         time.sleep(0.2)
 
-        self.readSettings()  # Read settings file again
+        self.read_settings()  # Read settings file again
 
-    def getAllAxis(self):
+    def get_all_axis(self):
         """
         :return: A list containing all axis objects belonging to this controller.
         """
         return self.axis_list
 
-    def addAxis(self, stage, axis_letter):
+    def add_axis(self, stage, axis_letter):
         """
         :param stage: Specify the type of stage that is connected.
         :type stage: Stage
@@ -152,19 +147,19 @@ class Communication:
         return newAxis
 
     # End User Commands
-    def getCommunication(self):
+    def get_communication(self):
         """
         :return: The communication class.
         """
         return self.comm
 
-    def getAxis(self, letter):
+    def get_axis(self, letter):
         """
         :param letter: Specify the axis letter
         :return: Returns the correct axis object. Or None if the axis does not exist.
         """
         if self.axis_letter_list.count(letter) == 1:  # Axis letter found
             indx = self.axis_letter_list.index(letter)
-            if len(self.getAllAxis()) > indx:
-                return self.getAllAxis()[indx]  # Return axis
+            if len(self.get_all_axis()) > indx:
+                return self.get_all_axis()[indx]  # Return axis
         return None

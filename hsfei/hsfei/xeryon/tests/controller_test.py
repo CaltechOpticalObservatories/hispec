@@ -8,32 +8,32 @@ class MockAxis:
         self.settings = {}
         self.was_valid_DPOS = False
 
-    def sendCommand(self, cmd):
+    def send_command(self, cmd):
         self.commands.append(cmd)
 
-    def setSetting(self, tag, value, *_, **__):
+    def set_setting(self, tag, value, *_, **__):
         self.settings[tag] = value
 
     def reset(self):
         self.commands.append("RSET=0")
 
-    def sendSettings(self):
-        self.commands.append("sendSettings")
+    def send_settings(self):
+        self.commands.append("send_settings")
 
-    def getLetter(self):
+    def get_letter(self):
         return "X"
 
 class MockComm:
     def __init__(self):
         self.sent_commands = []
 
-    def sendCommand(self, cmd):
+    def send_command(self, cmd):
         self.sent_commands.append(cmd)
 
-    def closeCommunication(self):
+    def close_communication(self):
         self.sent_commands.append("CLOSE")
 
-    def setCOMPort(self, port):
+    def set_COM_port(self, port):
         self.port = port
 
     def start(self, *_):
@@ -57,7 +57,7 @@ class TestXeryonController(unittest.TestCase):
         self.controller.axis_letter_list = ["X"]
 
     def test_add_axis(self):
-        result = self.controller.addAxis(MockStage(), "Y")
+        result = self.controller.add_axis(MockStage(), "Y")
         self.assertEqual(len(self.controller.axis_list), 2)
         self.assertEqual(result.axis_letter, "Y")
 
@@ -71,19 +71,19 @@ class TestXeryonController(unittest.TestCase):
         self.assertIn("CLOSE", self.controller.comm.sent_commands)
 
     def test_set_master_setting(self):
-        self.controller.setMasterSetting("VEL", "100")
+        self.controller.set_master_setting("VEL", "100")
         self.assertEqual(self.controller.master_settings["VEL"], "100")
         self.assertIn("VEL=100", self.controller.comm.sent_commands)
 
     def test_send_master_settings(self):
         self.controller.master_settings = {"VEL": "100", "ACC": "10"}
-        self.controller.sendMasterSettings()
+        self.controller.send_master_settings()
         self.assertIn("VEL=100", self.controller.comm.sent_commands)
         self.assertIn("ACC=10", self.controller.comm.sent_commands)
 
     @patch("builtins.open", new_callable=mock_open, read_data="X:VEL=100\nACC=10\n")
     def test_read_settings(self, mock_file):
-        self.controller.readSettings()
+        self.controller.read_settings()
         self.assertEqual(self.axis.settings["VEL"], "100")
 
     @patch("serial.tools.list_ports.comports")
@@ -93,7 +93,7 @@ class TestXeryonController(unittest.TestCase):
                 self.device = device
                 self.hwid = hwid
         mock_comports.return_value = [Port("COM3", "USB VID:PID=04D8")]
-        self.controller.findCOMPort()
+        self.controller.find_COM_port()
         self.assertEqual(self.controller.comm.port, "COM3")
 
 if __name__ == "__main__":

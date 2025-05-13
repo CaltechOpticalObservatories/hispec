@@ -21,7 +21,7 @@ class Units(Enum):
     def __str__(self):
         return self.str_name
 
-    def getUnit(self, str):
+    def get_unit(self, str):
         for unit in Units:
             if unit.str_name in str:
                 return unit

@@ -7,14 +7,14 @@ class MockAxis:
     def __init__(self):
         self.received_data = []
 
-    def receiveData(self, data):
+    def receive_data(self, data):
         self.received_data.append(data)
 
 class MockXeryon:
     def __init__(self):
         self.axis_list = [MockAxis()]
 
-    def getAxis(self, letter):
+    def get_axis(self, letter):
         return self.axis_list[0]
 
 class TestCommunication(unittest.TestCase):
@@ -36,7 +36,7 @@ class TestCommunication(unittest.TestCase):
     def test_send_command_queues_command(self):
         mock_xeryon = MockXeryon()
         comm = Communication(mock_xeryon, 'COM3', 115200)
-        comm.sendCommand("DPOS=100")
+        comm.send_command("DPOS=100")
 
         self.assertEqual(comm.readyToSend, ["DPOS=100"])
 
