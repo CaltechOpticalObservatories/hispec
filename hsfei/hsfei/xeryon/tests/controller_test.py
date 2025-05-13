@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch, mock_open
 from ..controller import XeryonController
 
+
 class MockAxis:
     def __init__(self):
         self.commands = []
@@ -23,6 +24,7 @@ class MockAxis:
     def get_letter(self):
         return "X"
 
+
 class MockComm:
     def __init__(self):
         self.sent_commands = []
@@ -38,7 +40,8 @@ class MockComm:
 
     def start(self, *_):
         return self
-    
+
+
 class MockStage:
     isLineair = True
     encoderResolutionCommand = "XLS1=312"
@@ -46,6 +49,7 @@ class MockStage:
     speedMultiplier = 1000
     amplitudeMultiplier = 1456.0
     phaseMultiplier = 182
+
 
 class TestXeryonController(unittest.TestCase):
 
@@ -95,6 +99,7 @@ class TestXeryonController(unittest.TestCase):
         mock_comports.return_value = [Port("COM3", "USB VID:PID=04D8")]
         self.controller.find_COM_port()
         self.assertEqual(self.controller.comm.port, "COM3")
+
 
 if __name__ == "__main__":
     unittest.main()

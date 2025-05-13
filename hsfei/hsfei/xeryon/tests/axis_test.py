@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import MagicMock
 from ..axis import Axis
 
+
 class MockStage:
     isLineair = True
     encoderResolutionCommand = "XLS1=312"
@@ -10,12 +11,14 @@ class MockStage:
     amplitudeMultiplier = 1456.0
     phaseMultiplier = 182
 
+
 class MockXeryonController:
     def isSingleAxisSystem(self):
         return True
 
     def get_communication(self):
         return MagicMock(send_command=MagicMock())
+
 
 class TestAxis(unittest.TestCase):
 
@@ -63,6 +66,7 @@ class TestAxis(unittest.TestCase):
         val = self.axis.convert_encoder_units_to_units(312500, self.axis.units)
         expected = 312500 / (1e6 / self.stage.encoderResolution)
         self.assertAlmostEqual(val, expected, places=2)
+
 
 if __name__ == '__main__':
     unittest.main()

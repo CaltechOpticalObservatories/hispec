@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class Units(Enum):
     """
     This class is only made for making the program more readable.

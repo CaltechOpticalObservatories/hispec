@@ -3,10 +3,11 @@ import serial
 from .communication import Communication
 from .axis import Axis
 from .config import AUTO_SEND_SETTINGS, SETTINGS_FILENAME, OUTPUT_TO_CONSOLE
-from .utils import outputConsole
+from .utils import output_console
+
 
 class XeryonController:
-    def __init__(self, COM_port = None, baudrate = 115200):
+    def __init__(self, COM_port=None, baudrate=115200):
         """
             :param COM_port: Specify the COM port used
             :type COM_port: string
@@ -16,7 +17,8 @@ class XeryonController:
 
             Main Xeryon Drive Class, initialize with the COM port and baudrate for communication with the driver.
         """
-        self.comm = Communication(self, COM_port, baudrate)  # Startup communication
+        self.comm = Communication(
+            self, COM_port, baudrate)  # Startup communication
         self.axis_list = []
         self.axis_letter_list = []
         self.master_settings = {}
@@ -27,7 +29,7 @@ class XeryonController:
         """
         return len(self.get_all_axis()) <= 1
 
-    def start(self, external_communication_thread = False, doReset=True):
+    def start(self, external_communication_thread=False, doReset=True):
         """
         :return: Nothing.
         This functions NEEDS to be ran before any commands are executed.
@@ -40,8 +42,9 @@ class XeryonController:
         if len(self.get_all_axis()) <= 0:
             raise Exception(
                 "Cannot start the system without stages. The stages don't have to be connnected, only initialized in the software.")
-        
-        comm = self.get_communication().start(external_communication_thread)  # Start communication
+
+        comm = self.get_communication().start(
+            external_communication_thread)  # Start communication
 
         if doReset:
             for axis in self.get_all_axis():
@@ -60,11 +63,9 @@ class XeryonController:
             axis.send_command("SSPD=?")
             axis.send_command("PTO2=?")
             axis.send_command("PTOL=?")
-        
-        
+
         if external_communication_thread:
             return comm
-        
 
     def stop(self, isPrintEnd=True):
         """
@@ -79,8 +80,7 @@ class XeryonController:
             axis.was_valid_DPOS = False
         self.get_communication().close_communication()  # Close communication
         if isPrintEnd:
-            outputConsole("Program stopped running.")
-
+            output_console("Program stopped running.")
 
     def stop_movements(self):
         """
@@ -89,7 +89,6 @@ class XeryonController:
         for axis in self.get_all_axis():
             axis.send_command("STOP=0")
             axis.was_valid_DPOS = False
-
 
     def reset(self):
         """
@@ -152,21 +151,26 @@ class XeryonController:
         try:
             file = open(SETTINGS_FILENAME, "r")
             for line in file.readlines():  # For each line:
-                if "=" in line and line.find("%") != 0:  # Check if it's a command and not a comment or blank line.
+                # Check if it's a command and not a comment or blank line.
+                if "=" in line and line.find("%") != 0:
 
-                    line = line.strip("\n\r").replace(" ", "")  # Strip spaces and newlines.
-                    axis = self.get_all_axis()[0]  # Default select the first axis.
+                    # Strip spaces and newlines.
+                    line = line.strip("\n\r").replace(" ", "")
+                    # Default select the first axis.
+                    axis = self.get_all_axis()[0]
                     if ":" in line:  # Check if axis is specified
                         axis = self.get_axis(line.split(":")[0])
                         if axis is None:  # Check if specified axis exists
-                            continue  # No valid axis? ==> IGNORE and loop further.
+                            # No valid axis? ==> IGNORE and loop further.
+                            continue
                         line = line.split(":")[1]  # Strip "X:" from command
                     elif not self.isSingleAxisSystem():
                         # This line doesn't contain ":", so it doesn't specify an axis.
                         # BUT It's a multi-axis system ==> so these settings are for the master.
                         if "%" in line:  # Ignore comments
                             line = line.split("%")[0]
-                        self.set_master_setting(line.split("=")[0], line.split("=")[1], True)
+                        self.set_master_setting(line.split(
+                            "=")[0], line.split("=")[1], True)
                         continue
 
                     if "%" in line:  # Ignore comments
@@ -175,19 +179,19 @@ class XeryonController:
                     tag = line.split("=")[0]
                     value = line.split("=")[1]
 
-                    axis.set_setting(tag, value, True, doNotSendThrough=True)  # Update settings for specified axis.
+                    # Update settings for specified axis.
+                    axis.set_setting(tag, value, True, doNotSendThrough=True)
 
             file.close()  # Close file
         except FileNotFoundError as e:
-            outputConsole("No settings_default.txt found.")
+            output_console("No settings_default.txt found.")
             # self.stop()  # Make sure the thread also stops.
             # raise Exception(
-                # "ERROR: settings_default.txt file not found. Place it in the same folder as Xeryon.py. \n "
-                # "The settings_default.txt is delivered in the same folder as the Windows Interface. \n " + str(e))
+            # "ERROR: settings_default.txt file not found. Place it in the same folder as Xeryon.py. \n "
+            # "The settings_default.txt is delivered in the same folder as the Windows Interface. \n " + str(e))
         except Exception as e:
             raise e
 
-    
     def set_master_setting(self, tag, value, fromSettingsFile=False):
         """
             In multi-axis systems, commands without an axis specified are for the master.
@@ -198,8 +202,7 @@ class XeryonController:
             self.comm.send_command(str(tag)+"="+str(value))
         if "COM" in tag:
             self.set_COM_port(str(value))
-    
-    
+
     def send_master_settings(self, axis=False):
         """
          In multi-axis systems, commands without an axis specified are for the master.
@@ -220,11 +223,11 @@ class XeryonController:
         if axis is None:
             self.comm.send_command("SAVE=0")
         else:
-            self.comm.send_command(str(self.get_all_axis()[0].get_letter()) + ":SAVE=0")
+            self.comm.send_command(
+                str(self.get_all_axis()[0].get_letter()) + ":SAVE=0")
 
     def set_COM_port(self, com_port):
         self.get_communication().set_COM_port(com_port)
-
 
     def find_COM_port(self):
         """

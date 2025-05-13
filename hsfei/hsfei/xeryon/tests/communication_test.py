@@ -10,12 +10,14 @@ class MockAxis:
     def receive_data(self, data):
         self.received_data.append(data)
 
+
 class MockXeryon:
     def __init__(self):
         self.axis_list = [MockAxis()]
 
     def get_axis(self, letter):
         return self.axis_list[0]
+
 
 class TestCommunication(unittest.TestCase):
 
@@ -28,7 +30,8 @@ class TestCommunication(unittest.TestCase):
         comm = Communication(mock_xeryon, 'COM3', 115200)
         comm.start()
 
-        mock_serial_class.assert_called_with('COM3', 115200, timeout=1, xonxoff=True)
+        mock_serial_class.assert_called_with(
+            'COM3', 115200, timeout=1, xonxoff=True)
         mock_serial.flush.assert_called()
         mock_serial.flushInput.assert_called()
         mock_serial.flushOutput.assert_called()
@@ -56,6 +59,7 @@ class TestCommunication(unittest.TestCase):
 
         self.assertIn("DPOS=1000\n", mock_xeryon.axis_list[0].received_data)
         mock_serial.write.assert_called_with(b"X:MOVE=1\n")
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -2,7 +2,8 @@ import time
 import math
 from .units import Units
 from .config import DEFAULT_POLI_VALUE, DISABLE_WAITING, DEBUG_MODE, NOT_SETTING_COMMANDS, AUTO_SEND_ENBL
-from .utils import outputConsole, getDposEposString, getActualTime
+from .utils import output_console, get_dpos_epos_string, get_actual_time
+
 
 class Axis:
     axis_letter = None  # Stores the axis letter for this specific axis.
@@ -11,19 +12,22 @@ class Axis:
     settings = None  # Stores all the settings from the settings file
     stage = None  # Specifies the type of stage used in this axis.
     units = Units.mm  # Specifies the units this axis is currently working in.
-    update_nb = 0  # This number increments each time an update is recieved from the controller.
-    was_valid_DPOS = False  # if True, the STEP command takes DPOS as the refrence. It's called "targeted_position=1/0" in the Microcontroller
+    # This number increments each time an update is recieved from the controller.
+    update_nb = 0
+    # if True, the STEP command takes DPOS as the refrence. It's called "targeted_position=1/0" in the Microcontroller
+    was_valid_DPOS = False
     def_poli_value = str(DEFAULT_POLI_VALUE)
 
-    isLogging = False  # Stores if this axis is currently "Logging": it's storing its axis_data.
+    # Stores if this axis is currently "Logging": it's storing its axis_data.
+    isLogging = False
     logs = {}  # This stores all the data. It's a dictionary of the form:
 
-    previous_epos = [0,0] # Two samples to calculate speed
-    previous_time = [0,0]
+    previous_epos = [0, 0]  # Two samples to calculate speed
+    previous_time = [0, 0]
 
     # { "EPOS": [...,...,...], "DPOS": [...,...,...], "STAT":[...,...,...],...}
 
-    def find_index(self, forceWaiting = False, direction=0):
+    def find_index(self, forceWaiting=False, direction=0):
         """
         :return: None
         This function finds the index, after finding the index it goes to the index position.
@@ -33,17 +37,19 @@ class Axis:
         self.was_valid_DPOS = False
 
         if DISABLE_WAITING is False or forceWaiting is True:
-            self.__wait_for_update()  # Waits a couple of updates, so the EncoderValid flag is valid and doesn't lagg behind.
+            # Waits a couple of updates, so the EncoderValid flag is valid and doesn't lagg behind.
             self.__wait_for_update()
-            outputConsole("Searching index for axis " + str(self) + ".")
+            self.__wait_for_update()
+            output_console("Searching index for axis " + str(self) + ".")
             while not self.is_encoder_valid():  # While index not found, wait.
                 if not self.is_searching_index():  # Check if searching for index bit is true.
-                    outputConsole("Index is not found, but stopped searching for index.", True)
+                    output_console(
+                        "Index is not found, but stopped searching for index.", True)
                     break
                 time.sleep(0.2)
 
         if self.is_encoder_valid():
-            outputConsole("Index of axis " + str(self) + " found.")
+            output_console("Index of axis " + str(self) + " found.")
 
     def move(self, value):
         value = int(value)
@@ -64,18 +70,23 @@ class Axis:
         Note: This function makes use of the send_command function, which is blocking the program until the position is reached.
         """
         unit = self.units  # Current units
-        if differentUnits is not None:  # If the value given are in different units than the current units:
-            unit = differentUnits  # Then specify the unit in differentUnits argument.
+        # If the value given are in different units than the current units:
+        if differentUnits is not None:
+            # Then specify the unit in differentUnits argument.
+            unit = differentUnits
 
-        DPOS = int(self.convert_units_to_encoder(value, unit))  # Convert into encoder units.
+        # Convert into encoder units.
+        DPOS = int(self.convert_units_to_encoder(value, unit))
         error = False
 
         self.__send_command("DPOS=" + str(DPOS))
-        self.was_valid_DPOS = True # And keep it True in order to avoid an accumulating error.
+        # And keep it True in order to avoid an accumulating error.
+        self.was_valid_DPOS = True
 
         # Block all futher processes until position is reached.
-        if DEBUG_MODE is False and DISABLE_WAITING is False:  # This check isn't nessecary in DEBUG mode or when DISABLE_WAITING is True
-            # send_time = getActualTime()
+        # This check isn't nessecary in DEBUG mode or when DISABLE_WAITING is True
+        if DEBUG_MODE is False and DISABLE_WAITING is False:
+            # send_time = get_actual_time()
             # distance = abs(int(DPOS) - int(self.get_data("EPOS")))  # For calculating timeout time.
 
             # Wait some updates. This is so the flags (e.g. left end stop) of the previous command aren't received.
@@ -86,7 +97,8 @@ class Axis:
 
                 # Check if stage is at left end or right end. ==> out of range movement.
                 if self.is_at_left_end() or self.is_at_right_end():
-                    outputConsole("DPOS is out or range. (1) " + getDposEposString(value, self.get_EPOS(), unit), True)
+                    output_console("DPOS is out or range. (1) " +
+                                   get_dpos_epos_string(value, self.get_EPOS(), unit), True)
                     error = True
                     break
 
@@ -96,50 +108,52 @@ class Axis:
                 #     # Check if it's a lineair stage and DPOS is beyond it's limits.
                 #     if self.stage.isLineair and (
                 #             int(self.get_setting("LLIM")) > int(DPOS) or int(self.get_setting("HLIM")) < int(DPOS)):
-                #         outputConsole("DPOS is out or range.(2)" + getDposEposString(value, self.get_EPOS(), unit), True)
+                #         output_console("DPOS is out or range.(2)" + get_dpos_epos_string(value, self.get_EPOS(), unit), True)
                 #         error = True
                 #         break
 
                 #     # EPOS is not within tolerance of DPOS, unknown reason.
-                #     outputConsole("Position not reached. (3) " + getDposEposString(value, self.get_EPOS(), unit), True)
+                #     output_console("Position not reached. (3) " + get_dpos_epos_string(value, self.get_EPOS(), unit), True)
                 #     error = True
                 #     break
-                
+
                 if self.is_encoder_error():
-                    outputConsole("Position not reached. (4). Encoder gave an error.", True)
+                    output_console(
+                        "Position not reached. (4). Encoder gave an error.", True)
                     error = True
                     break
-                    
+
                 if self.is_error_limit():
-                    outputConsole("Position not reached. (5) ELIM Triggered.", True)
+                    output_console(
+                        "Position not reached. (5) ELIM Triggered.", True)
                     error = True
                     break
 
                 if self.is_safety_timeout_triggered():
-                    outputConsole("Position not reached. (6) TOU2 (Timeout 2) triggered.", True)
+                    output_console(
+                        "Position not reached. (6) TOU2 (Timeout 2) triggered.", True)
                     error = True
                     break
 
                 if self.is_thermal_protection_1() or self.is_thermal_protection_2():
-                    outputConsole("Position not reached. (7) amplifier error.", True)
+                    output_console(
+                        "Position not reached. (7) amplifier error.", True)
                     error = True
                     break
 
                 # # This movement took too long, timeout time is estimated with speed & distance.
                 # if self.__time_out_reached(send_time, distance):
-                #     outputConsole(
-                #         "Position not reached, timeout reached. (4) " + getDposEposString(value, self.get_EPOS(), unit),
+                #     output_console(
+                #         "Position not reached, timeout reached. (4) " + get_dpos_epos_string(value, self.get_EPOS(), unit),
                 #         True)
                 #     error = True
                 #     break
                 # Keep polling ==> if timeout is not done, the computer will poll too fast. The microcontroller can't follow.
-                
+
                 time.sleep(0.01)
 
         if outputToConsole and error is False and DISABLE_WAITING is False:  # Output new DPOS & EPOS if necessary
-            outputConsole(getDposEposString(value, self.get_EPOS(), unit))
-
-
+            output_console(get_dpos_epos_string(value, self.get_EPOS(), unit))
 
     def set_TRGS(self, value):
         """
@@ -204,18 +218,23 @@ class Axis:
         else:
             new_DPOS = int(self.get_data("EPOS")) + step
 
-        if not self.stage.isLineair: # Rotating Stage
+        if not self.stage.isLineair:  # Rotating Stage
             # Below is the amount of encoder units in one revolution.
             # From -180 => +180
             # -180 *(val // 180 % 2) + (val % 180)
-            encoderUnitsPerRevolution = self.convert_units_to_encoder(360, Units.deg)
-            new_DPOS = -encoderUnitsPerRevolution/2 * (new_DPOS // (encoderUnitsPerRevolution/2) % 2) + (new_DPOS % (encoderUnitsPerRevolution/2))
+            encoderUnitsPerRevolution = self.convert_units_to_encoder(
+                360, Units.deg)
+            new_DPOS = -encoderUnitsPerRevolution/2 * \
+                (new_DPOS // (encoderUnitsPerRevolution/2) %
+                 2) + (new_DPOS % (encoderUnitsPerRevolution/2))
 
-        self.set_D_POS(new_DPOS, Units.enc, False)  # This is used so position is checked in here.
+        # This is used so position is checked in here.
+        self.set_D_POS(new_DPOS, Units.enc, False)
         if DISABLE_WAITING is False:
-            self.__wait_for_update()  # Waits a couple of updates, so the EPOS is valid and doesn't lagg behind.
-            outputConsole("Stepped: " + str(self.convert_encoder_units_to_units(step, self.units)) + " " + str(
-                self.units) + " " + getDposEposString(self.getDPOS(), self.get_EPOS(), self.units))
+            # Waits a couple of updates, so the EPOS is valid and doesn't lagg behind.
+            self.__wait_for_update()
+            output_console("Stepped: " + str(self.convert_encoder_units_to_units(step, self.units)) + " " + str(
+                self.units) + " " + get_dpos_epos_string(self.getDPOS(), self.get_EPOS(), self.units))
 
     def get_EPOS(self):
         """
@@ -230,7 +249,7 @@ class Axis:
         """
         self.units = units
 
-    def start_logging(self, increase_poli = True):
+    def start_logging(self, increase_poli=True):
         """
         This function starts logging all data that the controller sends.
         It updates the POLI (Polling Interval) to get more data.
@@ -250,7 +269,8 @@ class Axis:
         logs = self.logs  # Store logs
         self.logs = {}  # Reset logs
 
-        self.set_setting("POLI", str(self.def_poli_value))  # Restore POLI back to default value.
+        # Restore POLI back to default value.
+        self.set_setting("POLI", str(self.def_poli_value))
         return logs
 
     def get_frequency(self):
@@ -308,10 +328,10 @@ class Axis:
         """
         if self.stage.isLineair:
             speed = int(self.convert_encoder_units_to_units(self.convert_units_to_encoder(speed, self.units),
-                                                        Units.mu))  # Convert to micrometer
+                                                            Units.mu))  # Convert to micrometer
         else:
             speed = self.convert_encoder_units_to_units(self.convert_units_to_encoder(speed, self.units),
-                                                    Units.deg)  # Convert to degrees
+                                                        Units.deg)  # Convert to degrees
             speed = int(speed) * 100  # *100 conversion factor.
         self.set_setting("SSPD", str(speed))
 
@@ -477,7 +497,8 @@ class Axis:
             value = str(int(int(value) * self.stage.amplitudeMultiplier))
         elif "PHAC" in tag or "PHAS" in tag:
             value = str(int(int(value) * self.stage.phaseMultiplier))
-        elif "SSPD" in tag or "MSPD" in tag or "ISPD" in tag:  # In the settigns file, SSPD is in mm/s ==> gets translated to mu/s
+        # In the settigns file, SSPD is in mm/s ==> gets translated to mu/s
+        elif "SSPD" in tag or "MSPD" in tag or "ISPD" in tag:
             value = str(int(float(value) * self.stage.speedMultiplier))
         elif "LLIM" in tag or "RLIM" in tag or "HLIM" in tag:
             # These are given in mm/deg and need to be converted to encoder units
@@ -509,7 +530,7 @@ class Axis:
         self.axis_letter = axis_letter
         self.xeryon_object = xeryon_object
         self.stage = stage
-        self.axis_data = dict({"EPOS": 0, "DPOS": 0, "STAT": 0, "SSPD":0})
+        self.axis_data = dict({"EPOS": 0, "DPOS": 0, "STAT": 0, "SSPD": 0})
         self.settings = dict({})
         if self.stage.isLineair:
             self.units = Units.mm
@@ -549,7 +570,7 @@ class Axis:
         elif self.get_setting("PTOL") is not None:
             PTO2 = int(self.get_setting("PTOL"))
         else:
-            PTO2 = 100 #TODO
+            PTO2 = 100  # TODO
         EPOS = abs(int(self.get_data("EPOS")))
 
         if DPOS - PTO2 <= EPOS <= DPOS + PTO2:
@@ -562,9 +583,10 @@ class Axis:
         :return: True if the timeout time has been reached.
         The timeout time is calculated based on the speed (SSPD) and the distance.
         """
-        t = getActualTime()
+        t = get_actual_time()
         speed = int(self.get_setting("SSPD"))
-        timeout_t = (distance / speed * 1000)  # Convert seconds to milliseconds
+        # Convert seconds to milliseconds
+        timeout_t = (distance / speed * 1000)
         timeout_t *= 1.25  # 25% safety factor
 
         # For quick and tiny movements, the method above is not accurate.
@@ -587,8 +609,9 @@ class Axis:
         if "=" in data:
             tag = data.split("=")[0]
             val = data.split("=")[1].rstrip("\n\r").replace(" ", "")
-            
-            if tag not in NOT_SETTING_COMMANDS and "EPOS" not in tag and "DPOS" not in tag and not "FREQ" in tag:  # The received command is a setting that's requested.
+
+            # The received command is a setting that's requested.
+            if tag not in NOT_SETTING_COMMANDS and "EPOS" not in tag and "DPOS" not in tag and not "FREQ" in tag:
                 self.set_setting(tag, val)
             elif "FREQ" in tag:
                 if self.get_setting("FREQ") is not None and int(self.get_setting("FREQ")) != int(val):
@@ -598,34 +621,38 @@ class Axis:
 
             if "STAT" in tag:
                 if self.is_safety_timeout_triggered():
-                    outputConsole("The safety timeout was triggered (TOU2 command). "
-                                  "This means that the stage kept moving and oscillating around the desired position. "
-                                  "A reset is required now OR 'ENBL=1' should be send.", True)
+                    output_console("The safety timeout was triggered (TOU2 command). "
+                                   "This means that the stage kept moving and oscillating around the desired position. "
+                                   "A reset is required now OR 'ENBL=1' should be send.", True)
 
                 if self.is_thermal_protection_1() or self.is_thermal_protection_2() or self.is_error_limit() or self.is_safety_timeout_triggered():
                     if self.is_error_limit():
-                        outputConsole("Error limit is reached (status bit 16). A reset is required now OR 'ENBL=1' should be send.", True)
+                        output_console(
+                            "Error limit is reached (status bit 16). A reset is required now OR 'ENBL=1' should be send.", True)
 
                     if self.is_thermal_protection_2() or self.is_thermal_protection_1():
-                        outputConsole("Thermal protection 1 or 2 is raised (status bit 2 or 3). A reset is required now OR 'ENBL=1' should be send.", True)
-                    
+                        output_console(
+                            "Thermal protection 1 or 2 is raised (status bit 2 or 3). A reset is required now OR 'ENBL=1' should be send.", True)
+
                     if self.is_safety_timeout_triggered():
-                        outputConsole("Saftety timeout (TOU2 timeout reached) triggered. A reset is required now OR 'ENBL=1' should be send.", True)
+                        output_console(
+                            "Saftety timeout (TOU2 timeout reached) triggered. A reset is required now OR 'ENBL=1' should be send.", True)
 
                     if AUTO_SEND_ENBL:
                         self.xeryon_object.set_master_setting("ENBL", "1")
-                        outputConsole("'ENBL=1' is automatically send.")
+                        output_console("'ENBL=1' is automatically send.")
 
             if "EPOS" in tag:  # This uses "EPOS" as an indicator that a new round of data is coming in.
-     
-                self.previous_epos.remove(self.previous_epos[0]) # Remove first entry
-                self.previous_epos.append(int(self.axis_data["EPOS"])) # Add EPOS: this is like a FIFO list
+
+                self.previous_epos.remove(
+                    self.previous_epos[0])  # Remove first entry
+                # Add EPOS: this is like a FIFO list
+                self.previous_epos.append(int(self.axis_data["EPOS"]))
                 self.update_nb += 1  # This update_nb is for the function __wait_for_update
 
-
-
             if self.isLogging:  # Log all received data if logging is enabled.
-                if tag not in ["SRNO", "XLS ", "XRTU", "XLA ", "XTRA", "SOFT", "SYNC"]:  # This data is useless.
+                # This data is useless.
+                if tag not in ["SRNO", "XLS ", "XRTU", "XLA ", "XTRA", "SOFT", "SYNC"]:
                     if self.logs.get(tag) is None:
                         self.logs[tag] = []
                     self.logs[tag].append(int(val))
@@ -641,10 +668,11 @@ class Axis:
                     t2 = self.previous_time[1]
                     if int(t2) < int(t1):
                         t2 += 2**16
-                
+
                     if len(self.previous_epos) >= 2:
-                        self.axis_data["SSPD"] = (self.previous_epos[1] - self.previous_epos[0])/(t2 - t1)
-                
+                        self.axis_data["SSPD"] = (
+                            self.previous_epos[1] - self.previous_epos[0])/(t2 - t1)
+
                 pass
 
     def get_data(self, TAG):
@@ -665,8 +693,6 @@ class Axis:
         for tag in self.settings:
             self.__send_command(str(tag) + "=" + str(self.get_setting(tag)))
 
-
-    
     def save_settings(self):
         """
         :return: None
@@ -674,7 +700,7 @@ class Axis:
         """
         self.send_command("SAVE=0")
 
-    def convert_units_to_encoder(self, value, units = None):
+    def convert_units_to_encoder(self, value, units=None):
         """
         :param value: The value that needs to be converted into encoder units.
         :param units: The units the value is in.
@@ -705,7 +731,7 @@ class Axis:
             self.xeryon_object.stop()
             raise ("Unexpected unit")
 
-    def convert_encoder_units_to_units(self, value, units = None):
+    def convert_encoder_units_to_units(self, value, units=None):
         """
         :param value: The value (in encoder units) that needs to be converted.
         :param units:  The output unit.
@@ -763,7 +789,8 @@ class Axis:
 
         # The wait number needs to adjust to POLI.
         if self.get_setting("POLI") is not None:
-            wait_nb = wait_nb / int(self.def_poli_value) * int(self.get_setting("POLI"))
+            wait_nb = wait_nb / int(self.def_poli_value) * \
+                int(self.get_setting("POLI"))
 
         start_nb = int(self.update_nb)
         while (int(self.update_nb) - start_nb) < wait_nb:
