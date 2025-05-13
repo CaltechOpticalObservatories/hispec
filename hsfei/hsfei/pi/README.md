@@ -11,7 +11,7 @@ Low-level Python library to control PI 863 and PI 663 motion controllers using t
 - Emergency halt of motion
 - Structured error handling via `pipython.GCSError`
 
-## Usage
+## Example Usage
 ```python
     from hsfei import PIControllerBase
 
