@@ -773,7 +773,7 @@ class Axis:
         value = str(command.split("=")[1])
 
         prefix = ""  # In a multi axis system, prefix stores the "LETTER:".
-        if not self.xeryon_object.isSingleAxisSystem():
+        if not self.xeryon_object.is_single_axis_system():
             prefix = self.axis_letter + ":"
 
         # Construct and send the command.

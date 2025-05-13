@@ -23,7 +23,7 @@ class XeryonController:
         self.axis_letter_list = []
         self.master_settings = {}
 
-    def isSingleAxisSystem(self):
+    def is_single_axis_system(self):
         """
         :return: Returns True if it's a single axis system, False if its a multiple axis system.
         """
@@ -164,7 +164,7 @@ class XeryonController:
                             # No valid axis? ==> IGNORE and loop further.
                             continue
                         line = line.split(":")[1]  # Strip "X:" from command
-                    elif not self.isSingleAxisSystem():
+                    elif not self.is_single_axis_system():
                         # This line doesn't contain ":", so it doesn't specify an axis.
                         # BUT It's a multi-axis system ==> so these settings are for the master.
                         if "%" in line:  # Ignore comments

@@ -13,7 +13,7 @@ class MockStage:
 
 
 class MockXeryonController:
-    def isSingleAxisSystem(self):
+    def is_single_axis_system(self):
         return True
 
     def get_communication(self):

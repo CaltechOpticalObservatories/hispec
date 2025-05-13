@@ -66,7 +66,7 @@ class TestXeryonController(unittest.TestCase):
         self.assertEqual(result.axis_letter, "Y")
 
     def test_is_single_axis(self):
-        self.assertTrue(self.controller.isSingleAxisSystem())
+        self.assertTrue(self.controller.is_single_axis_system())
 
     def test_stop_sends_commands(self):
         self.controller.stop()
