@@ -1,7 +1,13 @@
 import unittest
+import os
+import tempfile
 from unittest.mock import patch, mock_open
-from ..controller import XeryonController
+from hsfei import XeryonController
+from ..stage import Stage
+from ..units import Units
 
+
+print("Test" + XeryonController.__name__)
 
 class MockAxis:
     def __init__(self):
@@ -89,6 +95,36 @@ class TestXeryonController(unittest.TestCase):
     def test_read_settings(self, mock_file):
         self.controller.read_settings()
         self.assertEqual(self.axis.settings["VEL"], "100")
+    
+    def test_read_settings_applies_axis_values_correctly(self):
+        settings_content = """
+        X:LLIM=10
+        X:HLIM=200
+        X:SSPD=5000
+        X:POLI=7
+        """
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tmp:
+            tmp.write(settings_content)
+            tmp_path = tmp.name
+
+        try:
+            with patch("hsfei.xeryon.controller.SETTINGS_FILENAME", new=tmp_path):
+                controller = XeryonController()
+                axis = controller.add_axis(Stage.XLS_312, "X")
+                controller.read_settings()
+                
+                expected_llim = str(axis.convert_units_to_encoder(10, Units.mm))
+                self.assertEqual(axis.get_setting("LLIM"), expected_llim)
+                
+                expected_hlim = str(axis.convert_units_to_encoder(200, Units.mm))
+                self.assertEqual(axis.get_setting("HLIM"), expected_hlim)
+                
+                expected_sspd = str(int(5000 * axis.stage.speedMultiplier))
+                self.assertEqual(axis.get_setting("SSPD"), expected_sspd)
+                
+                self.assertEqual(axis.get_setting("POLI"), "7")
+        finally:
+            os.remove(tmp_path)
 
     @patch("serial.tools.list_ports.comports")
     def test_find_COM_port(self, mock_comports):

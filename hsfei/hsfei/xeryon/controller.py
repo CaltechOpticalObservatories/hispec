@@ -149,40 +149,39 @@ class XeryonController:
         If there are commands for axis that don't exist, it just ignores them.
         """
         try:
-            file = open(SETTINGS_FILENAME, "r")
-            for line in file.readlines():  # For each line:
-                # Check if it's a command and not a comment or blank line.
-                if "=" in line and line.find("%") != 0:
+            with open(SETTINGS_FILENAME, "r") as file:
+                for line in file.readlines():  # For each line:
+                    # Check if it's a command and not a comment or blank line.
+                    if "=" in line and line.find("%") != 0:
 
-                    # Strip spaces and newlines.
-                    line = line.strip("\n\r").replace(" ", "")
-                    # Default select the first axis.
-                    axis = self.get_all_axis()[0]
-                    if ":" in line:  # Check if axis is specified
-                        axis = self.get_axis(line.split(":")[0])
-                        if axis is None:  # Check if specified axis exists
-                            # No valid axis? ==> IGNORE and loop further.
+                        # Strip spaces and newlines.
+                        line = line.strip("\n\r").replace(" ", "")
+                        # Default select the first axis.
+                        axis = self.get_all_axis()[0]
+                        if ":" in line:  # Check if axis is specified
+                            axis = self.get_axis(line.split(":")[0])
+                            if axis is None:  # Check if specified axis exists
+                                # No valid axis? ==> IGNORE and loop further.
+                                continue
+                            line = line.split(":")[1]  # Strip "X:" from command
+                        elif not self.is_single_axis_system():
+                            # This line doesn't contain ":", so it doesn't specify an axis.
+                            # BUT It's a multi-axis system ==> so these settings are for the master.
+                            if "%" in line:  # Ignore comments
+                                line = line.split("%")[0]
+                            self.set_master_setting(line.split(
+                                "=")[0], line.split("=")[1], True)
                             continue
-                        line = line.split(":")[1]  # Strip "X:" from command
-                    elif not self.is_single_axis_system():
-                        # This line doesn't contain ":", so it doesn't specify an axis.
-                        # BUT It's a multi-axis system ==> so these settings are for the master.
+
                         if "%" in line:  # Ignore comments
                             line = line.split("%")[0]
-                        self.set_master_setting(line.split(
-                            "=")[0], line.split("=")[1], True)
-                        continue
 
-                    if "%" in line:  # Ignore comments
-                        line = line.split("%")[0]
+                        tag = line.split("=")[0]
+                        value = line.split("=")[1]
 
-                    tag = line.split("=")[0]
-                    value = line.split("=")[1]
+                        # Update settings for specified axis.
+                        axis.set_setting(tag, value, True, doNotSendThrough=True)
 
-                    # Update settings for specified axis.
-                    axis.set_setting(tag, value, True, doNotSendThrough=True)
-
-            file.close()  # Close file
         except FileNotFoundError as e:
             output_console("No settings_default.txt found.")
             # self.stop()  # Make sure the thread also stops.
@@ -236,7 +235,7 @@ class XeryonController:
         :return:
         """
         if OUTPUT_TO_CONSOLE:
-            print("Automatically searching for COM-Port. If you want to speed things up you should manually provide it inside the controller object.")
+            output_console("Automatically searching for COM-Port. If you want to speed things up you should manually provide it inside the controller object.")
         ports = list(serial.tools.list_ports.comports())
         com_port = None
         for port in ports:

@@ -67,7 +67,7 @@ class Communication:
         3. Thread stop command.
         """
 
-        while self.stop_thread is False:  # Infinte looe
+        while not self.stop_thread:  # Infinte looe
             # dataToSend = list(self.readyToSend)  # Make a copy of this list
             # self.readyToSend = []  # Immediately remove the list
 
