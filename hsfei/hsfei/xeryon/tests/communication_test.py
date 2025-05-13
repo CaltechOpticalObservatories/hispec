@@ -55,7 +55,7 @@ class TestCommunication(unittest.TestCase):
         comm.ser = mock_serial
         comm.readyToSend = ["X:MOVE=1"]
 
-        comm._Communication__processData(external_while_loop=True)
+        comm._Communication__process_data(external_while_loop=True)
 
         self.assertIn("DPOS=1000\n", mock_xeryon.axis_list[0].received_data)
         mock_serial.write.assert_called_with(b"X:MOVE=1\n")

@@ -2,6 +2,7 @@ import time
 import serial
 import threading
 from .axis import Axis
+from .utils import output_console
 
 
 class Communication:
@@ -35,11 +36,11 @@ class Communication:
         time.sleep(0.1)
 
         if external_communication_thread is False:
-            self.thread = threading.Thread(target=self.__processData)
+            self.thread = threading.Thread(target=self.__process_data)
             self.thread.daemon = True
             self.thread.start()
         else:
-            return self.__processData
+            return self.__process_data
 
     def send_command(self, command):
         """
@@ -53,7 +54,7 @@ class Communication:
     def set_COM_port(self, com_port):
         self.COM_port = com_port
 
-    def __processData(self, external_while_loop=False):
+    def __process_data(self, external_while_loop=False):
         """
         :return: None
         This function is ran in a seperate thread.
@@ -76,28 +77,36 @@ class Communication:
             self.readyToSend = self.readyToSend[10:]
 
             for command in dataToSend:  # Send commands.
-                self.ser.write(str.encode(command.rstrip("\n\r") + "\n"))
+                try:
+                    self.ser.write(str.encode(command.rstrip("\n\r") + "\n"))
+                except Exception as e:
+                    output_console(f"Write error: {e}", error=True)
+                    continue
 
             max_to_read = 10
-            while self.ser.in_waiting > 0 and max_to_read > 0:  # While there is data to read
-                reading = self.ser.readline().decode()  # Read a single line
+            try:
+                while self.ser.in_waiting > 0 and max_to_read > 0:  # While there is data to read
+                    reading = self.ser.readline().decode()  # Read a single line
 
-                if "=" in reading:  # Line contains a command.
+                    if "=" in reading:  # Line contains a command.
 
-                    if len(reading.split(":")) == 2:  # check if an axis is specified
-                        axis = self.xeryon_object.get_axis(
-                            reading.split(":")[0])
-                        reading = reading.split(":")[1]
-                        if axis is None:
+                        if len(reading.split(":")) == 2:  # check if an axis is specified
+                            axis = self.xeryon_object.get_axis(
+                                reading.split(":")[0])
+                            reading = reading.split(":")[1]
+                            if axis is None:
+                                axis = self.xeryon_object.axis_list[0]
+                            axis.receive_data(reading)
+
+                        else:
+                            # It's a single axis system
                             axis = self.xeryon_object.axis_list[0]
-                        axis.receive_data(reading)
+                            axis.receive_data(reading)
 
-                    else:
-                        # It's a single axis system
-                        axis = self.xeryon_object.axis_list[0]
-                        axis.receive_data(reading)
+                    max_to_read -= 1
+            except Exception as e:
+                output_console(f"Read error: {e}", error=True)
 
-                max_to_read -= 1
             if external_while_loop is True:
                 return None
 

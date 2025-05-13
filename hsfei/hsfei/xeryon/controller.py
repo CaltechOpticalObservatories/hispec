@@ -67,19 +67,19 @@ class XeryonController:
         if external_communication_thread:
             return comm
 
-    def stop(self, isPrintEnd=True):
+    def stop(self, is_print_end=True):
         """
         :return: None
         This function sends STOP to the controller and closes the communication.
 
-        NOTE: (KPIC MOD) we added the isPrintEnd flag to avoid unnecessary prints that may confuse users
+        NOTE: (KPIC MOD) we added the is_print_end flag to avoid unnecessary prints that may confuse users
         """
         for axis in self.get_all_axis():  # Send STOP to each axis.
             axis.send_command("ZERO=0")
             axis.send_command("STOP=0")
             axis.was_valid_DPOS = False
         self.get_communication().close_communication()  # Close communication
-        if isPrintEnd:
+        if is_print_end:
             output_console("Program stopped running.")
 
     def stop_movements(self):

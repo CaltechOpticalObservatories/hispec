@@ -7,8 +7,6 @@ from ..stage import Stage
 from ..units import Units
 
 
-print("Test" + XeryonController.__name__)
-
 class MockAxis:
     def __init__(self):
         self.commands = []
@@ -95,7 +93,7 @@ class TestXeryonController(unittest.TestCase):
     def test_read_settings(self, mock_file):
         self.controller.read_settings()
         self.assertEqual(self.axis.settings["VEL"], "100")
-    
+
     def test_read_settings_applies_axis_values_correctly(self):
         settings_content = """
         X:LLIM=10
@@ -112,16 +110,18 @@ class TestXeryonController(unittest.TestCase):
                 controller = XeryonController()
                 axis = controller.add_axis(Stage.XLS_312, "X")
                 controller.read_settings()
-                
-                expected_llim = str(axis.convert_units_to_encoder(10, Units.mm))
+
+                expected_llim = str(
+                    axis.convert_units_to_encoder(10, Units.mm))
                 self.assertEqual(axis.get_setting("LLIM"), expected_llim)
-                
-                expected_hlim = str(axis.convert_units_to_encoder(200, Units.mm))
+
+                expected_hlim = str(
+                    axis.convert_units_to_encoder(200, Units.mm))
                 self.assertEqual(axis.get_setting("HLIM"), expected_hlim)
-                
+
                 expected_sspd = str(int(5000 * axis.stage.speedMultiplier))
                 self.assertEqual(axis.get_setting("SSPD"), expected_sspd)
-                
+
                 self.assertEqual(axis.get_setting("POLI"), "7")
         finally:
             os.remove(tmp_path)
