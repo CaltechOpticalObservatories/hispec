@@ -24,6 +24,7 @@ class TestCommunication(unittest.TestCase):
     @patch('serial.Serial')
     def test_start_sets_up_serial_connection(self, mock_serial_class):
         mock_serial = MagicMock()
+        mock_serial.in_waiting = 0
         mock_serial_class.return_value = mock_serial
         mock_xeryon = MockXeryon()
 
