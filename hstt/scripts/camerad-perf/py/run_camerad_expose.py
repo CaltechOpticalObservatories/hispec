@@ -1,7 +1,10 @@
 import subprocess
 import time
 import csv
-# import socket
+from pathlib import Path
+
+# Define path socksend
+SOCKSEND_PATH = Path(__file__).resolve().parent / "../camera-interface/bin/socksend"
 
 def execute_commands(commands):
     """Execute a list of shell commands."""
@@ -61,20 +64,20 @@ def execute_timed_commands(commands, n, csv_filename="command_times.csv"):
 if __name__ == "__main__":
 
     prep_commands = [
-        "../camera-interface/bin/socksend -h localhost -p 3031 'open'",
-        "../camera-interface/bin/socksend -h localhost -p 3031 'load'",
-        "../camera-interface/bin/socksend -h localhost -p 3031 'power on'",
-        "../camera-interface/bin/socksend -h localhost -p 3031 'setp Start 1'",
-        "../camera-interface/bin/socksend -h localhost -p 3031 'exptime 0'",
-        "../camera-interface/bin/socksend -h localhost -p 3031 'hsetup'",
-        "../camera-interface/bin/socksend -h localhost -p 3031 'hroi 100 109 100 109'",
-        "../camera-interface/bin/socksend -h localhost -p 3031 'hwindow 1'",
-        "../camera-interface/bin/socksend -h localhost -p 3031 'zmq 1'"
-        # "../camera-interface/bin/socksend -h localhost -p 3031 'autofetch 1'"
+        f"{SOCKSEND_PATH} -h localhost -p 3031 'open'",
+        f"{SOCKSEND_PATH} -h localhost -p 3031 'load'",
+        f"{SOCKSEND_PATH} -h localhost -p 3031 'power on'",
+        f"{SOCKSEND_PATH} -h localhost -p 3031 'setp Start 1'",
+        f"{SOCKSEND_PATH} -h localhost -p 3031 'exptime 0'",
+        f"{SOCKSEND_PATH} -h localhost -p 3031 'hsetup'",
+        f"{SOCKSEND_PATH} -h localhost -p 3031 'hroi 100 109 100 109'",
+        f"{SOCKSEND_PATH} -h localhost -p 3031 'hwindow 1'",
+        f"{SOCKSEND_PATH} -h localhost -p 3031 'zmq 1'"
+        # f"{SOCKSEND_PATH} -h localhost -p 3031 'autofetch 1'"
     ]
 
     take_exposures = [
-        "../camera-interface/bin/socksend -h localhost -p 3031 'hexpose 1000'"
+        f"{SOCKSEND_PATH} -h localhost -p 3031 'hexpose 1000'"
     ]
 
     execute_commands(prep_commands)
