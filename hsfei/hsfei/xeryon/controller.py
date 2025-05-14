@@ -1,0 +1,247 @@
+import time
+import serial
+from .communication import Communication
+from .axis import Axis
+from .config import AUTO_SEND_SETTINGS, SETTINGS_FILENAME, OUTPUT_TO_CONSOLE
+from .utils import output_console
+
+
+class XeryonController:
+    def __init__(self, COM_port=None, baudrate=115200):
+        """
+            :param COM_port: Specify the COM port used
+            :type COM_port: string
+            :param baudrate: Specify the baudrate
+            :type baudrate: int
+            :return: Return a Xeryon object.
+
+            Main Xeryon Drive Class, initialize with the COM port and baudrate for communication with the driver.
+        """
+        self.comm = Communication(
+            self, COM_port, baudrate)  # Startup communication
+        self.axis_list = []
+        self.axis_letter_list = []
+        self.master_settings = {}
+
+    def is_single_axis_system(self):
+        """
+        :return: Returns True if it's a single axis system, False if its a multiple axis system.
+        """
+        return len(self.get_all_axis()) <= 1
+
+    def start(self, external_communication_thread=False, doReset=True):
+        """
+        :return: Nothing.
+        This functions NEEDS to be ran before any commands are executed.
+        This function starts the serial communication and configures the settings with the controller.
+
+
+        NOTE: (KPIC MOD) we added the doReset flag so that we can disconnect and reconnect to the stage
+              without doing a reset. This allows us to reconnect without having to re-reference the stage.
+        """
+        if len(self.get_all_axis()) <= 0:
+            raise Exception(
+                "Cannot start the system without stages. The stages don't have to be connnected, only initialized in the software.")
+
+        comm = self.get_communication().start(
+            external_communication_thread)  # Start communication
+
+        if doReset:
+            for axis in self.get_all_axis():
+                axis.reset()
+            time.sleep(0.2)
+
+        self.read_settings()  # Read settings file
+        if AUTO_SEND_SETTINGS:
+            self.send_master_settings()
+            for axis in self.get_all_axis():  # Loop trough each axis:
+                axis.send_settings()  # Send the settings
+        # ask for LLIM & HLIM value's
+        for axis in self.get_all_axis():
+            axis.send_command("HLIM=?")
+            axis.send_command("LLIM=?")
+            axis.send_command("SSPD=?")
+            axis.send_command("PTO2=?")
+            axis.send_command("PTOL=?")
+
+        if external_communication_thread:
+            return comm
+
+    def stop(self, is_print_end=True):
+        """
+        :return: None
+        This function sends STOP to the controller and closes the communication.
+
+        NOTE: (KPIC MOD) we added the is_print_end flag to avoid unnecessary prints that may confuse users
+        """
+        for axis in self.get_all_axis():  # Send STOP to each axis.
+            axis.send_command("ZERO=0")
+            axis.send_command("STOP=0")
+            axis.was_valid_DPOS = False
+        self.get_communication().close_communication()  # Close communication
+        if is_print_end:
+            output_console("Program stopped running.")
+
+    def stop_movements(self):
+        """
+        Just stop moving.
+        """
+        for axis in self.get_all_axis():
+            axis.send_command("STOP=0")
+            axis.was_valid_DPOS = False
+
+    def reset(self):
+        """
+        :return: None
+        This function sends RESET to the controller, and resends all settings.
+        """
+        for axis in self.get_all_axis():
+            axis.reset()
+        time.sleep(0.2)
+
+        self.read_settings()  # Read settings file again
+
+        if AUTO_SEND_SETTINGS:
+            for axis in self.get_all_axis():
+                axis.send_settings()  # Update settings
+
+    def get_all_axis(self):
+        """
+        :return: A list containing all axis objects belonging to this controller.
+        """
+        return self.axis_list
+
+    def add_axis(self, stage, axis_letter):
+        """
+        :param stage: Specify the type of stage that is connected.
+        :type stage: Stage
+        :return: Returns an Axis object
+        """
+        newAxis = Axis(self, axis_letter,
+                       stage)
+        self.axis_list.append(newAxis)  # Add axis to axis list.
+        self.axis_letter_list.append(axis_letter)
+        return newAxis
+
+    # End User Commands
+    def get_communication(self):
+        """
+        :return: The communication class.
+        """
+        return self.comm
+
+    def get_axis(self, letter):
+        """
+        :param letter: Specify the axis letter
+        :return: Returns the correct axis object. Or None if the axis does not exist.
+        """
+        if self.axis_letter_list.count(letter) == 1:  # Axis letter found
+            indx = self.axis_letter_list.index(letter)
+            if len(self.get_all_axis()) > indx:
+                return self.get_all_axis()[indx]  # Return axis
+        return None
+
+    def read_settings(self, settings_file: str = None):
+        """
+        :param settings_file: Optional path to a settings file. Defaults to SETTINGS_FILENAME.
+        :return: None
+        This function reads the settings.txt file and processes each line.
+        It first determines for what axis the setting is, then it reads the setting and saves it.
+        If there are commands for axis that don't exist, it just ignores them.
+        """
+        filepath = settings_file if settings_file is not None else SETTINGS_FILENAME
+
+        try:
+            with open(filepath, "r") as file:
+                for line in file.readlines():  # For each line:
+                    # Check if it's a command and not a comment or blank line.
+                    if "=" in line and line.find("%") != 0:
+
+                        # Strip spaces and newlines.
+                        line = line.strip("\n\r").replace(" ", "")
+                        # Default select the first axis.
+                        axis = self.get_all_axis()[0]
+                        if ":" in line:  # Check if axis is specified
+                            axis = self.get_axis(line.split(":")[0])
+                            if axis is None:  # Check if specified axis exists
+                                # No valid axis? ==> IGNORE and loop further.
+                                continue
+                            line = line.split(":")[1]  # Strip "X:" from command
+                        elif not self.is_single_axis_system():
+                            # This line doesn't contain ":", so it doesn't specify an axis.
+                            # BUT It's a multi-axis system ==> so these settings are for the master.
+                            if "%" in line:  # Ignore comments
+                                line = line.split("%")[0]
+                            self.set_master_setting(line.split(
+                                "=")[0], line.split("=")[1], True)
+                            continue
+
+                        if "%" in line:  # Ignore comments
+                            line = line.split("%")[0]
+
+                        tag = line.split("=")[0]
+                        value = line.split("=")[1]
+
+                        # Update settings for specified axis.
+                        axis.set_setting(tag, value, True, doNotSendThrough=True)
+
+        except FileNotFoundError as e:
+            output_console("No settings_default.txt found.")
+            # self.stop()  # Make sure the thread also stops.
+            # raise Exception(
+            # "ERROR: settings_default.txt file not found. Place it in the same folder as Xeryon.py. \n "
+            # "The settings_default.txt is delivered in the same folder as the Windows Interface. \n " + str(e))
+        except Exception as e:
+            raise e
+
+    def set_master_setting(self, tag, value, fromSettingsFile=False):
+        """
+            In multi-axis systems, commands without an axis specified are for the master.
+            This function adds a setting (tag, value) to the list of settings for the master.
+        """
+        self.master_settings.update({tag: value})
+        if not fromSettingsFile:
+            self.comm.send_command(str(tag)+"="+str(value))
+        if "COM" in tag:
+            self.set_COM_port(str(value))
+
+    def send_master_settings(self, axis=False):
+        """
+         In multi-axis systems, commands without an axis specified are for the master.
+         This function sends the stored settings to the controller;
+        """
+        prefix = ""
+        if axis is not False:
+            prefix = str(self.get_all_axis()[0].get_letter()) + ":"
+
+        for tag, value in self.master_settings.items():
+            self.comm.send_command(str(prefix) + str(tag) + "="+str(value))
+
+    def save_master_settings(self, axis=False):
+        """
+         In multi-axis systems, commands without an axis specified are for the master.
+         This function saves the master settings on the controller.
+        """
+        if axis is None:
+            self.comm.send_command("SAVE=0")
+        else:
+            self.comm.send_command(
+                str(self.get_all_axis()[0].get_letter()) + ":SAVE=0")
+
+    def set_COM_port(self, com_port):
+        self.get_communication().set_COM_port(com_port)
+
+    def find_COM_port(self):
+        """
+        This function loops through every available COM-port.
+        It check's if it contains any signature of Xeryon.
+        :return:
+        """
+        if OUTPUT_TO_CONSOLE:
+            output_console("Automatically searching for COM-Port. If you want to speed things up you should manually provide it inside the controller object.")
+        ports = list(serial.tools.list_ports.comports())
+        com_port = None
+        for port in ports:
+            if "04D8" in str(port.hwid):
+                self.set_COM_port(str(port.device))
+                break
