@@ -141,15 +141,18 @@ class XeryonController:
                 return self.get_all_axis()[indx]  # Return axis
         return None
 
-    def read_settings(self):
+    def read_settings(self, settings_file: str = None):
         """
+        :param settings_file: Optional path to a settings file. Defaults to SETTINGS_FILENAME.
         :return: None
         This function reads the settings.txt file and processes each line.
         It first determines for what axis the setting is, then it reads the setting and saves it.
         If there are commands for axis that don't exist, it just ignores them.
         """
+        filepath = settings_file if settings_file is not None else SETTINGS_FILENAME
+
         try:
-            with open(SETTINGS_FILENAME, "r") as file:
+            with open(filepath, "r") as file:
                 for line in file.readlines():  # For each line:
                     # Check if it's a command and not a comment or blank line.
                     if "=" in line and line.find("%") != 0:

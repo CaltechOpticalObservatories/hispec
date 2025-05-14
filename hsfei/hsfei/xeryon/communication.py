@@ -1,14 +1,17 @@
 import time
 import serial
 import threading
+
+from keyring.util.platform_ import data_root
+
 from .axis import Axis
 from .utils import output_console
 
 
 class Communication:
-    def __init__(self, xeryon_object, COM_port, baud):
+    def __init__(self, xeryon_object, com_port, baud):
         self.xeryon_object = xeryon_object
-        self.COM_port = COM_port
+        self.COM_port = com_port
         self.baud = baud
         self.readyToSend = []
         self.thread = None
@@ -69,14 +72,14 @@ class Communication:
         """
 
         while not self.stop_thread:  # Infinte looe
-            # dataToSend = list(self.readyToSend)  # Make a copy of this list
+            # data_to_send = list(self.readyToSend)  # Make a copy of this list
             # self.readyToSend = []  # Immediately remove the list
 
             # SEND 10 LINES, then go further to reading.
-            dataToSend = list(self.readyToSend[0:10])
+            data_to_send = list(self.readyToSend[0:10])
             self.readyToSend = self.readyToSend[10:]
 
-            for command in dataToSend:  # Send commands.
+            for command in data_to_send:  # Send commands.
                 try:
                     self.ser.write(str.encode(command.rstrip("\n\r") + "\n"))
                 except Exception as e:
@@ -117,58 +120,3 @@ class Communication:
         self.stop_thread = True
         time.sleep(0.1)
         self.ser.close()
-
-    def stop_movements(self):
-        """
-        Just stop moving.
-        """
-        for axis in self.get_all_axis():
-            axis.send_command("STOP=0")
-            axis.was_valid_DPOS = False
-
-    def reset(self):
-        """
-        :return: None
-        This function sends RESET to the controller, and resends all settings.
-        """
-        for axis in self.get_all_axis():
-            axis.reset()
-        time.sleep(0.2)
-
-        self.read_settings()  # Read settings file again
-
-    def get_all_axis(self):
-        """
-        :return: A list containing all axis objects belonging to this controller.
-        """
-        return self.axis_list
-
-    def add_axis(self, stage, axis_letter):
-        """
-        :param stage: Specify the type of stage that is connected.
-        :type stage: Stage
-        :return: Returns an Axis object
-        """
-        newAxis = Axis(self, axis_letter,
-                       stage)
-        self.axis_list.append(newAxis)  # Add axis to axis list.
-        self.axis_letter_list.append(axis_letter)
-        return newAxis
-
-    # End User Commands
-    def get_communication(self):
-        """
-        :return: The communication class.
-        """
-        return self.comm
-
-    def get_axis(self, letter):
-        """
-        :param letter: Specify the axis letter
-        :return: Returns the correct axis object. Or None if the axis does not exist.
-        """
-        if self.axis_letter_list.count(letter) == 1:  # Axis letter found
-            indx = self.axis_letter_list.index(letter)
-            if len(self.get_all_axis()) > indx:
-                return self.get_all_axis()[indx]  # Return axis
-        return None
