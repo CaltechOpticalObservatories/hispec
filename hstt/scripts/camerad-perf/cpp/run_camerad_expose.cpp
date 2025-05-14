@@ -9,6 +9,14 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <thread>
+#include <filesystem>
+
+std::string getSocksendPath() {
+    std::filesystem::path exePath = std::filesystem::canonical("/proc/self/exe");
+    std::filesystem::path baseDir = exePath.parent_path();
+    std::filesystem::path socksendPath = baseDir / "../../camera-interface/bin/socksend";
+    return std::filesystem::canonical(socksendPath).string();
+}
 
 std::string executeCommand(const std::string& command) {
     std::string result;
@@ -89,22 +97,23 @@ void executeTimedCommands(const std::vector<std::string>& commands, int n, const
 }
 
 int main() {
+    std::string socksend = getSocksendPath();
     std::vector<std::string> prepCommands = {
-        "../../camera-interface/bin/socksend -h localhost -p 3031 'open'",
-        "../../camera-interface/bin/socksend -h localhost -p 3031 'load'",
-        "../../camera-interface/bin/socksend -h localhost -p 3031 'power on'",
-        "../../camera-interface/bin/socksend -h localhost -p 3031 'setp Start 1'",
-        "../../camera-interface/bin/socksend -h localhost -p 3031 'exptime 0'",
-        "../../camera-interface/bin/socksend -h localhost -p 3031 'hsetup'",
-        "../../camera-interface/bin/socksend -h localhost -p 3031 'hroi 51 60 51 60'",
-        "../../camera-interface/bin/socksend -h localhost -p 3031 'hwindow 1'",
-        // "../../camera-interface/bin/socksend -h localhost -p 3031 'zmq 1'",
-        "../../camera-interface/bin/socksend -h localhost -p 3031 'autofetch 1'"
+        socksend + " -h localhost -p 3031 'open'",
+        socksend + " -h localhost -p 3031 'load'",
+        socksend + " -h localhost -p 3031 'power on'",
+        socksend + " -h localhost -p 3031 'setp Start 1'",
+        socksend + " -h localhost -p 3031 'exptime 0'",
+        socksend + " -h localhost -p 3031 'hsetup'",
+        socksend + " -h localhost -p 3031 'hroi 51 60 51 60'",
+        socksend + " -h localhost -p 3031 'hwindow 1'",
+        // socksend + " -h localhost -p 3031 'zmq 1'",
+        socksend + " -h localhost -p 3031 'autofetch 1'"
     };
 
     std::vector<std::string> takeExposures = {
-        "../../camera-interface/bin/socksend -h localhost -p 3031 'hexpose 5000'"
-        // "../../camera-interface/bin/socksend -h localhost -p 3031 'test timer 100 50'"
+        socksend + " -h localhost -p 3031 'hexpose 5000'"
+        // socksend + " -h localhost -p 3031 'test timer 100 50'"
     };
 
     executeCommands(prepCommands);
