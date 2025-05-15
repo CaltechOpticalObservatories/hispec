@@ -1,26 +1,96 @@
 import time
 import socket
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 
 # Should Modify:
 # Provide a build mode which does not print
 # Can use buildFLG to supress prints and take it in as arg
 # Can keep printDev() for printing if really needed
 
+class BIT_CODES(IntFlag):
+    P_MOT_PMD_MOTIONERROR	 =	0X00004000	# EVENT STATUS BIT 4. Axis exceeds position error limit (1 - limit exceeded, 0 - within limit). FRONT PANEL LED
+    P_MOT_PMD_INSTRERROR	 =	0X00008000	# EVENT STATUS BIT 7. Set for variety of ION module instruction errors (1 - instruction error, 0 - no error).
+    P_MOT_PMD_INTERLOCK		 =  0X00010000	# EVENT STATUS BIT 8. Interlock link missing in motor connector (1 - missing, 0 - present).
+    P_MOT_PMD_OVERTEMP		 =  0X00020000	# EVENT STATUS BIT 9. ION module overtemperature (1 - over temp, 0 - temp OK).
+    P_MOT_PMD_BUSVOLTFAULT	 =	0X00040000	# EVENT STATUS BIT 10. ION bus voltage fault (1 - fault, 0 - OK).
+    P_MOT_PMD_COMMUTATIONERR =	0X00080000	# EVENT STATUS BIT 11. Axis commutation error (1 - error, 0 - OK).
+    P_MOT_PMD_CURRENTFOLDBACK=	0X01000000	# EVENT STATUS BIT 12. Axis phase current limit (1 - current limit, 0 - current below limit).
+
 class DATA_CODES(IntEnum):
+    #Channel States
     CLOSED_LOOP = 2
     OPEN_LOOP = 1
     CHAN_ENABLED = 1
     CHAN_DISABLED = 2
 
+    #GENERAL:
+
+    MG17_OK = 0
+    MG17_UNKNOWN_ERR = 10000		# unknown error
+    MG17_INTERNAL_ERR = 10001		# FFF server internal error
+    MG17_FAILED = 10002			# call failed
+    MG17_INVALIDPARAM_ERR = 10003		# invalid parameter
+    MG17_SETTINGSNOTFOUND = 10004		# requested settings not found
+    MG17_DLLNOTINITIALISED = 10005		# APT DLL not intialised.
+
+    #PC SYSTEM:
+
+    MG17_DISKACCESS_ERR = 10050		# disk access error
+    MG17_ETHERNET_ERR = 10051		# Windows sockets or ethernet error
+    MG17_REGISTRY_ERR = 10052		# registry access error
+    MG17_MEMORY_ERR = 10053		# memory allocation error
+    MG17_COM_ERR = 10054			# com system error
+    MG17_USB_ERR = 10055			# USB comms error
+    MG17_NOTTHORLABSDEVICE_ERR = 10056	# Not Thorlabs USB device error.
+
+    #RACK/ USB UNITS:
+
+    MG17_SERIALNUMUNKNOWN_ERR = 10100	# serial number unknown error
+    MG17_DUPLICATESERIALNUM_ERR = 10101	# duplicate serial number error
+    MG17_DUPLICATEDEVICEIDENT_ERR = 10102	# duplicate device identifier
+    MG17_INVALIDMSGSRC_ERR = 10103		# invalid message source
+    MG17_UNKNOWNMSGIDENT_ERR = 10104	# unknown message identifier
+    MG17_UNKNOWNHWTYPE_ERR = 10105		# unknown hardware type
+    MG17_INVALIDSERIALNUM_ERR = 10106	# invalid serial number
+    MG17_INVALIDMSGDEST_ERR = 10107	# invalid message destination
+    MG17_INVALIDINDEX_ERR = 10108		# invalid index parameter
+    MG17_CTRLCOMMSDISABLED_ERR = 10109	# control hardware comms disabled
+    MG17_HWRESPONSE_ERR = 10110		# spontaneous hardware response
+    MG17_HWTIMEOUT_ERR = 10111		# timeout occured waiting for hardware response
+    MG17_INCORRECTVERSION_ERR = 10112	# incorrect version of embedded code
+    MG17_HARDLOCKDRIVER_ERR = 10113	# error accessing hardlock drivers
+    MG17_HARDLOCKMISSING_ERR = 10114	# missing hardlock error
+    MG17_INCOMPATIBLEHARDWARE_ERR = 10115	# incompatible hardware error
+    MG17_OLDVERSION_ERR = 10116		# older version of embedded code that can still be used
+
+
+    #MOTORS:
+    MG17_NOSTAGEAXISINFO = 10150		# stage/axis information not found for motor channel
+    MG17_CALIBTABLE_ERR = 10151		# calibration table error
+    MG17_ENCCALIB_ERR = 10152		# encoder calibration error
+    MG17_ENCNOTPRESENT_ERR = 10153		# encoder not present error
+    MG17_MOTORNOTHOMED_ERR = 10154		# motor not homed error
+    MG17_MOTORDISABLED_ERR = 10155		# motor disabled error
+    MG17_PMDMSG_ERR = 10156		# PMD processor message error
+    MG17_PMDREADONLY_ERR = 10157		# PMD based controller stage param 'read only' error
+            
+    #PIEZOS:
+
+    MG17_PIEZOLED_ERR = 10200		# encoder not present error
+
+    #NANOTRAKS:
+    MG17_NANOTRAKLED_ERR = 10250		# encoder not present error
+    MG17_NANOTRAKCLOSEDLOOP_ERR = 10251	# closed loop error - closed loop selected with no feedback signal
+    MG17_NANOTRAKPOWER_ERR = 10252		# power supply error - voltage rails out of limits
+
 class PPC102_Coms(object):
-    '''Class for controlling the Throlabs TLS001
+    '''Class for controlling the Throlabs PPC102
     ***Device not setting Keys/Intr bits correctly so some items are omitted
         from this code to avoid confusion
         - The output of the device depends solely on the 'enable' bit
     '''
 
-    def __init__(self, host: str = '192.168.29.100', port: int = 10012, timeout: float = 2.0):
+    def __init__(self, host: str = '192.168.29.100', port: int = 10013, timeout: float = 2.0):
         '''Create socket connection instance variable
         *devnm should be a string like
         '''
@@ -83,9 +153,10 @@ class PPC102_Coms(object):
         # Send message using Socket
         try:
             self.sock.sendall(msg)
+            time.sleep(.1)
         except socket.error as e:
             print(f"Error sending data: {e}")
-            self.close()()
+            self.close()
         
     #TODO:: Make signal catcher... I.e : SIGTERM SIGFAULT SIGKILL handle with close()
 
@@ -102,6 +173,7 @@ class PPC102_Coms(object):
             #return array of hex values for other functions to Disect
             res = self.sock.recv(self.buffsize)
             hex_array = [f'0x{byte:02X}' for byte in res]
+            print(hex_array)
             return hex_array
         except socket.timeout:
             print("Read timed out.")
@@ -110,6 +182,22 @@ class PPC102_Coms(object):
             print(f"Error receiving data: {e}")
             self.close()
             return b''
+    
+    #TODO: Finish code and bit interpreters
+    def interpret_error_code(self, code: int) -> str:
+        try:
+            return f"{DATA_CODES(code).name} ({code})"
+        except ValueError:
+            return f"Unknown error code: {code}"
+    
+    def interpret_bit_flags(status_bytes):
+        code = int.from_bytes(status_bytes, byteorder='little')
+        flags = [flag for flag in BIT_CODES if flag & code]
+        if flags:
+            return [f"{flag.name} ({hex(flag.value)})" for flag in flags]
+        else:
+            return ["No BIT_CODES set"]
+
 
     ######## Functions for Complete Stage Control ########
 
@@ -174,7 +262,7 @@ class PPC102_Coms(object):
             if 0 < channel < 3:
                 chan = '2' + str(channel)
             else:
-                return ReferenceError('Channel Out of Range')
+                raise ReferenceError('Channel Out of Range')
 
             # Send Req Enable Command
             command = bytes.fromhex('11 02 01 00 '+ chan +' 01')
@@ -185,7 +273,6 @@ class PPC102_Coms(object):
             enable_status = self.read_buff()
             if(len(enable_status) == 0):
                 raise BufferError("Buffer empty when expecting response")
-            print(enable_status)
             enable_state = enable_status[3]
             return int(enable_state[2:],16)
         except Exception as e:
@@ -196,7 +283,7 @@ class PPC102_Coms(object):
             Sets Digital Output on PPC102 Controller
                 (Trigger Fucntionality must be disabled by calling set_trigger first)
             channel param:(int) 1 or 2
-            bit param:1111 for all on and 0000 for all off
+            bit param:1111 for all on and 0000 for all off(Only capable of all or nothing setting)
             Returns: True/False based on successful com send
             **MGMSG_MOD_SET_DIGOUTPUTS**(13 02 Bit 00 d s)**
         '''
@@ -253,7 +340,6 @@ class PPC102_Coms(object):
             digioutputs_status = self.read_buff()
             if(len(digioutputs_status) == 0):
                 raise BufferError("Buffer empty when expecting response")
-            print(digioutputs_status)
             digioutputs_state = digioutputs_status[2]
             return int(digioutputs_state[2:],16)
         except Exception as e:
@@ -273,13 +359,12 @@ class PPC102_Coms(object):
             self.write(bytes([0x02, 0x00, 0x00, 0x00, 0x11, 0x01]))
             time.sleep(self.DELAY)  # Data Grab
             res = self.read_buff()
-            print(res)
             #Save all info needed into self.variables
             print("Disconnected from Hardware")
         except Exception as e:
             print(f"Error: {e}")
     
-    def hw_response(self):
+    def __hw_response(self):
         '''
             Sent by the controllers to notify Thorlabs Server of some event that 
                 requires user intervention, usually some fault or error condition that 
@@ -303,12 +388,11 @@ class PPC102_Coms(object):
             res = self.read_buff()
             if(len(res) == 0):
                 raise BufferError("Buffer empty when expecting response")
-            print(res)
             return
         except Exception as e:
             print(f"Error: {e}")
     
-    def hw_richresponse(self): #TODO:: Finish
+    def __hw_richresponse(self): #TODO:: Finish
         '''
             Similarly, to HW_RESPONSE, this message is sent by the controllers 
                 to notify Thorlabs Server of some event that requires user 
@@ -325,7 +409,7 @@ class PPC102_Coms(object):
             raise RuntimeError("Socket is not connected.")
         try:
             # Send Req rich response Command
-            command = bytes.fromhex('81 00 44 00 11 01')
+            command = bytes.fromhex('81 00 44 00 11 01 00 00 00 00')
             #REQ
             self.write(command) 
             time.sleep(self.DELAY)  # Wait Delay time for write
@@ -333,12 +417,11 @@ class PPC102_Coms(object):
             res = self.read_buff()
             if(len(res) == 0):
                 raise BufferError("Buffer empty when expecting response")
-            print(res)
             return
         except Exception as e:
             print(f"Error: {e}")
     
-    def hw_start_update_msgs(self):
+    def __hw_start_update_msgs(self):
         '''
             Sent to start automatic status updates from the embedded 
                 controller. Status update messages contain information about the 
@@ -361,14 +444,12 @@ class PPC102_Coms(object):
             self.write(command) 
             time.sleep(self.DELAY)  # Wait Delay time for write
             #returns printed state 
-            res = self.read_buff()
-            print(res)
             return True
         except Exception as e:
             print(f"Error: {e}")
             return False
     
-    def hw_stop_update_msgs(self):
+    def __hw_stop_update_msgs(self):
         '''
             Sent to stop automatic status updates from the controller – usually 
                 called by a client application when it is shutting down, to instruct 
@@ -385,9 +466,6 @@ class PPC102_Coms(object):
             #REQ
             self.write(command) 
             time.sleep(self.DELAY)  # Wait Delay time for write
-            #returns printed state 
-            res = self.read_buff()
-            print(res)
             return True
         except Exception as e:
             print(f"Error: {e}")
@@ -409,7 +487,6 @@ class PPC102_Coms(object):
             res = self.read_buff()
             if(len(res) != 90):
                 raise BufferError("Buffer empty when expecting response")
-            print(res)
             #Save all info needed into self.variables
         except Exception as e:
             print(f"Error: {e}")
@@ -438,7 +515,6 @@ class PPC102_Coms(object):
             bay_res = self.read_buff()
             if(len(bay_res) == 0):
                 raise BufferError("Buffer empty when expecting response")
-            print(bay_res)
             bay_state = bay_res[3]
             if int(bay_state[2:],16) == 1:
                 return True
@@ -543,7 +619,6 @@ class PPC102_Coms(object):
             #Check Loop State
             if -32768 < volts < 32764:
                 hex = f'{volts:04X}'
-                print(hex)
                 valid_hex  = hex[:2] + ' ' + hex[2:]
             else:
                 print('Voltage out of Range')
@@ -622,7 +697,6 @@ class PPC102_Coms(object):
             #Check Loop State
             if 0 < pos < 32764:
                 hex = f'{pos:04X}'
-                print(hex)
                 valid_hex  = hex[:2] + ' ' + hex[2:]
             else:
                 print('Position out of Range')
@@ -665,7 +739,6 @@ class PPC102_Coms(object):
             pos = self.read_buff()
             if(len(pos) == 0):
                 raise BufferError("Buffer empty when expecting response")
-            print(pos)
             #Return Positional Value, 2hex or the positional value in int(bytes 8 and 9)
             byte1 = pos[8]
             byte2 = pos[9]
@@ -740,12 +813,10 @@ class PPC102_Coms(object):
             trav = self.read_buff()
             if(len(trav) == 0):
                 raise BufferError("Buffer empty when expecting response")
-            print(trav)
             #Return travitional Value, 2hex or the travitional value in int(bytes 8 and 9)
             byte1 = trav[8]
             byte2 = trav[9]
             hexVal = byte2[2:] + byte1[2: ]#byte1[2:] + byte2[2:]
-            print(int(hexVal,16))
             return int(hexVal,16)
         except Exception as e:
             print(f"Error: {e}")
@@ -783,14 +854,12 @@ class PPC102_Coms(object):
             status = self.read_buff()
             if(len(status) == 0):
                 raise BufferError("Buffer empty when expecting response")
-            print(status)
             #Return travitional Value, 2hex or the travitional value in int(bytes 8 and 9)
             byte1 = status[8]
             byte2 = status[9]
             byte3 = status[10]
             byte4 = status[11]
             hexVal = byte2[2:] + byte1[2: ]#byte1[2:] + byte2[2:]
-            print(int(hexVal,16))
             return int(hexVal,16)
         except Exception as e:
             print(f"Error: {e}")
@@ -824,7 +893,6 @@ class PPC102_Coms(object):
             status = self.read_buff()
             if(len(status) == 0):
                 raise BufferError("Buffer empty when expecting response")
-            print(status)
             #Return travitional Value, 2hex or the travitional value in int(bytes 8 and 9)
             volt1 = status[8]
             volt2 = status[9]
@@ -872,7 +940,6 @@ class PPC102_Coms(object):
             #Check for valid inputs
             if 0 < limit < 1500:
                 hex = f'{limit:04X}'
-                print(hex)
                 #Backwards voltage section according to the manual
                 valid_hex  = hex[2:] + ' ' + hex[:2]
             else:
@@ -883,7 +950,7 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
             return True
         except Exception as e:
-            print(f"Errpr: {e}")
+            print(f"Error: {e}")
             return False
         
     def get_max_voltage(self, channel=1):
@@ -909,11 +976,9 @@ class PPC102_Coms(object):
             msg = self.read_buff()
             if(len(msg) == 0):
                 raise BufferError("Buffer empty when expecting response")
-            print(msg)
             byte1 = msg[8]
             byte2 = msg[9]
             max_volts = byte2[2:] + byte1[2:]
-            print(int(max_volts,16))
             return int(max_volts,16)
         except Exception as e:
             print(f"Error: {e}")
@@ -1041,4 +1106,3 @@ class PPC102_Coms(object):
         '''
         return
     
-

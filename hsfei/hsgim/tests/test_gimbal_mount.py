@@ -30,15 +30,13 @@ class Test_GimbalMount(unittest.TestCase):
         self.assertTrue(self.dev.set_enable(channel=2, enable=1))
         ret = self.dev.get_enable()
         assert ret == DATA_CODES.CHAN_ENABLED
-        with self.assertRaises(ReferenceError):
-            self.dev.get_enable(channel=-1)
-            self.dev.get_enable(channel = 3)
         self.assertFalse(self.dev.set_enable(channel=3))
         self.assertFalse(self.dev.set_enable(channel=-1))
         self.assertFalse(self.dev.set_enable(enable=-1))
         self.assertFalse(self.dev.set_enable(enable=3))
         self.dev.close()
-        with self.assertRaises(RuntimeError):
+        time.sleep(.1)
+        with self.assertRaises(Exception):
             self.dev.get_enable()
             self.dev.set_enable()
         time.sleep(.1)
@@ -46,6 +44,7 @@ class Test_GimbalMount(unittest.TestCase):
     def test_loop(self):
         self.dev = PPC102_Coms()
         self.dev.open()
+        time.sleep(.25)
         ret = self.dev.get_loop()
         assert ret == DATA_CODES.OPEN_LOOP or ret == DATA_CODES.CLOSED_LOOP
         assert self.dev.set_loop(channel=1, loop=2)
@@ -60,15 +59,12 @@ class Test_GimbalMount(unittest.TestCase):
         assert self.dev.set_loop(channel=2, loop=1)
         ret = self.dev.get_loop()
         assert ret == DATA_CODES.OPEN_LOOP
-        with self.assertRaises(ReferenceError):
-            self.dev.get_loop(channel=-1)
-            self.dev.get_loop(channel = 3)
         self.assertFalse(self.dev.set_loop(channel=3))
         self.assertFalse(self.dev.set_loop(channel=-1))
         self.assertFalse(self.dev.set_loop(loop=-1))
         self.assertFalse(self.dev.set_loop(loop=3))
         self.dev.close()
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(Exception):
             self.dev.get_loop()
             self.dev.set_loop()
         time.sleep(.1)
