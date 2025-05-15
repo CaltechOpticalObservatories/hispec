@@ -357,6 +357,7 @@ class StageController:
         :param timeout: Int, timeout for sending command in seconds
         :return: dictionary {'elaptime': time, 'data|error': string_message}
         """
+
         start = time.time()
 
         # verify cmd and stage_id
@@ -366,8 +367,6 @@ class StageController:
 
         # Check if the command should have parameters
         if cmd in self.parameter_commands and parameters:
-            if self.logger:
-                self.logger.info("add parameters")
             parameters = [str(x) for x in parameters]
             parameters = " ".join(parameters)
             cmd += parameters
@@ -437,10 +436,8 @@ class StageController:
         :param cmd: String, command to send to the stage controller
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :return: dictionary {'elaptime': time, 'data|error': string_message}"""
-        start = time.time()
 
-        msg_type = ''
-        msg_text = ''
+        start = time.time()
 
         # Do we have a connection?
         if not self.connected:
@@ -522,7 +519,9 @@ class StageController:
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
+
         start = time.time()
+
         if position is None or stage_id is None:
             return {'elaptime': time.time() - start,
                     'error': 'must specify both position and stage_id'}
@@ -551,7 +550,9 @@ class StageController:
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
+
         start = time.time()
+
         if position is None or stage_id is None:
             return {'elaptime': time.time() - start,
                     'error': 'must specify both position and stage_id'}
