@@ -6,4 +6,3 @@ from .newport import smc100pp
 
 __all__ = ["SunpowerController", "PIControllerBase",
            "smc100pp", "XeryonController"]
-
