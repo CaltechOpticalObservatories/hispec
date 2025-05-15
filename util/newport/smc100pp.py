@@ -63,13 +63,12 @@ For stage 1 & 2 current values are:
 """
 import errno
 import logging
-from logging import Logger
 import time
 import socket
 import os
 import sys
 
-logger: Logger = logging.getLogger("NewportControllerLogger")
+logger: logging.Logger = logging.getLogger("NewportControllerLogger")
 logger.setLevel(logging.DEBUG)
 logging.Formatter.converter = time.gmtime
 logHandler = logging.FileHandler(os.path.join('./', 'newport_controller.log'))
@@ -88,9 +87,9 @@ logger.addHandler(consoleHandler)
 logger.info("Starting Logger: Logger file is %s",
             'newport_controller.log')
 
-class NewportController:
+class StageController:
     """
-    Controller class for Newport SMC100PP Controller.
+    Controller class for Newport SMC100PP Stage Controller.
     """
 
     controller_commands = ["OR",    # Execute HOME search
