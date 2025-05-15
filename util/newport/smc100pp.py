@@ -65,7 +65,6 @@ import errno
 import logging
 import time
 import socket
-import os
 import sys
 
 class StageController:
@@ -160,12 +159,11 @@ class StageController:
         self.custom_command = False
 
         if log:
-            self.logger = logging.getLogger(
-                "NewportControllerLogger")
+            logname = __name__.rsplit(".", 1)[-1]
+            self.logger = logging.getLogger(logname)
             self.logger.setLevel(logging.DEBUG)
             logging.Formatter.converter = time.gmtime
-            log_handler = logging.FileHandler(
-                os.path.join('./', 'newport_controller.log'))
+            log_handler = logging.FileHandler(logname + ".log")
 
             formatter = logging.Formatter(
                 "%(asctime)s--%(name)s--%(levelname)s--"
@@ -180,7 +178,7 @@ class StageController:
             self.logger.addHandler(console_handler)
 
             self.logger.info("Starting Logger: Logger file is %s",
-                        'newport_controller.log')
+                        logname + ".log")
         else:
             self.logger = None
 
