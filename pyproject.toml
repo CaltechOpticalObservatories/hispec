@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hsfei"
+name = "hispec"
 version = "0.1.0"
-description = "Low level libraries for HISPEC FEI components"
+description = "HISPEC Instrument Control Software"
 authors = [
     { name="Michael Langmayr", email="langmayr@caltech.edu" },
     { name="Don Neill", email="neill@astro.caltech.edu" }
@@ -16,6 +16,3 @@ dependencies = [
     "pipython",
     "pyserial"
 ]
-
-[tool.setuptools.packages.find]
-where = ["hsfei"]
