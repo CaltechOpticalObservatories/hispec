@@ -607,7 +607,7 @@ class StageController:
         # Parse position return
         response = response.rstrip()
 
-        self.current_position[stage_id] = float(response['data'])
+        self.current_position[stage_id] = float(response[3:])
         return {'elaptime': time.time() - start, 'data': float(response[3:])}
 
     def get_move_rate(self):
