@@ -597,15 +597,18 @@ class StageController:
         :param stage_id: int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
+
+        start = time.time()
+
         self.__send_command(cmd="TP", stage_id=stage_id)
+
         response = self.__return_parse_value()
-        if 'data' in response:
-            # Parse position return
-            response = response.rstrip()
-            msg_type = 'data'
-            msg_text = response[3:]
-            self.current_position[stage_id] = float(response['data'])
-        return response
+
+        # Parse position return
+        response = response.rstrip()
+
+        self.current_position[stage_id] = float(response['data'])
+        return {'elaptime': time.time() - start, 'data': float(response[3:])}
 
     def get_move_rate(self):
         """ Current move rate
