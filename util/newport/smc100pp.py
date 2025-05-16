@@ -253,55 +253,56 @@ class StageController:
         if not self.connected:
             if self.logger:
                 self.logger.error("Not connected to controller!")
-            return None
+            return
 
         self.socket.settimeout(30)
 
         # Send command
         self.socket.send(cmd_encoded)
         time.sleep(.05)
-        recv = None
 
+    def __return_parse_value(self):
         # Return value commands
-        if cmd.upper() in self.return_value_commands:
 
-            # Get return value
-            recv = self.socket.recv(2048)
+        # Get return value
+        recv = self.socket.recv(2048)
+        recv_len = len(recv)
+        if self.logger:
+            self.logger.info("Return: len = %d, Value = %s", recv_len, recv)
+
+        # Are we a valid return value?
+        if recv_len in [6, 11, 12, 13, 14]:
+            if self.logger:
+                self.logger.info("Return value validated")
+        return recv
+
+    def __return_parse_params(self):
+
+        # Get return value
+        recv = self.socket.recv(2048)
+
+        # Did we get all the params?
+        t = 5
+        while t > 0 and b'PW0' not in recv:
+            recv += self.socket.recv(2048)
+            t -= 1
+
+        if b'PW0' in recv:
             recv_len = len(recv)
             if self.logger:
-                self.logger.info("Return: len = %d, Value = %s", recv_len, recv)
+                self.logger.info("ZT Return: len = %d", recv_len)
+        else:
+            if self.logger:
+                self.logger.warning("ZT command timed out")
 
-            # Are we a valid return value?
-            if recv_len in [6, 11, 12, 13, 14]:
-                if self.logger:
-                    self.logger.info("Return value validated")
-                return recv
+        return recv
 
-        if cmd.upper() == 'ZT':
-
-            # Get return value
-            recv = self.socket.recv(2048)
-
-            # Did we get all the params?
-            t = 5
-            while t > 0 and b'PW0' not in recv:
-                recv += self.socket.recv(2048)
-                t -= 1
-
-            if b'PW0' in recv:
-                recv_len = len(recv)
-                if self.logger:
-                    self.logger.info("ZT Return: len = %d", recv_len)
-            else:
-                if self.logger:
-                    self.logger.warning("ZT command timed out")
-
-            return recv
-
+    def __return_parse_blocking(self, stage_id=1, timeout=15):
         # Non-return value commands eventually return state output
         sleep_time = 0.1
         start_time = time.time()
         print_it = 0
+        recv = None
         while time.time() - start_time < timeout:
             # Check state
             statecmd = f'{stage_id}TS\r\n'
@@ -375,7 +376,9 @@ class StageController:
             self.logger.info("Input command: %s", cmd)
 
         # Send command
-        response = self.__send_serial_command(stage_id, cmd, timeout)
+        self.__send_serial_command(stage_id, cmd, timeout)
+
+        """
         response = str(response.decode('utf-8'))
         if self.logger:
             self.logger.info("Response from stage %d:\n%s",
@@ -429,6 +432,7 @@ class StageController:
 
         # Valid state achieved after command
         return {'elaptime': time.time() - start, 'data': message}
+        """
 
     def __verify_send_command(self, cmd, stage_id):
         """ Verify cmd and stage_id
@@ -593,10 +597,15 @@ class StageController:
         :param stage_id: int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
-        ret = self.__send_command(cmd="TP", stage_id=stage_id)
-        if 'data' in ret:
-            self.current_position[stage_id] = float(ret['data'])
-        return ret
+        self.__send_command(cmd="TP", stage_id=stage_id)
+        response = self.__return_parse_value()
+        if 'data' in response:
+            # Parse position return
+            response = response.rstrip()
+            msg_type = 'data'
+            msg_text = response[3:]
+            self.current_position[stage_id] = float(response['data'])
+        return response
 
     def get_move_rate(self):
         """ Current move rate
