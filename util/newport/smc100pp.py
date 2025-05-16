@@ -67,6 +67,7 @@ import time
 import socket
 import sys
 
+
 class StageController:
     """
     Controller class for Newport SMC100PP Stage Controller.
@@ -134,13 +135,15 @@ class StageController:
         "X": "Command not allowed for CC version."
     }
 
-    def __init__(self, num_stages=2, move_rate=5.0, log=True):
+    def __init__(self, num_stages=2, move_rate=5.0, log=True, quiet=False):
 
         """
         Class to handle communications with the stage controller and any faults
 
         :param num_stages: Int, number of stages daisey-chained
         :param move_rate: Float, move rate in degrees per second
+        :param log: Bool, whether to log to file or not
+        :param quiet: Bool, whether to log to console or not
         """
 
         # Set up socket
@@ -172,10 +175,11 @@ class StageController:
             log_handler.setLevel(logging.DEBUG)
             self.logger.addHandler(log_handler)
 
-            console_formatter = logging.Formatter("%(asctime)s--%(message)s")
-            console_handler = logging.StreamHandler(sys.stdout)
-            console_handler.setFormatter(console_formatter)
-            self.logger.addHandler(console_handler)
+            if not quiet:
+                console_formatter = logging.Formatter("%(asctime)s--%(message)s")
+                console_handler = logging.StreamHandler(sys.stdout)
+                console_handler.setFormatter(console_formatter)
+                self.logger.addHandler(console_handler)
 
             self.logger.info("Starting Logger: Logger file is %s",
                         logname + ".log")
