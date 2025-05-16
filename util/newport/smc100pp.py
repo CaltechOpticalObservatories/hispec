@@ -65,27 +65,7 @@ import errno
 import logging
 import time
 import socket
-import os
 import sys
-
-logger: logging.Logger = logging.getLogger("NewportControllerLogger")
-logger.setLevel(logging.DEBUG)
-logging.Formatter.converter = time.gmtime
-logHandler = logging.FileHandler(os.path.join('./', 'newport_controller.log'))
-
-formatter = logging.Formatter("%(asctime)s--%(name)s--%(levelname)s--"
-                              "%(module)s--%(funcName)s--%(message)s")
-logHandler.setFormatter(formatter)
-logHandler.setLevel(logging.DEBUG)
-logger.addHandler(logHandler)
-
-console_formatter = logging.Formatter("%(asctime)s--%(message)s")
-consoleHandler = logging.StreamHandler(sys.stdout)
-consoleHandler.setFormatter(console_formatter)
-logger.addHandler(consoleHandler)
-
-logger.info("Starting Logger: Logger file is %s",
-            'newport_controller.log')
 
 class StageController:
     """
@@ -154,7 +134,7 @@ class StageController:
         "X": "Command not allowed for CC version."
     }
 
-    def __init__(self, num_stages=2, move_rate=5.0):
+    def __init__(self, num_stages=2, move_rate=5.0, log=True):
 
         """
         Class to handle communications with the stage controller and any faults
@@ -178,6 +158,30 @@ class StageController:
 
         self.custom_command = False
 
+        if log:
+            logname = __name__.rsplit(".", 1)[-1]
+            self.logger = logging.getLogger(logname)
+            self.logger.setLevel(logging.DEBUG)
+            logging.Formatter.converter = time.gmtime
+            log_handler = logging.FileHandler(logname + ".log")
+
+            formatter = logging.Formatter(
+                "%(asctime)s--%(name)s--%(levelname)s--"
+                "%(module)s--%(funcName)s--%(message)s")
+            log_handler.setFormatter(formatter)
+            log_handler.setLevel(logging.DEBUG)
+            self.logger.addHandler(log_handler)
+
+            console_formatter = logging.Formatter("%(asctime)s--%(message)s")
+            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler.setFormatter(console_formatter)
+            self.logger.addHandler(console_handler)
+
+            self.logger.info("Starting Logger: Logger file is %s",
+                        logname + ".log")
+        else:
+            self.logger = None
+
     def connect(self, ip=None, port=None):
         """ Connect to stage controller.
 
@@ -189,19 +193,22 @@ class StageController:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self.socket.connect((ip, port))
-            logger.info("Connected to %(host)s:%(port)s", {
-                'host': ip,
-                'port': port
-            })
+            if self.logger:
+                self.logger.info("Connected to %(host)s:%(port)s", {
+                    'host': ip,
+                    'port': port
+                })
             self.connected = True
             ret = {'elaptime': time.time()-start, 'data': 'connected'}
         except OSError as e:
             if e.errno == errno.EISCONN:
-                logger.info("Already connected")
+                if self.logger:
+                    self.logger.info("Already connected")
                 self.connected = True
                 ret = {'elaptime': time.time()-start, 'data': 'already connected'}
             else:
-                logger.error("Connection error: %s", e.strerror)
+                if self.logger:
+                    self.logger.error("Connection error: %s", e.strerror)
                 self.connected = False
                 ret = {'elaptime': time.time()-start, 'error': e.strerror}
         return ret
@@ -213,11 +220,13 @@ class StageController:
             self.socket.shutdown(socket.SHUT_RDWR)
             self.socket.close()
             self.socket = None
-            logger.info("Disconnected controller")
+            if self.logger:
+                self.logger.info("Disconnected controller")
             self.connected = False
             ret = {'elaptime': time.time()-start, 'data': 'disconnected'}
         except OSError as e:
-            logger.info("Disconnection error: %s", e.strerror)
+            if self.logger:
+                self.logger.info("Disconnection error: %s", e.strerror)
             self.connected = False
             self.socket = None
             ret = {'elaptime': time.time()-start, 'error': e.strerror}
@@ -236,12 +245,14 @@ class StageController:
 
         # Prep command
         cmd_send = f"{stage_id}{cmd}\r\n"
-        logger.info("Sending command:%s", cmd_send)
+        if self.logger:
+            self.logger.info("Sending command:%s", cmd_send)
         cmd_encoded = cmd_send.encode('utf-8')
 
         # check connection
         if not self.connected:
-            logger.error("Not connected to controller!")
+            if self.logger:
+                self.logger.error("Not connected to controller!")
             return None
 
         self.socket.settimeout(30)
@@ -257,11 +268,13 @@ class StageController:
             # Get return value
             recv = self.socket.recv(2048)
             recv_len = len(recv)
-            logger.info("Return: len = %d, Value = %s", recv_len, recv)
+            if self.logger:
+                self.logger.info("Return: len = %d, Value = %s", recv_len, recv)
 
             # Are we a valid return value?
             if recv_len in [6, 11, 12, 13, 14]:
-                logger.info("Return value validated")
+                if self.logger:
+                    self.logger.info("Return value validated")
                 return recv
 
         if cmd.upper() == 'ZT':
@@ -277,9 +290,11 @@ class StageController:
 
             if b'PW0' in recv:
                 recv_len = len(recv)
-                logger.info("ZT Return: len = %d", recv_len)
+                if self.logger:
+                    self.logger.info("ZT Return: len = %d", recv_len)
             else:
-                logger.warning("ZT command timed out")
+                if self.logger:
+                    self.logger.warning("ZT command timed out")
 
             return recv
 
@@ -308,12 +323,16 @@ class StageController:
                 if print_it >= 10:
                     msg = (f"{time.time()-start_time:05.2f} "
                            f"{self.msg.get(code, 'Unknown state'):s}")
-                    logger.info(msg)
+                    if self.logger:
+                        self.logger.info(msg)
+                    else:
+                        print(msg)
                     print_it = 0
 
             # Invalid state return (done)
             else:
-                logger.warning("Bad %dTS return: %s", stage_id, recv)
+                if self.logger:
+                    self.logger.warning("Bad %dTS return: %s", stage_id, recv)
                 return recv
 
             # Increment tries and read state again
@@ -322,8 +341,9 @@ class StageController:
         # If we get here, we ran out of tries
         recv = recv.rstrip()
         code = str(recv[-2:].decode('utf-8'))
-        logger.warning("Command timed out, final state: %s",
-                       self.msg.get(code, "Unknown state"))
+        if self.logger:
+            self.logger.warning("Command timed out, final state: %s",
+                           self.msg.get(code, "Unknown state"))
         return recv
 
     def __send_command(self, cmd="", parameters=None, stage_id=1, timeout=15):
@@ -337,6 +357,7 @@ class StageController:
         :param timeout: Int, timeout for sending command in seconds
         :return: dictionary {'elaptime': time, 'data|error': string_message}
         """
+
         start = time.time()
 
         # verify cmd and stage_id
@@ -346,18 +367,19 @@ class StageController:
 
         # Check if the command should have parameters
         if cmd in self.parameter_commands and parameters:
-            logger.info("add parameters")
             parameters = [str(x) for x in parameters]
             parameters = " ".join(parameters)
             cmd += parameters
 
-        logger.info("Input command: %s", cmd)
+        if self.logger:
+            self.logger.info("Input command: %s", cmd)
 
         # Send command
         response = self.__send_serial_command(stage_id, cmd, timeout)
         response = str(response.decode('utf-8'))
-        logger.info("Response from stage %d:\n%s",
-                    stage_id, response)
+        if self.logger:
+            self.logger.info("Response from stage %d:\n%s",
+                             stage_id, response)
 
         # Parse response
         message = self.__return_parse_state(response)
@@ -399,7 +421,8 @@ class StageController:
 
         # Not referenced (needs to be homed)
         if 'REFERENCED' in message:
-            logger.info("State is NOT REFERENCED, recommend homing")
+            if self.logger:
+                self.logger.info("State is NOT REFERENCED, recommend homing")
             msg_type = 'error'
             msg_text = message
             return {'elaptime': time.time() - start, msg_type: msg_text}
@@ -413,10 +436,8 @@ class StageController:
         :param cmd: String, command to send to the stage controller
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :return: dictionary {'elaptime': time, 'data|error': string_message}"""
-        start = time.time()
 
-        msg_type = ''
-        msg_text = ''
+        start = time.time()
 
         # Do we have a connection?
         if not self.connected:
@@ -498,7 +519,9 @@ class StageController:
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
+
         start = time.time()
+
         if position is None or stage_id is None:
             return {'elaptime': time.time() - start,
                     'error': 'must specify both position and stage_id'}
@@ -509,7 +532,9 @@ class StageController:
             timeout = int(abs(move_len / self.move_rate))
         if timeout <= 0:
             timeout = 5
-        logger.info("Timeout for move to absolute position: %d s", timeout)
+        if self.logger:
+            self.logger.info("Timeout for move to absolute position: %d s",
+                             timeout)
         ret = self.__send_command(cmd="PA", parameters=[position],
                                   stage_id=stage_id, timeout=timeout)
         if 'error' not in ret:
@@ -525,7 +550,9 @@ class StageController:
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
+
         start = time.time()
+
         if position is None or stage_id is None:
             return {'elaptime': time.time() - start,
                     'error': 'must specify both position and stage_id'}
@@ -535,7 +562,9 @@ class StageController:
             timeout = int(abs(position / self.move_rate))
         if timeout <= 0:
             timeout = 5
-        logger.info("Timeout for move to relative position: %d s", timeout)
+        if self.logger:
+            self.logger.info("Timeout for move to relative position: %d s",
+                             timeout)
         ret = self.__send_command(cmd="PR", parameters=[position],
                                   stage_id=stage_id, timeout=timeout)
         if 'error' not in ret:
@@ -587,7 +616,8 @@ class StageController:
         if rate > 0:
             self.move_rate = rate
         else:
-            logger.error('set_move_rate input error, not changed')
+            if self.logger:
+                self.logger.error('set_move_rate input error, not changed')
         return {'elaptime': time.time()-start, 'data': self.move_rate}
 
     def reset(self, stage_id=1):
@@ -622,4 +652,5 @@ class StageController:
             self.custom_command = True
             ret = self.__send_command(cmd=cmd, stage_id=stage_id)
             self.custom_command = False
-            logger.info("End: %s", ret)
+            if self.logger:
+                self.logger.info("End: %s", ret)
