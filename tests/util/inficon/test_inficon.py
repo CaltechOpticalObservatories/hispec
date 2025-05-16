@@ -1,5 +1,5 @@
 import pytest
-from util.inficon.inficonvgc502 import InficonVGC502, WrongCommandError, UnknownResponse
+from hispec.inficon import InficonVGC502, WrongCommandError, UnknownResponse
 
 
 @pytest.mark.asyncio
