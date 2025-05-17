@@ -27,7 +27,7 @@ class InficonVGC502:
         except ConnectionRefusedError as err:
             if self.logger:
                 self.logger.error(f"Connection refused: {err}")
-            raise
+            raise DeviceConnectionError(f"Could not connect to {self.address}:{self.port}") from err
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -79,7 +79,13 @@ class InficonVGC502:
             raise UnknownResponse(f"Unknown response: {acknowledgment}")
 
 
-class WrongCommandError(Exception): pass
+class WrongCommandError(Exception):
+    pass
 
 
-class UnknownResponse(Exception): pass
+class UnknownResponse(Exception):
+    pass
+
+
+class DeviceConnectionError(Exception):
+    pass
