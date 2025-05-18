@@ -133,6 +133,7 @@ class StageController:
         "W": "Command not allowed for PP version.",
         "X": "Command not allowed for CC version."
     }
+    last_error =""
 
     def __init__(self, num_stages=2, move_rate=5.0, log=True):
 
@@ -253,13 +254,20 @@ class StageController:
         if not self.connected:
             if self.logger:
                 self.logger.error("Not connected to controller!")
-            return
+            return False
 
-        self.socket.settimeout(30)
+        try: 
 
-        # Send command
-        self.socket.send(cmd_encoded)
-        time.sleep(.05)
+            self.socket.settimeout(30)
+
+            # Send command
+            self.socket.send(cmd_encoded)
+            time.sleep(.05)
+            return True
+        except socket.error, e:
+            if self.logger:
+                self.logger.error("Error sending data")
+            return False  
 
     def __return_parse_value(self):
         # Return value commands
@@ -366,6 +374,8 @@ class StageController:
 
         # Check if the command should have parameters
         if cmd in self.parameter_commands and parameters:
+            if self.logger:
+                self.logger.info("Adding parameters")
             parameters = [str(x) for x in parameters]
             parameters = " ".join(parameters)
             cmd += parameters
