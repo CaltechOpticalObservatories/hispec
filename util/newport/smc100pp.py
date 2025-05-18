@@ -234,7 +234,7 @@ class StageController:
 
         return ret
 
-    def __return_parse_value(self):
+    def __read_value(self):
         # Return value commands
 
         # Get return value
@@ -249,7 +249,7 @@ class StageController:
                 self.logger.info("Return value validated")
         return recv
 
-    def __return_parse_params(self):
+    def __read_params(self):
 
         # Get return value
         recv = self.socket.recv(2048)
@@ -270,7 +270,7 @@ class StageController:
 
         return recv
 
-    def __return_parse_blocking(self, stage_id=1, timeout=15):
+    def __read_blocking(self, stage_id=1, timeout=15):
         # Non-return value commands eventually return state output
         sleep_time = 0.1
         start_time = time.time()
@@ -320,14 +320,13 @@ class StageController:
                            self.msg.get(code, "Unknown state"))
         return recv
 
-    def __send_serial_command(self, stage_id=1, cmd='', timeout=15):
+    def __send_serial_command(self, stage_id=1, cmd=''):
         """
-        Send serial command to stage controller.
+        Send serial command to stage controller
 
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :param cmd: String, command to send to stage controller
-        :param timeout: Int, timeout for sending command in seconds
-        :return:
+        :return: 
         """
 
         start = time.time()
@@ -361,16 +360,14 @@ class StageController:
 
         return {'elaptime': time.time()-start, msg_type: msg_text}
 
-    def __send_command(self, cmd="", parameters=None, stage_id=1, timeout=15):
+    def __send_command(self, cmd="", parameters=None, stage_id=1):
         """
-        Send a command to the stage controller and keep checking the state
-        until it matches one in the end_code
+        Send a command to the stage controller
 
         :param cmd: String, command to send to the stage controller
         :param parameters: List of string parameters associated with cmd
         :param stage_id: Int, stage position in the daisy chain starting with 1
-        :param timeout: Int, timeout for sending command in seconds
-        :return: None
+        :return: 
         """
 
         # verify cmd and stage_id
@@ -528,7 +525,7 @@ class StageController:
         """
         return self.__send_command(cmd='OR', stage_id=stage_id)
 
-    def move_abs(self, position=None, stage_id=None):
+    def move_abs(self, position=None, stage_id=None, blocking=False):
         """
         Move stage to absolute position and return when in position
         TODO: check limits on position
@@ -543,18 +540,24 @@ class StageController:
         if position is None or stage_id is None:
             return {'elaptime': time.time() - start,
                     'error': 'must specify both position and stage_id'}
-        move_len = self.current_position[stage_id] - position
-        if self.move_rate <= 0:
-            timeout = 5
-        else:
-            timeout = int(abs(move_len / self.move_rate))
-        if timeout <= 0:
-            timeout = 5
-        if self.logger:
-            self.logger.info("Timeout for move to absolute position: %d s",
-                             timeout)
+
+        # Send move to controller 
         ret = self.__send_command(cmd="PA", parameters=[position],
-                                  stage_id=stage_id, timeout=timeout)
+                                  stage_id=stage_id)
+ 
+        if blocking: 
+            move_len = self.current_position[stage_id] - position
+            if self.move_rate <= 0:
+                timeout = 5
+            else:
+                timeout = int(abs(move_len / self.move_rate))
+            if timeout <= 0:
+                timeout = 5
+            if self.logger:
+                self.logger.info("Timeout for move to absolute position: %d s",
+                                 timeout)
+            ret = self.__read_blocking(stage_id=stage_id, timeout=timeout)
+
         if 'error' not in ret:
             self.current_position[stage_id] = position
         return ret
@@ -595,7 +598,12 @@ class StageController:
         :param stage_id: int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
-        return self.__send_command(cmd="TS", stage_id=stage_id)
+        ret = self.__send_command(cmd="TS", stage_id=stage_id)
+        if 'error' not in ret:
+            state = self.__return_parse_state(self.__read_value())
+            return state
+        else:
+            return ret 
 
     def get_last_error(self, stage_id=1):
         """ Last error
@@ -603,7 +611,12 @@ class StageController:
         :param stage_id: int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
-        return self.__send_command(cmd="TE", stage_id=stage_id)
+        ret = self.__send_command(cmd="TE", stage_id=stage_id)
+        if 'error' not in ret:
+            last_error = self.__return_parse_error(self.__read_value())
+            return last_error
+        else:
+            return ret
 
     def get_position(self, stage_id=1):
         """ Current position
