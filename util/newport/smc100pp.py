@@ -234,41 +234,6 @@ class StageController:
 
         return ret
 
-    def __send_serial_command(self, stage_id=1, cmd='', timeout=15):
-        """
-        Send serial command to stage controller.
-
-        :param stage_id: Int, stage position in the daisy chain starting with 1
-        :param cmd: String, command to send to stage controller
-        :param timeout: Int, timeout for sending command in seconds
-        :return:
-        """
-
-        # Prep command
-        cmd_send = f"{stage_id}{cmd}\r\n"
-        if self.logger:
-            self.logger.info("Sending command:%s", cmd_send)
-        cmd_encoded = cmd_send.encode('utf-8')
-
-        # check connection
-        if not self.connected:
-            if self.logger:
-                self.logger.error("Not connected to controller!")
-            return False
-
-        try: 
-
-            self.socket.settimeout(30)
-
-            # Send command
-            self.socket.send(cmd_encoded)
-            time.sleep(.05)
-            return True
-        except socket.error, e:
-            if self.logger:
-                self.logger.error("Error sending data")
-            return False  
-
     def __return_parse_value(self):
         # Return value commands
 
@@ -355,6 +320,47 @@ class StageController:
                            self.msg.get(code, "Unknown state"))
         return recv
 
+    def __send_serial_command(self, stage_id=1, cmd='', timeout=15):
+        """
+        Send serial command to stage controller.
+
+        :param stage_id: Int, stage position in the daisy chain starting with 1
+        :param cmd: String, command to send to stage controller
+        :param timeout: Int, timeout for sending command in seconds
+        :return:
+        """
+
+        start = time.time()
+
+        # Prep command
+        cmd_send = f"{stage_id}{cmd}\r\n"
+        if self.logger:
+            self.logger.info("Sending command:%s", cmd_send)
+        cmd_encoded = cmd_send.encode('utf-8')
+
+        # check connection
+        if not self.connected:
+            msg_type = 'error'
+            msg_text = "Not connected to controller!"
+            if self.logger:
+                self.logger.error(msg_text)
+
+        try:
+            self.socket.settimeout(30)
+            # Send command
+            self.socket.send(cmd_encoded)
+            time.sleep(.05)
+            msg_type = 'data'
+            msg_text = 'Command sent successfully'
+
+        except socket.error as e:
+            msg_type = 'error'
+            msg_text = f"Command send error: {e.strerror}"
+            if self.logger:
+                self.logger.error(msg_text)
+
+        return {'elaptime': time.time()-start, msg_type: msg_text}
+
     def __send_command(self, cmd="", parameters=None, stage_id=1, timeout=15):
         """
         Send a command to the stage controller and keep checking the state
@@ -383,8 +389,8 @@ class StageController:
         if self.logger:
             self.logger.info("Input command: %s", cmd)
 
-        # Send command
-        self.__send_serial_command(stage_id, cmd, timeout)
+        # Send serial command
+        return self.__send_serial_command(stage_id, cmd, timeout)
 
         """
         response = str(response.decode('utf-8'))
