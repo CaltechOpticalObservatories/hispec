@@ -356,10 +356,8 @@ class StageController:
         :param parameters: List of string parameters associated with cmd
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :param timeout: Int, timeout for sending command in seconds
-        :return: dictionary {'elaptime': time, 'data|error': string_message}
+        :return: None
         """
-
-        start = time.time()
 
         # verify cmd and stage_id
         ret = self.__verify_send_command(cmd, stage_id)
