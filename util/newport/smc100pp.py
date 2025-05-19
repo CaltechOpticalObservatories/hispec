@@ -662,10 +662,10 @@ class StageController:
     def get_limits(self, stage_id=1):
         """ Get stage limits"""
         start = time.time()
-        ret = self.__send_command(cmd="SL", stage_id=stage_id)
+        ret = self.__send_command(cmd="SL?", stage_id=stage_id)
         if 'error' not in ret:
             lolim = int(self.__read_value().rstrip())
-            ret = self.__send_command(cmd="SR", stage_id=stage_id)
+            ret = self.__send_command(cmd="SR?", stage_id=stage_id)
             if 'error' not in ret:
                 uplim = int(self.__read_value().rstrip())
                 self.current_limits[stage_id] = (lolim, uplim)
