@@ -556,6 +556,13 @@ class StageController:
             return {'elaptime': time.time() - start,
                     'error': 'must specify both position and stage_id'}
 
+        # Verify position
+        newpos = self.current_position[stage_id] + position
+        if newpos < self.current_limits[stage_id][0] or \
+           newpos > self.current_limits[stage_id][1]:
+            return {'elaptime': time.time() - start,
+                    'error': 'position out of range'}
+
         ret = self.__send_command(cmd="PR", parameters=[position],
                                   stage_id=stage_id)
 
