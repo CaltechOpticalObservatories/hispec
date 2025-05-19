@@ -201,6 +201,7 @@ class StageController:
                 })
             self.connected = True
             ret = {'elaptime': time.time()-start, 'data': 'connected'}
+
         except OSError as e:
             if e.errno == errno.EISCONN:
                 if self.logger:
@@ -212,6 +213,9 @@ class StageController:
                     self.logger.error("Connection error: %s", e.strerror)
                 self.connected = False
                 ret = {'elaptime': time.time()-start, 'error': e.strerror}
+        # clear socket
+        self.__clear_socket()
+
         return ret
 
     def disconnect(self):
@@ -233,6 +237,17 @@ class StageController:
             ret = {'elaptime': time.time()-start, 'error': e.strerror}
 
         return ret
+
+    def __clear_socket(self):
+        """ Clear socket buffer. """
+        if self.socket is not None:
+            self.socket.setblocking(False)
+            while True:
+                try:
+                    _ = self.socket.recv(1024)
+                except BlockingIOError:
+                    break
+            self.socket.setblocking(True)
 
     def __read_value(self):
         # Return value commands
@@ -398,62 +413,6 @@ class StageController:
 
         # Send serial command
         return self.__send_serial_command(stage_id, cmd)
-
-        """
-        response = str(response.decode('utf-8'))
-        if self.logger:
-            self.logger.info("Response from stage %d:\n%s",
-                             stage_id, response)
-
-        # Parse response
-        message = self.__return_parse_state(response)
-
-        # Next check if we expect a return value from command
-        if cmd in self.return_value_commands:
-
-            # Parse position return
-            if cmd.upper() == 'TP':
-                response = response.rstrip()
-                msg_type = 'data'
-                msg_text = response[3:]
-
-            # Parse error return
-            elif cmd.upper() == 'TE':
-                response = response.rstrip()
-                errmsg = self.__return_parse_error(response)
-                msg_type = 'error'
-                msg_text = errmsg
-
-            # Return whole message (usually from TS)
-            else:
-                msg_type = 'data'
-                msg_text = message
-
-            return {'elaptime': time.time() - start, msg_type: msg_text}
-
-        # Get parameters response
-        if cmd.upper() == 'ZT':
-            msg_type = 'data'
-            msg_text = response.strip()
-            return {'elaptime': time.time() - start, msg_type: msg_text}
-
-        # Non-return value command, but stage in unknown state
-        if cmd not in self.return_value_commands and message == "Unknown state":
-            msg_type = 'error'
-            msg_text = response
-            return {'elaptime': time.time() - start, msg_type: msg_text}
-
-        # Not referenced (needs to be homed)
-        if 'REFERENCED' in message:
-            if self.logger:
-                self.logger.info("State is NOT REFERENCED, recommend homing")
-            msg_type = 'error'
-            msg_text = message
-            return {'elaptime': time.time() - start, msg_type: msg_text}
-
-        # Valid state achieved after command
-        return {'elaptime': time.time() - start, 'data': message}
-        """
 
     def __verify_send_command(self, cmd, stage_id):
         """ Verify cmd and stage_id
