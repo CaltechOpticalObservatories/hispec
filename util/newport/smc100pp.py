@@ -154,8 +154,9 @@ class StageController:
         # stage rate in degrees per second
         self.move_rate = move_rate
 
-        # current position
+        # current values
         self.current_position = [0.0, 0.0, 0.0]
+        self.current_limits = [(0., 0.), (-3600., 3600.), (-3600., 3600.)]
 
         self.custom_command = False
 
@@ -497,7 +498,6 @@ class StageController:
     def move_abs(self, position=None, stage_id=None, blocking=False):
         """
         Move stage to absolute position and return when in position
-        TODO: check limits on position
 
         :param position: Float, absolute position in degrees
         :param stage_id: Int, stage position in the daisy chain starting with 1
@@ -510,6 +510,11 @@ class StageController:
         if position is None or stage_id is None:
             return {'elaptime': time.time() - start,
                     'error': 'must specify both position and stage_id'}
+        # Verify position
+        if position < self.current_limits[stage_id][0] or \
+           position > self.current_limits[stage_id][1]:
+            return {'elaptime': time.time() - start,
+                    'error': 'position out of range'}
 
         # Send move to controller
         ret = self.__send_command(cmd="PA", parameters=[position],
@@ -654,6 +659,20 @@ class StageController:
         """
         return self.__send_command(cmd="RS", stage_id=stage_id)
 
+    def get_limits(self, stage_id=1):
+        """ Get stage limits"""
+        start = time.time()
+        ret = self.__send_command(cmd="SL", stage_id=stage_id)
+        if 'error' not in ret:
+            lolim = int(self.__read_value().rstrip())
+            ret = self.__send_command(cmd="SR", stage_id=stage_id)
+            if 'error' not in ret:
+                uplim = int(self.__read_value().rstrip())
+                self.current_limits[stage_id] = (lolim, uplim)
+                ret = {'elaptime': time.time()-start,
+                       'data': self.current_limits[stage_id]}
+        return ret
+
     def get_params(self, stage_id=1, quiet=False):
         """ Get stage parameters
 
@@ -679,10 +698,12 @@ class StageController:
 
     def read_from_controller(self):
         """ Read from controller"""
+        self.socket.setblocking(False)
         recv = self.socket.recv(2048)
         recv_len = len(recv)
         if self.logger:
             self.logger.info("Return: len = %d, Value = %s", recv_len, recv)
+        self.socket.setblocking(True)
         return str(recv.decode('utf-8'))
 
     def run_manually(self, stage_id=1):
@@ -691,6 +712,7 @@ class StageController:
         :param stage_id: int, stage position in the daisy chain starting with 1
         :return: None
         """
+
         while True:
 
             cmd = input("Enter Command")
