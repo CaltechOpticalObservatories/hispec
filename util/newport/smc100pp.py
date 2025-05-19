@@ -387,7 +387,7 @@ class StageController:
             self.logger.info("Input command: %s", cmd)
 
         # Send serial command
-        return self.__send_serial_command(stage_id, cmd, timeout)
+        return self.__send_serial_command(stage_id, cmd)
 
         """
         response = str(response.decode('utf-8'))
