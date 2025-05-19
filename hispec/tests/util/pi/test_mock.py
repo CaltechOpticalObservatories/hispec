@@ -1,6 +1,6 @@
 import json
 from unittest.mock import MagicMock, patch
-from hsfei import PIControllerBase
+from hispec.util import PIControllerBase
 
 
 @patch('hsfei.pi.controller.GCSDevice')

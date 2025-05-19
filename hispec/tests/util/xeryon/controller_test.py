@@ -2,9 +2,9 @@ import unittest
 import os
 import tempfile
 from unittest.mock import patch, mock_open
-from hsfei import XeryonController
-from ..stage import Stage
-from ..units import Units
+from hispec.util import XeryonController
+from hispec.util.xeryon.stage import Stage
+from hispec.util.xeryon.units import Units
 
 
 class MockAxis:
