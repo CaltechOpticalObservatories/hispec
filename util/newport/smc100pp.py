@@ -84,7 +84,7 @@ class StageController:
                            "ZT"     # Get all axis parameters
                            ]
     return_value_commands = ["TE", "TP", "TS"]
-    parameter_commands = ["PA", "PR"]
+    parameter_commands = ["PA", "PR", "SL", "SR"]
     end_code_list = ['32', '33', '34', '35']
     not_ref_list = ['0A', '0B', '0C', '0D', '0F', '10', '11']
     moving_list = ['28']
