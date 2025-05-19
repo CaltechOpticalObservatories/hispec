@@ -789,7 +789,8 @@ class StageController:
             if not cmd:
                 break
 
-            ret = self.__send_command(cmd=cmd, stage_id=stage_id)
+            ret = self.__send_command(cmd=cmd, stage_id=stage_id,
+                                      custom_command=True)
             if 'error' not in ret:
                 output = self.read_from_controller()
                 print(output)
