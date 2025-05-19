@@ -705,10 +705,16 @@ class StageController:
         :param stage_id: int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
+
+        start = time.time()
+
         ret = self.__send_command(cmd="RS", stage_id=stage_id)
         time.sleep(2.)
+
         if 'error' not in ret:
             self.read_from_controller()
+
+        ret['elaptime'] = time.time() - start
         return ret
 
     def get_limits(self, stage_id=1):
@@ -748,7 +754,7 @@ class StageController:
 
         return ret
 
-    def initialize(self):
+    def initialize_controller(self):
         """ Initialize stage controller. """
         start = time.time()
         for i in range(self.num_stages):
