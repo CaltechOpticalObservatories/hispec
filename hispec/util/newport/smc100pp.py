@@ -679,7 +679,10 @@ class StageController:
         :param stage_id: int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
-        return self.__send_command(cmd="RS", stage_id=stage_id)
+        ret = self.__send_command(cmd="RS", stage_id=stage_id)
+        if 'error' not in ret:
+            self.read_from_controller()
+        return ret
 
     def get_limits(self, stage_id=1):
         """ Get stage limits"""
