@@ -703,6 +703,14 @@ class StageController:
 
         return ret
 
+    def initialize(self):
+        """ Initialize stage controller. """
+        start = time.time()
+        for i in range(self.num_stages):
+            self.get_position(i+1)
+            self.get_limits(i+1)
+        return {'elaptime': time.time()-start, 'data': 'initialized'}
+
     def read_from_controller(self):
         """ Read from controller"""
         self.socket.setblocking(False)
