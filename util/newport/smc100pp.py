@@ -695,10 +695,11 @@ class StageController:
         """
         return self.__send_command(cmd="RS", stage_id=stage_id)
 
-    def get_params(self, stage_id=1):
+    def get_params(self, stage_id=1, quiet=False):
         """ Get stage parameters
 
         :param stage_id: int, stage position in the daisy chain starting with 1
+        :param quiet: Boolean, do not print parameters
         :return: return from __send_command
         """
 
@@ -708,10 +709,22 @@ class StageController:
 
         if 'error' not in ret:
             params = self.__read_params()
+            if not quiet:
+                for param in params.split():
+                    if 'PW' not in param:
+                        print(param)
             ret['data'] = params
             ret['elaptime'] = time.time() - start
 
         return ret
+
+    def read_from_controller(self):
+        """ Read from controller"""
+        recv = self.socket.recv(2048)
+        recv_len = len(recv)
+        if self.logger:
+            self.logger.info("Return: len = %d, Value = %s", recv_len, recv)
+        return str(recv.decode('utf-8'))
 
     def run_manually(self, stage_id=1):
         """ Input stage commands manually
@@ -728,6 +741,9 @@ class StageController:
 
             self.custom_command = True
             ret = self.__send_command(cmd=cmd, stage_id=stage_id)
+            if 'error' not in ret:
+                output = self.read_from_controller()
+                print(output)
             self.custom_command = False
             if self.logger:
                 self.logger.info("End: %s", ret)
