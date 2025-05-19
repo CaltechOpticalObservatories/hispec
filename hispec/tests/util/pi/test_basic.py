@@ -1,5 +1,5 @@
 import pytest
-from hsfei import PIControllerBase
+from hispec.util import PIControllerBase
 
 def test_initialization():
     controller = PIControllerBase()

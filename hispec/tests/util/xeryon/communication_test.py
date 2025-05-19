@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from ..communication import Communication
+from hispec.util.xeryon.communication import Communication
 
 
 class MockAxis:

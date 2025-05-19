@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
-from ..axis import Axis
+from hispec.util.xeryon.axis import Axis
 
 
 class MockStage:

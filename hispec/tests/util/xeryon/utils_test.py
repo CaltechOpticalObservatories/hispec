@@ -1,5 +1,5 @@
 import logging
-from ..utils import get_actual_time, get_dpos_epos_string, output_console_factory
+from hispec.util.xeryon.utils import get_actual_time, get_dpos_epos_string, output_console_factory
 
 
 def test_get_actual_time_returns_int():
