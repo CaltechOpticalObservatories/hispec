@@ -271,6 +271,13 @@ class StageController:
         return str(recv.decode('utf-8'))
 
     def __read_blocking(self, stage_id=1, timeout=15):
+        """ Block while reading from the controller.
+        :param stage_id: Int, stage id
+        :param timeout: Timeout for blocking read
+        """
+
+        start = time.time()
+
         # Non-return value commands eventually return state output
         sleep_time = 0.1
         start_time = time.time()
@@ -292,10 +299,11 @@ class StageController:
 
                 # Valid end code or not referenced code (done)
                 if code in self.end_code_list or code in self.not_ref_list:
-                    return str(recv.decode('utf-8'))
+                    return {'elaptime': time.time()-start,
+                            'data': self.msg.get(code, 'Unknown state')}
 
                 if print_it >= 10:
-                    msg = (f"{time.time()-start_time:05.2f} "
+                    msg = (f"{time.time()-start:05.2f} "
                            f"{self.msg.get(code, 'Unknown state'):s}")
                     if self.logger:
                         self.logger.info(msg)
@@ -307,7 +315,8 @@ class StageController:
             else:
                 if self.logger:
                     self.logger.warning("Bad %dTS return: %s", stage_id, recv)
-                return str(recv.decode('utf-8'))
+                return {'elaptime': time.time()-start,
+                        'error': str(recv.decode('utf-8'))}
 
             # Increment tries and read state again
             print_it += 1
@@ -318,7 +327,8 @@ class StageController:
         if self.logger:
             self.logger.warning("Command timed out, final state: %s",
                            self.msg.get(code, "Unknown state"))
-        return str(recv.decode('utf-8'))
+        return {'elaptime': time.time()-start,
+                'error': self.msg.get(code, 'Unknown state')}
 
     def __send_serial_command(self, stage_id=1, cmd=''):
         """
@@ -542,11 +552,11 @@ class StageController:
             return {'elaptime': time.time() - start,
                     'error': 'must specify both position and stage_id'}
 
-        # Send move to controller 
+        # Send move to controller
         ret = self.__send_command(cmd="PA", parameters=[position],
                                   stage_id=stage_id)
- 
-        if blocking: 
+
+        if blocking:
             move_len = self.current_position[stage_id] - position
             if self.move_rate <= 0:
                 timeout = 5
@@ -561,7 +571,8 @@ class StageController:
 
         if 'error' not in ret:
             self.current_position[stage_id] = position
-            ret['elaptime'] = time.time() - start
+
+        ret['elaptime'] = time.time() - start
         return ret
 
     def move_rel(self, position=0.0, stage_id=1, blocking=False):
@@ -598,7 +609,8 @@ class StageController:
 
         if 'error' not in ret:
             self.current_position[stage_id] += position
-            ret['elaptime'] = time.time() - start
+
+        ret['elaptime'] = time.time() - start
         return ret
 
     def get_state(self, stage_id=1):
