@@ -501,7 +501,7 @@ class StageController:
 
             if 'error' not in ret:
                 while 'READY from HOMING' not in ret['data']:
-                    time.sleep(.1)
+                    time.sleep(1.)
                     ret = self.get_state(stage_id)
                     if 'error' in ret:
                         break
@@ -706,6 +706,7 @@ class StageController:
         :return: return from __send_command
         """
         ret = self.__send_command(cmd="RS", stage_id=stage_id)
+        time.sleep(2.)
         if 'error' not in ret:
             self.read_from_controller()
         return ret
