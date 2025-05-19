@@ -500,16 +500,24 @@ class StageController:
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :return: Boolean, True if homed else False
         """
+
         state = self.get_state(stage_id=stage_id)
+
         if 'error' in state:
             if self.logger:
                 self.logger.error(state['error'])
-            return False
-        if 'NOT REFERENCED' in state['data']:
+            ret = False
+
+        else:
+            if 'NOT REFERENCED' in state['data']:
+                ret = False
+            else:
+                ret = True
+
             if self.logger:
                 self.logger.warning(state['data'])
-            return False
-        return True
+
+        return ret
 
     def move_abs(self, position=None, stage_id=None, blocking=False):
         """
