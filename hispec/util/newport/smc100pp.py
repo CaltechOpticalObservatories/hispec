@@ -495,6 +495,22 @@ class StageController:
         """
         return self.__send_command(cmd='OR', stage_id=stage_id)
 
+    def homed(self, stage_id=1):
+        """ Is the stage homed?
+        :param stage_id: Int, stage position in the daisy chain starting with 1
+        :return: Boolean, True if homed else False
+        """
+        state = self.get_state(stage_id=stage_id)
+        if 'error' in state:
+            if self.logger:
+                self.logger.error(state['error'])
+            return False
+        if 'NOT REFERENCED' in state['data']:
+            if self.logger:
+                self.logger.warning(state['data'])
+            return False
+        return True
+
     def move_abs(self, position=None, stage_id=None, blocking=False):
         """
         Move stage to absolute position and return when in position
@@ -713,10 +729,13 @@ class StageController:
     def read_from_controller(self):
         """ Read from controller"""
         self.socket.setblocking(False)
-        recv = self.socket.recv(2048)
-        recv_len = len(recv)
-        if self.logger:
-            self.logger.info("Return: len = %d, Value = %s", recv_len, recv)
+        try:
+            recv = self.socket.recv(2048)
+            recv_len = len(recv)
+            if self.logger:
+                self.logger.info("Return: len = %d, Value = %s", recv_len, recv)
+        except BlockingIOError:
+            recv = b""
         self.socket.setblocking(True)
         return str(recv.decode('utf-8'))
 
