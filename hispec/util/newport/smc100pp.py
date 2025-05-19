@@ -493,7 +493,25 @@ class StageController:
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
-        return self.__send_command(cmd='OR', stage_id=stage_id)
+
+        start = time.time()
+
+        if not self.homed(stage_id):
+            ret = self.__send_command(cmd='OR', stage_id=stage_id)
+
+            if 'error' not in ret:
+                while 'READY from HOMING' not in ret['data']:
+                    time.sleep(.1)
+                    ret = self.get_state(stage_id)
+                    if 'error' in ret:
+                        break
+                    if self.logger:
+                        self.logger.info(ret['data'])
+                ret['elaptime'] = time.time() - start
+        else:
+            ret = { 'elaptime': time.time()-start, 'data': 'already homed' }
+
+        return ret
 
     def homed(self, stage_id=1):
         """ Is the stage homed?
