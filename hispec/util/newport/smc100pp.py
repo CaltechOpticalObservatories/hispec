@@ -52,13 +52,25 @@ VE    Get controller revision information
 ZT  * Get all axis parameters
 ZX    Set/Get SmartStage configuration
 
-The values below as of 2025-Apr-30
+The values below as of 2025-May-19
 
 For stage 1 & 2 current values are:
 80 - Acceleration
 -3600 - negative software limit, from 1SL?
 +3600 - positive software limit, from 1SR?
-1.76994e-05 - units per encoder increment, from 1SU?
+20 - Microstep factor
+0.0200682 - Full step value
+0.04 - Jerk time in seconds
+8 - deg/s Home velocity
+1980 - Home timeout in seconds
+0.3 - Peak current limit in Amperes
+2 - Controller's RS485 address
+8 - deg/s Move velocity
+0 - deg/s Base velocity
+ESP stage check enabled
+Home type: use MZ switch only
+Backlash and hysteresis compensations are disabled.
+
 
 """
 import errno
@@ -250,6 +262,7 @@ class StageController:
             self.socket.setblocking(True)
 
     def __read_value(self):
+        """ Read return value from controller """
         # Return value commands
 
         # Get return value
@@ -265,7 +278,7 @@ class StageController:
         return str(recv.decode('utf-8'))
 
     def __read_params(self):
-
+        """ Read stage controller parameters """
         # Get return value
         recv = self.socket.recv(2048)
 
@@ -420,6 +433,7 @@ class StageController:
 
         :param cmd: String, command to send to the stage controller
         :param stage_id: Int, stage position in the daisy chain starting with 1
+        :param custom_command: Boolean, if true, command is custom
         :return: dictionary {'elaptime': time, 'data|error': string_message}"""
 
         start = time.time()
@@ -718,7 +732,10 @@ class StageController:
         return ret
 
     def get_limits(self, stage_id=1):
-        """ Get stage limits"""
+        """ Get stage limits
+        :param stage_id: int, stage position in the daisy chain starting with 1
+        :return: return from __send_command
+        """
         start = time.time()
         ret = self.__send_command(cmd="SL", parameters="?", stage_id=stage_id)
         if 'error' not in ret:
