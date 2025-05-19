@@ -133,7 +133,7 @@ class StageController:
         "W": "Command not allowed for PP version.",
         "X": "Command not allowed for CC version."
     }
-    last_error =""
+    last_error = ""
 
     def __init__(self, num_stages=2, move_rate=5.0, log=True):
 
@@ -247,7 +247,7 @@ class StageController:
         if recv_len in [6, 11, 12, 13, 14]:
             if self.logger:
                 self.logger.info("Return value validated")
-        return recv
+        return str(recv.decode('utf-8'))
 
     def __read_params(self):
 
@@ -268,7 +268,7 @@ class StageController:
             if self.logger:
                 self.logger.warning("ZT command timed out")
 
-        return recv
+        return str(recv.decode('utf-8'))
 
     def __read_blocking(self, stage_id=1, timeout=15):
         # Non-return value commands eventually return state output
@@ -292,7 +292,7 @@ class StageController:
 
                 # Valid end code or not referenced code (done)
                 if code in self.end_code_list or code in self.not_ref_list:
-                    return recv
+                    return str(recv.decode('utf-8'))
 
                 if print_it >= 10:
                     msg = (f"{time.time()-start_time:05.2f} "
@@ -307,7 +307,7 @@ class StageController:
             else:
                 if self.logger:
                     self.logger.warning("Bad %dTS return: %s", stage_id, recv)
-                return recv
+                return str(recv.decode('utf-8'))
 
             # Increment tries and read state again
             print_it += 1
@@ -318,7 +318,7 @@ class StageController:
         if self.logger:
             self.logger.warning("Command timed out, final state: %s",
                            self.msg.get(code, "Unknown state"))
-        return recv
+        return str(recv.decode('utf-8'))
 
     def __send_serial_command(self, stage_id=1, cmd=''):
         """
@@ -532,6 +532,7 @@ class StageController:
 
         :param position: Float, absolute position in degrees
         :param stage_id: Int, stage position in the daisy chain starting with 1
+        :param blocking: Boolean, block until move complete or not
         :return: return from __send_command
         """
 
@@ -560,15 +561,17 @@ class StageController:
 
         if 'error' not in ret:
             self.current_position[stage_id] = position
+            ret['elaptime'] = time.time() - start
         return ret
 
-    def move_rel(self, position=0.0, stage_id=1):
+    def move_rel(self, position=0.0, stage_id=1, blocking=False):
         """
         Move stage to relative position and return when in position
         TODO: check limits on position
 
         :param position: Float, relative position in degrees
         :param stage_id: Int, stage position in the daisy chain starting with 1
+        :param blocking: Boolean, block until move complete or not
         :return: return from __send_command
         """
 
@@ -577,19 +580,25 @@ class StageController:
         if position is None or stage_id is None:
             return {'elaptime': time.time() - start,
                     'error': 'must specify both position and stage_id'}
-        if self.move_rate <= 0:
-            timeout = 5
-        else:
-            timeout = int(abs(position / self.move_rate))
-        if timeout <= 0:
-            timeout = 5
-        if self.logger:
-            self.logger.info("Timeout for move to relative position: %d s",
-                             timeout)
+
         ret = self.__send_command(cmd="PR", parameters=[position],
-                                  stage_id=stage_id, timeout=timeout)
+                                  stage_id=stage_id)
+
+        if blocking:
+            if self.move_rate <= 0:
+                timeout = 5
+            else:
+                timeout = int(abs(position / self.move_rate))
+            if timeout <= 0:
+                timeout = 5
+            if self.logger:
+                self.logger.info("Timeout for move to relative position: %d s",
+                                 timeout)
+            ret = self.__read_blocking(stage_id=stage_id, timeout=timeout)
+
         if 'error' not in ret:
             self.current_position[stage_id] += position
+            ret['elaptime'] = time.time() - start
         return ret
 
     def get_state(self, stage_id=1):
@@ -598,12 +607,16 @@ class StageController:
         :param stage_id: int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
+
+        start = time.time()
+
         ret = self.__send_command(cmd="TS", stage_id=stage_id)
         if 'error' not in ret:
             state = self.__return_parse_state(self.__read_value())
-            return state
-        else:
-            return ret 
+            ret['data'] = state
+            ret['elaptime'] = time.time() - start
+
+        return ret
 
     def get_last_error(self, stage_id=1):
         """ Last error
@@ -611,12 +624,16 @@ class StageController:
         :param stage_id: int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
+
+        start = time.time()
+
         ret = self.__send_command(cmd="TE", stage_id=stage_id)
         if 'error' not in ret:
             last_error = self.__return_parse_error(self.__read_value())
-            return last_error
-        else:
-            return ret
+            ret['data'] = last_error
+            ret['elaptime'] = time.time() - start
+
+        return ret
 
     def get_position(self, stage_id=1):
         """ Current position
@@ -627,15 +644,14 @@ class StageController:
 
         start = time.time()
 
-        self.__send_command(cmd="TP", stage_id=stage_id)
+        ret = self.__send_command(cmd="TP", stage_id=stage_id)
+        if 'error' not in ret:
+            position = float(self.__read_value().rstrip()[3:])
+            self.current_position[stage_id] = position
+            ret['data'] = position
+            ret['elaptime'] = time.time() - start
 
-        response = self.__return_parse_value()
-
-        # Parse position return
-        response = response.rstrip()
-
-        self.current_position[stage_id] = float(response[3:])
-        return {'elaptime': time.time() - start, 'data': float(response[3:])}
+        return ret
 
     def get_move_rate(self):
         """ Current move rate
@@ -673,7 +689,17 @@ class StageController:
         :param stage_id: int, stage position in the daisy chain starting with 1
         :return: return from __send_command
         """
-        return self.__send_command(cmd="ZT", stage_id=stage_id)
+
+        start = time.time()
+
+        ret = self.__send_command(cmd="ZT", stage_id=stage_id)
+
+        if 'error' not in ret:
+            params = self.__read_params()
+            ret['data'] = params
+            ret['elaptime'] = time.time() - start
+
+        return ret
 
     def run_manually(self, stage_id=1):
         """ Input stage commands manually
