@@ -664,10 +664,10 @@ class StageController:
         start = time.time()
         ret = self.__send_command(cmd="SL", parameters="?", stage_id=stage_id)
         if 'error' not in ret:
-            lolim = int(self.__read_value().rstrip())
+            lolim = int(self.__read_value().rstrip()[3:])
             ret = self.__send_command(cmd="SR", parameters="?", stage_id=stage_id)
             if 'error' not in ret:
-                uplim = int(self.__read_value().rstrip())
+                uplim = int(self.__read_value().rstrip()[3:])
                 self.current_limits[stage_id] = (lolim, uplim)
                 ret = {'elaptime': time.time()-start,
                        'data': self.current_limits[stage_id]}
