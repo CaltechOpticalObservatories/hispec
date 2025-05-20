@@ -633,7 +633,7 @@ class StageController:
         ret['elaptime'] = time.time() - start
         return ret
 
-    def move_rel(self, position=0.0, stage_id=1, blocking=False):
+    def move_rel(self, position=None, stage_id=None, blocking=False):
         """
         Move stage to relative position and return when in position
 
