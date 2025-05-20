@@ -479,10 +479,11 @@ class StageController:
 
         return is_valid
 
-    def __verify_move_state(self, stage_id, position):
+    def __verify_move_state(self, stage_id, position, move_type='absolute'):
         """ Verify that the move is allowed
         :param stage_id: Int, stage position in the daisy chain starting with 1
         :param position: String, move position
+        :param move_type: String, move type: 'absolute' or 'relative'
         :return: True if move is allowed"""
 
         start = time.time()
@@ -504,6 +505,8 @@ class StageController:
                 msg_text = current_state['data']
             else:
                 # Verify position
+                if move_type != 'absolute':
+                    position += self.current_position[stage_id]
                 if position < self.current_limits[stage_id][0] or \
                    position > self.current_limits[stage_id][1]:
                     msg_type = 'error'
@@ -645,11 +648,9 @@ class StageController:
 
         start = time.time()
 
-        # New position after relative move
-        newpos = self.current_position[stage_id] + position
-
         # Verify we are ready to move
-        ret = self.__verify_move_state(stage_id=stage_id, position=newpos)
+        ret = self.__verify_move_state(stage_id=stage_id, position=position,
+                                       move_type='relative')
         if 'error' in ret:
             if self.logger:
                 self.logger.error(ret['error'])
