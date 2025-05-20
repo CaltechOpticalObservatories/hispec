@@ -90,18 +90,30 @@ class PIControllerBase:
         return self.connected
 
     def get_idn(self) -> str:
+        """
+        Query the device identification string.
+        """
         self._require_connection()
         return self.device.qIDN()
 
     def get_serial_number(self) -> str:
+        """
+        Extract and return the serial number from the IDN string.
+        """
         idn = self.get_idn()
         return idn.split(',')[-2].strip()
 
     def get_axes(self) -> str:
+        """
+        Get a string of available axes.
+        """
         self._require_connection()
         return self.device.axes
 
     def get_position(self, axis_number):
+        """
+        Get the current position of a specified axis by index.
+        """
         self._require_connection()
         try:
             axis = self.device.axes[axis_number]
@@ -111,6 +123,9 @@ class PIControllerBase:
             return None
 
     def servo_status(self, axis):
+        """
+        Check if the servo on the given axis is enabled.
+        """
         self._require_connection()
         try:
             return bool(self.device.qSVO(axis)[axis])
@@ -119,6 +134,9 @@ class PIControllerBase:
             return False
 
     def get_error_code(self):
+        """
+        Get the last error code from the controller.
+        """
         self._require_connection()
         try:
             return self.device.qERR()
@@ -127,6 +145,9 @@ class PIControllerBase:
             return None
 
     def halt_motion(self):
+        """
+        Stop all motions immediately.
+        """
         self._require_connection()
         try:
             self.device.HLT()
@@ -134,6 +155,9 @@ class PIControllerBase:
             self.logger.error(f'Error halting motion: {e}')
 
     def set_position(self, axis, position):
+        """
+        Move the specified axis to the given position.
+        """
         self._require_connection()
         try:
             self.device.MOV(axis, position)
@@ -141,6 +165,9 @@ class PIControllerBase:
             self.logger.error(f'Error setting position: {e}')
 
     def set_named_position(self, axis, name):
+        """
+        Save the current position of the axis under a named label, scoped to the controller serial number.
+        """
         pos = self.get_position(self.device.axes.index(axis))
         if pos is None:
             self.logger.warning(f"Could not get position for axis {axis}")
@@ -167,6 +194,9 @@ class PIControllerBase:
         self.logger.info(f"Saved position '{name}' for controller {serial}, axis {axis}: {pos}")
 
     def go_to_named_position(self, name):
+        """
+        Load a named position for the current controller from file and move the corresponding axis to it.
+        """
         serial = self.get_serial_number()
 
         if not os.path.exists(self.named_position_file):
@@ -192,5 +222,6 @@ class PIControllerBase:
         self.set_position(axis, pos)
         self.logger.info(f"Moved axis {axis} to named position '{name}' for controller {serial}: {pos}")
 
+    # TODO
     def is_moving(self, axis, position_name):
         raise NotImplementedError("is_moving is not implemented")
