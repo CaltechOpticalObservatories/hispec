@@ -1,6 +1,7 @@
-from pipython import GCSDevice, GCSError
+import logging
 import json
 import os
+from pipython import GCSDevice, GCSError
 
 
 class PIControllerBase:
@@ -8,11 +9,19 @@ class PIControllerBase:
     Base class for communicating with a PI (Physik Instrumente) motion controller using pipython.
     """
 
-    def __init__(self):
+    def __init__(self, quiet=False):
         self.device = GCSDevice()
         self.connected = False
         self.named_positions = {}
         self.named_position_file = 'config/pi_named_positions.json'
+
+        self.logger = logging.getLogger(self.__class__.__name__)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
+
+        self.logger.setLevel(logging.WARNING if quiet else logging.INFO)
 
     def connect_tcp(self, ip, port=50000) -> None:
         """
@@ -20,6 +29,7 @@ class PIControllerBase:
         """
         self.device.ConnectTCPIP(ip, port)
         self.connected = True
+        self.logger.info(f"Connected to PI controller at {ip}:{port}")
 
     def disconnect(self) -> None:
         """
@@ -27,6 +37,7 @@ class PIControllerBase:
         """
         self.device.CloseConnection()
         self.connected = False
+        self.logger.info("Disconnected from PI controller")
         
     def is_connected(self) -> bool:
         """
@@ -80,7 +91,7 @@ class PIControllerBase:
         try:
             return bool(self.device.qSVO(axis)[axis])
         except GCSError as e:
-            print(f'Error checking servo status: {e}')
+            self.logger.error(f'Error checking servo status: {e}')
             return False
         
     def get_error_code(self):
@@ -92,7 +103,7 @@ class PIControllerBase:
         try:
             return self.device.qERR()
         except GCSError as e:
-            print(f'Error getting error code: {e}')
+            self.logger.error(f'Error getting error code: {e}')
             return None
     
     def halt_motion(self):
@@ -104,7 +115,7 @@ class PIControllerBase:
         try:
             self.device.HLT()
         except GCSError as e:
-            print(f'Error halting motion: {e}')
+            self.logger.error(f'Error halting motion: {e}')
 
     def set_position(self, axis, position):
         """
@@ -115,7 +126,7 @@ class PIControllerBase:
         try:
             self.device.MOV(axis, position)
         except GCSError as e:
-            print(f'Error setting position: {e}')
+            self.logger.error(f'Error setting position: {e}')
 
     def set_named_position(self, axis, name):
         """
@@ -123,7 +134,7 @@ class PIControllerBase:
         """
         pos = self.get_position(self.device.axes.index(axis))
         if pos is None:
-            print(f"Could not get position for axis {axis}")
+            self.logger.warning(f"Could not get position for axis {axis}")
             return
 
         serial = self.get_serial_number()
@@ -134,7 +145,7 @@ class PIControllerBase:
                 try:
                     positions = json.load(f)
                 except json.JSONDecodeError:
-                    print(f"Warning: Could not parse JSON from {self.named_position_file}")
+                    self.logger.warning(f"Could not parse JSON from {self.named_position_file}")
 
         if serial not in positions:
             positions[serial] = {}
@@ -144,7 +155,7 @@ class PIControllerBase:
         with open(self.named_position_file, "w") as f:
             json.dump(positions, f, indent=2)
 
-        print(f"Saved position '{name}' for controller {serial}, axis {axis}: {pos}")
+        self.logger.info(f"Saved position '{name}' for controller {serial}, axis {axis}: {pos}")
 
 
     def go_to_named_position(self, name):
@@ -154,27 +165,27 @@ class PIControllerBase:
         serial = self.get_serial_number()
 
         if not os.path.exists(self.named_position_file):
-            print(f"Named positions file not found: {self.named_position_file}")
+            self.logger.warning(f"Named positions file not found: {self.named_position_file}")
             return
 
         try:
             with open(self.named_position_file, "r") as f:
                 positions = json.load(f)
         except json.JSONDecodeError:
-            print(f"Failed to read positions from {self.named_position_file}")
+            self.logger.warning(f"Failed to read positions from {self.named_position_file}")
             return
 
         if serial not in positions:
-            print(f"No named positions found for controller {serial}")
+            self.logger.warning(f"No named positions found for controller {serial}")
             return
 
         if name not in positions[serial]:
-            print(f"Named position '{name}' not found for controller {serial}")
+            self.logger.warning(f"Named position '{name}' not found for controller {serial}")
             return
 
         axis, pos = positions[serial][name]
         self.set_position(axis, pos)
-        print(f"Moved axis {axis} to named position '{name}' for controller {serial}: {pos}")
+        self.logger.info(f"Moved axis {axis} to named position '{name}' for controller {serial}: {pos}")
 
 
     # TODO
