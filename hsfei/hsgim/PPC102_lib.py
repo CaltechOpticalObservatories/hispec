@@ -184,6 +184,7 @@ class PPC102_Coms(object):
             self.sock.settimeout(self.timeout)
             self.sock.connect((self.host, self.port))
             self.logger.info(f"Connected to {self.host}:{self.port}")
+            self.logger.info("Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer")
             _ = self.read_buff() # Clear buff, sometimes inicialized with 0x00 is buffer
             return True # Successful Connection to Device
         except socket.error as e:
