@@ -575,7 +575,7 @@ class StageController:
                 ret = True
 
             if self.logger:
-                self.logger.warning(state['data'])
+                self.logger.debug(state['data'])
 
         return ret
 
