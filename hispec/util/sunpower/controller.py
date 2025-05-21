@@ -1,9 +1,20 @@
 import serial
 import io
+import logging
 
 
 class SunpowerController:
-    def __init__(self, port='/dev/ttyUSB0', baudrate=9600):
+    def __init__(self, port='/dev/ttyUSB0', baudrate=9600, quiet=True):
+        self.logger = logging.getLogger(f"{__name__}.{id(self)}")
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+
+        # Set level depending on quiet mode
+        self.logger.setLevel(logging.WARNING if quiet else logging.DEBUG)
+
+        if not self.logger.hasHandlers():
+            self.logger.addHandler(handler)
+
         self.ser = serial.Serial(
             port=port,
             baudrate=baudrate,
@@ -12,7 +23,7 @@ class SunpowerController:
             stopbits=serial.STOPBITS_ONE
         )
         self.sio = io.TextIOWrapper(io.BufferedRWPair(self.ser, self.ser))
-        print(f"Serial connection opened: {self.ser.is_open}")
+        self.logger.info(f"Serial connection opened: {self.ser.is_open}")
 
     def _send_command(self, command: str):
         """Send a command to the Sunpower controller."""
@@ -26,14 +37,14 @@ class SunpowerController:
             if not line.strip():
                 break
             decoded = line.decode().strip()
-            print(decoded)
+            self.logger.debug(f"Received line: {decoded}")
             parts = decoded.split("= ")
             if len(parts) == 2 and parts[1] != 'GT':
                 try:
                     value = round(float(parts[1]), 6)
-                    print(f"{parts[0]}: {value}")
+                    self.logger.info(f"{parts[0]}: {value}")
                 except ValueError:
-                    pass  # Not a float value, skip
+                    self.logger.warning(f"Failed to parse value: {decoded}")
 
     async def _send_and_read(self, command: str):
         """Send a command and await its reply."""
@@ -67,4 +78,3 @@ class SunpowerController:
     async def turn_off_cooler(self):
         """Turn the cooler OFF."""
         await self._send_and_read('COOLER=OFF')
-
