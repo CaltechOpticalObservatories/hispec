@@ -148,13 +148,15 @@ class StageController:
     }
     last_error = ""
 
-    def __init__(self, num_stages=2, move_rate=5.0, log=True):
+    def __init__(self, num_stages=2, move_rate=5.0, log=True, quiet=False):
 
         """
         Class to handle communications with the stage controller and any faults
 
         :param num_stages: Int, number of stages daisey-chained
         :param move_rate: Float, move rate in degrees per second
+        :param log: Boolean, whether to log to file or not
+        :param quiet: Boolean, whether to log to console or not
         """
 
         # Set up socket
@@ -185,10 +187,11 @@ class StageController:
             log_handler.setLevel(logging.DEBUG)
             self.logger.addHandler(log_handler)
 
-            console_formatter = logging.Formatter("%(asctime)s--%(message)s")
-            console_handler = logging.StreamHandler(sys.stdout)
-            console_handler.setFormatter(console_formatter)
-            self.logger.addHandler(console_handler)
+            if not quiet:
+                console_formatter = logging.Formatter("%(asctime)s--%(message)s")
+                console_handler = logging.StreamHandler(sys.stdout)
+                console_handler.setFormatter(console_formatter)
+                self.logger.addHandler(console_handler)
 
             self.logger.info("Starting Logger: Logger file is %s",
                         logname + ".log")
@@ -476,6 +479,43 @@ class StageController:
 
         return is_valid
 
+    def __verify_move_state(self, stage_id, position, move_type='absolute'):
+        """ Verify that the move is allowed
+        :param stage_id: Int, stage position in the daisy chain starting with 1
+        :param position: String, move position
+        :param move_type: String, move type: 'absolute' or 'relative'
+        :return: True if move is allowed"""
+
+        start = time.time()
+
+        msg_type = 'data'
+        msg_text = 'OK to move'
+        # Verify inputs
+        if position is None or stage_id is None:
+            msg_type = 'error'
+            msg_text = 'must specify both position and stage_id'
+        else:
+            # Verify move state
+            current_state = self.get_state(stage_id=stage_id)
+            if 'error' in current_state:
+                msg_type = 'error'
+                msg_text = current_state['error']
+            elif 'READY' not in current_state['data']:
+                msg_type = 'error'
+                msg_text = current_state['data']
+            else:
+                # Verify position
+                if move_type != 'absolute':
+                    position += self.current_position[stage_id]
+                if position < self.current_limits[stage_id][0] or \
+                   position > self.current_limits[stage_id][1]:
+                    msg_type = 'error'
+                    msg_text = 'position out of range'
+        ret = {'elaptime': time.time() - start, msg_type: msg_text}
+        if self.logger:
+            self.logger.info("Move state: %s", msg_text)
+        return ret
+
     def __return_parse_state(self, message=""):
         """
         Parse the return message from the controller.  The message code is
@@ -563,14 +603,16 @@ class StageController:
 
         start = time.time()
 
-        if position is None or stage_id is None:
-            return {'elaptime': time.time() - start,
-                    'error': 'must specify both position and stage_id'}
-        # Verify position
-        if position < self.current_limits[stage_id][0] or \
-           position > self.current_limits[stage_id][1]:
-            return {'elaptime': time.time() - start,
-                    'error': 'position out of range'}
+        # Verify we are ready to move
+        ret = self.__verify_move_state(stage_id=stage_id, position=position)
+        if 'error' in ret:
+            if self.logger:
+                self.logger.error(ret['error'])
+            return ret
+        if 'OK to move' not in ret['data']:
+            if self.logger:
+                self.logger.error(ret['data'])
+            return {'elaptime': time.time()-start, 'error': ret['data']}
 
         # Send move to controller
         ret = self.__send_command(cmd="PA", parameters=[position],
@@ -582,8 +624,7 @@ class StageController:
                 timeout = 5
             else:
                 timeout = int(abs(move_len / self.move_rate))
-            if timeout <= 0:
-                timeout = 5
+            timeout = max(timeout, 5)
             if self.logger:
                 self.logger.info("Timeout for move to absolute position: %d s",
                                  timeout)
@@ -595,7 +636,7 @@ class StageController:
         ret['elaptime'] = time.time() - start
         return ret
 
-    def move_rel(self, position=0.0, stage_id=1, blocking=False):
+    def move_rel(self, position=None, stage_id=None, blocking=False):
         """
         Move stage to relative position and return when in position
 
@@ -607,16 +648,17 @@ class StageController:
 
         start = time.time()
 
-        if position is None or stage_id is None:
-            return {'elaptime': time.time() - start,
-                    'error': 'must specify both position and stage_id'}
-
-        # Verify position
-        newpos = self.current_position[stage_id] + position
-        if newpos < self.current_limits[stage_id][0] or \
-           newpos > self.current_limits[stage_id][1]:
-            return {'elaptime': time.time() - start,
-                    'error': 'position out of range'}
+        # Verify we are ready to move
+        ret = self.__verify_move_state(stage_id=stage_id, position=position,
+                                       move_type='relative')
+        if 'error' in ret:
+            if self.logger:
+                self.logger.error(ret['error'])
+            return ret
+        if 'OK to move' not in ret['data']:
+            if self.logger:
+                self.logger.error(ret['data'])
+            return {'elaptime': time.time()-start, 'error': ret['data']}
 
         ret = self.__send_command(cmd="PR", parameters=[position],
                                   stage_id=stage_id)
@@ -626,8 +668,7 @@ class StageController:
                 timeout = 5
             else:
                 timeout = int(abs(position / self.move_rate))
-            if timeout <= 0:
-                timeout = 5
+            timeout = max(timeout, 5)
             if self.logger:
                 self.logger.info("Timeout for move to relative position: %d s",
                                  timeout)
