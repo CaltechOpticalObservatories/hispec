@@ -614,7 +614,7 @@ class StageController:
                 timeout = int(abs(move_len / self.move_rate))
             timeout = max(timeout, 5)
             if self.logger:
-                self.logger.warning("Timeout for move to absolute position: %d s",
+                self.logger.info("Timeout for move to absolute position: %d s",
                                  timeout)
             ret = self.__read_blocking(stage_id=stage_id, timeout=timeout)
 
@@ -658,7 +658,7 @@ class StageController:
                 timeout = int(abs(position / self.move_rate))
             timeout = max(timeout, 5)
             if self.logger:
-                self.logger.warning("Timeout for move to relative position: %d s",
+                self.logger.info("Timeout for move to relative position: %d s",
                                  timeout)
             ret = self.__read_blocking(stage_id=stage_id, timeout=timeout)
 
