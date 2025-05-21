@@ -77,7 +77,8 @@ import errno
 import logging
 import time
 import socket
-import sys
+
+from hispec.util.helper import logger_utils
 
 
 class StageController:
@@ -148,7 +149,8 @@ class StageController:
     }
     last_error = ""
 
-    def __init__(self, num_stages=2, move_rate=5.0, log=True, quiet=False):
+    def __init__(self, num_stages=2, move_rate=5.0, log=True,
+                 logfile=None, quiet=False):
 
         """
         Class to handle communications with the stage controller and any faults
@@ -156,6 +158,7 @@ class StageController:
         :param num_stages: Int, number of stages daisey-chained
         :param move_rate: Float, move rate in degrees per second
         :param log: Boolean, whether to log to file or not
+        :param logfile: Filename for log
         :param quiet: Boolean, whether to log to console or not
         """
 
@@ -173,28 +176,13 @@ class StageController:
         self.current_position = [0.0, 0.0, 0.0]
         self.current_limits = [(0., 0.), (-3600., 3600.), (-3600., 3600.)]
 
+        # set up logging
         if log:
-            logname = __name__.rsplit(".", 1)[-1]
-            self.logger = logging.getLogger(logname)
-            self.logger.setLevel(logging.DEBUG)
-            logging.Formatter.converter = time.gmtime
-            log_handler = logging.FileHandler(logname + ".log")
-
-            formatter = logging.Formatter(
-                "%(asctime)s--%(name)s--%(levelname)s--"
-                "%(module)s--%(funcName)s--%(message)s")
-            log_handler.setFormatter(formatter)
-            log_handler.setLevel(logging.DEBUG)
-            self.logger.addHandler(log_handler)
-
-            if not quiet:
-                console_formatter = logging.Formatter("%(asctime)s--%(message)s")
-                console_handler = logging.StreamHandler(sys.stdout)
-                console_handler.setFormatter(console_formatter)
-                self.logger.addHandler(console_handler)
-
-            self.logger.info("Starting Logger: Logger file is %s",
-                        logname + ".log")
+            if logfile is None:
+                logfile = __name__.rsplit(".", 1)[-1] + ".log"
+            self.logger = logger_utils.setup_logger(__name__, log_file=logfile)
+            if quiet:
+                self.logger.setLevel(logging.INFO)
         else:
             self.logger = None
 
@@ -210,7 +198,7 @@ class StageController:
         try:
             self.socket.connect((ip, port))
             if self.logger:
-                self.logger.info("Connected to %(host)s:%(port)s", {
+                self.logger.debug("Connected to %(host)s:%(port)s", {
                     'host': ip,
                     'port': port
                 })
@@ -220,7 +208,7 @@ class StageController:
         except OSError as e:
             if e.errno == errno.EISCONN:
                 if self.logger:
-                    self.logger.info("Already connected")
+                    self.logger.debug("Already connected")
                 self.connected = True
                 ret = {'elaptime': time.time()-start, 'data': 'already connected'}
             else:
@@ -241,12 +229,12 @@ class StageController:
             self.socket.close()
             self.socket = None
             if self.logger:
-                self.logger.info("Disconnected controller")
+                self.logger.debug("Disconnected controller")
             self.connected = False
             ret = {'elaptime': time.time()-start, 'data': 'disconnected'}
         except OSError as e:
             if self.logger:
-                self.logger.info("Disconnection error: %s", e.strerror)
+                self.logger.error("Disconnection error: %s", e.strerror)
             self.connected = False
             self.socket = None
             ret = {'elaptime': time.time()-start, 'error': e.strerror}
@@ -272,12 +260,12 @@ class StageController:
         recv = self.socket.recv(2048)
         recv_len = len(recv)
         if self.logger:
-            self.logger.info("Return: len = %d, Value = %s", recv_len, recv)
+            self.logger.debug("Return: len = %d, Value = %s", recv_len, recv)
 
         # Are we a valid return value?
         if recv_len in [6, 11, 12, 13, 14]:
             if self.logger:
-                self.logger.info("Return value validated")
+                self.logger.debug("Return value validated")
         return str(recv.decode('utf-8'))
 
     def __read_params(self):
@@ -294,7 +282,7 @@ class StageController:
         if b'PW0' in recv:
             recv_len = len(recv)
             if self.logger:
-                self.logger.info("ZT Return: len = %d", recv_len)
+                self.logger.debug("ZT Return: len = %d", recv_len)
         else:
             if self.logger:
                 self.logger.warning("ZT command timed out")
@@ -375,7 +363,7 @@ class StageController:
         # Prep command
         cmd_send = f"{stage_id}{cmd}\r\n"
         if self.logger:
-            self.logger.info("Sending command:%s", cmd_send)
+            self.logger.debug("Sending command:%s", cmd_send)
         cmd_encoded = cmd_send.encode('utf-8')
 
         # check connection
@@ -420,13 +408,13 @@ class StageController:
         # Check if the command should have parameters
         if cmd in self.parameter_commands and parameters:
             if self.logger:
-                self.logger.info("Adding parameters")
+                self.logger.debug("Adding parameters")
             parameters = [str(x) for x in parameters]
             parameters = " ".join(parameters)
             cmd += parameters
 
         if self.logger:
-            self.logger.info("Input command: %s", cmd)
+            self.logger.debug("Input command: %s", cmd)
 
         # Send serial command
         return self.__send_serial_command(stage_id, cmd)
@@ -513,7 +501,7 @@ class StageController:
                     msg_text = 'position out of range'
         ret = {'elaptime': time.time() - start, msg_type: msg_text}
         if self.logger:
-            self.logger.info("Move state: %s", msg_text)
+            self.logger.debug("Move state: %s", msg_text)
         return ret
 
     def __return_parse_state(self, message=""):
@@ -626,7 +614,7 @@ class StageController:
                 timeout = int(abs(move_len / self.move_rate))
             timeout = max(timeout, 5)
             if self.logger:
-                self.logger.info("Timeout for move to absolute position: %d s",
+                self.logger.warning("Timeout for move to absolute position: %d s",
                                  timeout)
             ret = self.__read_blocking(stage_id=stage_id, timeout=timeout)
 
@@ -670,7 +658,7 @@ class StageController:
                 timeout = int(abs(position / self.move_rate))
             timeout = max(timeout, 5)
             if self.logger:
-                self.logger.info("Timeout for move to relative position: %d s",
+                self.logger.warning("Timeout for move to relative position: %d s",
                                  timeout)
             ret = self.__read_blocking(stage_id=stage_id, timeout=timeout)
 
@@ -827,7 +815,7 @@ class StageController:
             recv = self.socket.recv(2048)
             recv_len = len(recv)
             if self.logger:
-                self.logger.info("Return: len = %d, Value = %s", recv_len, recv)
+                self.logger.debug("Return: len = %d, Value = %s", recv_len, recv)
         except BlockingIOError:
             recv = b""
         self.socket.setblocking(True)
@@ -854,4 +842,4 @@ class StageController:
                 print(output)
 
             if self.logger:
-                self.logger.info("End: %s", ret)
+                self.logger.debug("End: %s", ret)
