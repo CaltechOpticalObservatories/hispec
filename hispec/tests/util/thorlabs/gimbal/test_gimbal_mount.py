@@ -70,9 +70,62 @@ class Test_GimbalMount(unittest.TestCase):
         time.sleep(.1)
 
     def test_max_voltages(self):
+        #Max Voltage
+        self.dev = PPC102_Coms("BlueGimbalMount.ini")
+        self.dev.open()
+        time.sleep(.25)
+        ret = self.dev.get_max_output_voltages(channel=1)
+        assert self.dev.set_max_output_voltages(channel=1, limit=1000)
+        ret = self.dev.get_max_output_voltages(channel=1)
+        assert ret == 1000
+        assert self.dev.set_max_output_voltages(channel=1, limit=1500)
+        ret = self.dev.get_max_output_voltages(channel=1)
+        assert ret == 1500
+        ret = self.dev.get_max_output_voltages(channel=2)
+        assert self.dev.set_max_output_voltages(channel=2, limit=1000)
+        ret = self.dev.get_max_output_voltages(channel=2)
+        assert ret == 1000
+        assert self.dev.set_max_output_voltages(channel=2, limit=1500)
+        ret = self.dev.get_max_output_voltages(channel=2)
+        assert ret == 1500
+        self.assertFalse(self.dev.set_max_output_voltages(channel=3, limit=1000))
+        self.assertFalse(self.dev.set_max_output_voltages(channel=2, limit=2500))
+        self.assertFalse(self.dev.set_max_output_voltages(channel=0, limit=1000))
+        self.assertFalse(self.dev.set_max_output_voltages(channel=-1, limit=2000))
+        self.assertFalse(self.dev.set_max_output_voltages(channel=1, limit=-1000))
+        self.dev.close()
+        with self.assertRaises(Exception):
+            self.dev.get_max_output_voltages(channel=1)
+            self.dev.set_max_output_voltages(channel=1,limit=500)
+        time.sleep(.1)
         return
     
     def test_positions(self):
+        #CLOSED LOOP CONTROL
+        self.dev.set_loop(1,2)
+        self.dev.set_loop(2,2)
+        self.dev.set_position(channel=1,pos=100)
+        res = self.dev.get_positon(channel=1)
+        assert 95 < res < 105
+        self.dev.set_position(channel=1,pos=1000)
+        res = self.dev.get_positon(channel=1)
+        assert 995 < res < 1005
+        self.dev.set_position(channel=1,pos=31000)
+        res = self.dev.get_positon(channel=1)
+        assert 30995 < res < 31005
+        self.assertFalse(self.dev.set_position(channel=-1, pos=2000))
+        self.assertFalse(self.dev.set_position(channel=3,pos=100))
+        self.assertFalse(self.dev.get_position(channel=0))
+        self.dev.set_loop(1,1)
+        self.dev.set_loop(2,1)
+        self.assertFalse(self.dev.set_position(channel=1, pos=2000))
+        self.assertFalse(self.dev.set_position(channel=1,pos=100))
+        self.assertFalse(self.dev.get_position(channel=1))
+        self.dev.set_output_voltage(channel=1, volts=0)
+        self.dev.set_output_voltage(channel=2, volts=0)
+        return
+
+    def test_output_voltage(self):
         return
 
     def test_isupper(self):
