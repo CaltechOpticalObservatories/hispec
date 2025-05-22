@@ -20,13 +20,15 @@ pip install .
 
 ```python
 import asyncio
-from hispec.util.sunpower.controller import SunpowerController
+from hispec.util.sunpower.sunpower_controller import SunpowerCryocooler
+
 
 async def main():
-    controller = SunpowerController(port='/dev/ttyUSB0', baudrate=9600, quiet=True)
+    controller = SunpowerCryocooler(port='/dev/ttyUSB0', baudrate=9600, quiet=True)
     await controller.get_status()
     await controller.set_target_temp(300.0)
     await controller.turn_on_cooler()
+
 
 asyncio.run(main())
 ```

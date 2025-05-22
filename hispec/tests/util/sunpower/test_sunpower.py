@@ -1,16 +1,16 @@
 import unittest
 from unittest.mock import patch
-from hispec.util import SunpowerController
+from hispec.util import SunpowerCryocooler
 
 class TestSunpowerController(unittest.TestCase):
-    @patch('hispec.util.sunpower.controller.io.TextIOWrapper')
-    @patch('hispec.util.sunpower.controller.io.BufferedRWPair')
-    @patch('hispec.util.sunpower.controller.serial.Serial')
+    @patch('hispec.util.sunpower.sunpower_controller.io.TextIOWrapper')
+    @patch('hispec.util.sunpower.sunpower_controller.io.BufferedRWPair')
+    @patch('hispec.util.sunpower.sunpower_controller.serial.Serial')
     def setUp(self, mock_serial, mock_buffered, mock_textio):
         self.mock_serial = mock_serial.return_value
         self.mock_buffered = mock_buffered.return_value
         self.mock_textio = mock_textio.return_value
-        self.controller = SunpowerController(port='COM1', baudrate=19200, quiet=False)
+        self.controller = SunpowerCryocooler(port='COM1', baudrate=19200, quiet=False)
 
     def test_send_command(self):
         self.controller._send_command('TEST')

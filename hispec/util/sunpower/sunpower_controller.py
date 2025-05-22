@@ -1,19 +1,11 @@
 import serial
 import io
-import logging
+import hispec.util.helper.logger_utils as logger_utils
 
-
-class SunpowerController:
+class SunpowerCryocooler:
     def __init__(self, port='/dev/ttyUSB0', baudrate=9600, quiet=True):
-        self.logger = logging.getLogger(f"{__name__}.{id(self)}")
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
-
-        # Set level depending on quiet mode
-        self.logger.setLevel(logging.WARNING if quiet else logging.DEBUG)
-
-        if not self.logger.hasHandlers():
-            self.logger.addHandler(handler)
+        logfile = __name__.rsplit(".", 1)[-1] + ".log"
+        self.logger = logger_utils.setup_logger(__name__, log_file=logfile, quiet=quiet)
 
         self.ser = serial.Serial(
             port=port,
