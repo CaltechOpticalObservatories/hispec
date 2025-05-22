@@ -2,12 +2,12 @@ import time
 import serial
 from .communication import Communication
 from .axis import Axis
-from .config import AUTO_SEND_SETTINGS, SETTINGS_FILENAME, OUTPUT_TO_CONSOLE
-from .utils import output_console
+from .config import AUTO_SEND_SETTINGS, SETTINGS_FILENAME
+import hispec.util.helper.logger_utils as logger_utils
 
 
 class XeryonController:
-    def __init__(self, COM_port=None, baudrate=115200):
+    def __init__(self, COM_port=None, baudrate=115200, quiet=True):
         """
             :param COM_port: Specify the COM port used
             :type COM_port: string
@@ -17,8 +17,11 @@ class XeryonController:
 
             Main Xeryon Drive Class, initialize with the COM port and baudrate for communication with the driver.
         """
+        logfile = __name__.rsplit(".", 1)[-1] + ".log"
+        self.logger = logger_utils.setup_logger(__name__, log_file=logfile, quiet=quiet)
+
         self.comm = Communication(
-            self, COM_port, baudrate)  # Startup communication
+            self, COM_port, baudrate, self.logger)  # Startup communication
         self.axis_list = []
         self.axis_letter_list = []
         self.master_settings = {}
@@ -80,7 +83,7 @@ class XeryonController:
             axis.was_valid_DPOS = False
         self.get_communication().close_communication()  # Close communication
         if is_print_end:
-            output_console("Program stopped running.")
+            self.logger.info("Program stopped running.")
 
     def stop_movements(self):
         """
@@ -118,7 +121,7 @@ class XeryonController:
         :return: Returns an Axis object
         """
         newAxis = Axis(self, axis_letter,
-                       stage)
+                       stage, self.logger)
         self.axis_list.append(newAxis)  # Add axis to axis list.
         self.axis_letter_list.append(axis_letter)
         return newAxis
@@ -186,7 +189,7 @@ class XeryonController:
                         axis.set_setting(tag, value, True, doNotSendThrough=True)
 
         except FileNotFoundError as e:
-            output_console("No settings_default.txt found.")
+            self.logger.info("No settings_default.txt found.")
             # self.stop()  # Make sure the thread also stops.
             # raise Exception(
             # "ERROR: settings_default.txt file not found. Place it in the same folder as Xeryon.py. \n "
@@ -237,8 +240,7 @@ class XeryonController:
         It check's if it contains any signature of Xeryon.
         :return:
         """
-        if OUTPUT_TO_CONSOLE:
-            output_console("Automatically searching for COM-Port. If you want to speed things up you should manually provide it inside the controller object.")
+        self.logger.info("Automatically searching for COM-Port. If you want to speed things up you should manually provide it inside the controller object.")
         ports = list(serial.tools.list_ports.comports())
         com_port = None
         for port in ports:

@@ -1,3 +1,3 @@
-from .base_controller import PIControllerBase
+from .pi_controller import PIControllerBase
 
 __all__ = ["PIControllerBase"]

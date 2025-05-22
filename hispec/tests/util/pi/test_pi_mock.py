@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from hispec.util import PIControllerBase
 
 
-@patch('hsfei.pi.controller.GCSDevice')
+@patch('hispec.util.pi.pi_controller.GCSDevice')
 def test_connect_disconnect(mock_gcs_device_cls):
     mock_device = MagicMock()
     mock_gcs_device_cls.return_value = mock_device
@@ -19,7 +19,7 @@ def test_connect_disconnect(mock_gcs_device_cls):
     assert not controller.connected
 
 
-@patch('hsfei.pi.controller.GCSDevice')
+@patch('hispec.util.pi.pi_controller.GCSDevice')
 def test_get_serial_number(m):
     controller = PIControllerBase()
     controller.connected = True
@@ -29,7 +29,7 @@ def test_get_serial_number(m):
     assert serial == "123456"
 
 
-@patch('hsfei.pi.controller.GCSDevice')
+@patch('hispec.util.pi.pi_controller.GCSDevice')
 def test_get_position(mock_gcs_device_cls):
     mock_device = MagicMock()
     mock_gcs_device_cls.return_value = mock_device

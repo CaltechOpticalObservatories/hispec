@@ -1,4 +1,4 @@
-import logging
+import hispec.util.helper.logger_utils as logger_utils
 import json
 import os
 from pipython import GCSDevice, GCSError
@@ -15,13 +15,8 @@ class PIControllerBase:
         self.named_positions = {}
         self.named_position_file = 'config/pi_named_positions.json'
 
-        self.logger = logging.getLogger(self.__class__.__name__)
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
-        handler.setFormatter(formatter)
-        self.logger.addHandler(handler)
-
-        self.logger.setLevel(logging.WARNING if quiet else logging.INFO)
+        logfile = __name__.rsplit(".", 1)[-1] + ".log"
+        self.logger = logger_utils.setup_logger(__name__, log_file=logfile, quiet=quiet)
 
     def connect_tcp(self, ip, port=50000) -> None:
         """
