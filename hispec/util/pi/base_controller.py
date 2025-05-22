@@ -10,11 +10,12 @@ class PIControllerBase:
     """
 
     def __init__(self, quiet=False):
-        self.device = GCSDevice()
+        """
+        Initialize the controller, set up logging, and prepare device storage.
+        """
+        self.devices = {}  # {(ip, port, device_id): GCSDevice instance}
+        self.daisy_chains = {}  # {(ip, port): [(device_id, desc)]}
         self.connected = False
-        self.current_id = None
-        self.daisy_chains = {}  # {(ip, port): [(1, desc1), (2, desc2)]}
-        self.current_connection = None
         self.named_position_file = 'config/pi_named_positions.json'
 
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -25,6 +26,9 @@ class PIControllerBase:
         self.logger.setLevel(logging.WARNING if quiet else logging.INFO)
 
     def _require_connection(self):
+        """
+        Raise an error if not connected to any device.
+        """
         if not self.connected:
             raise RuntimeError("Controller is not connected")
 
@@ -32,16 +36,20 @@ class PIControllerBase:
         """
         Connect to a single PI controller via TCP/IP (non-daisy-chain).
         """
-        self.device.ConnectTCPIP(ip, port)
+        device = GCSDevice()
+        device.ConnectTCPIP(ip, port)
+        self.devices[(ip, port, 1)] = device
         self.connected = True
         self.logger.info(f"Connected to single PI controller at {ip}:{port}")
 
     def connect_tcpip_daisy_chain(self, ip, port):
         """
-        Connect to a daisy-chained set of PI controllers via TCP/IP over a terminal server.
+        Connect to all available devices on a daisy-chained set of PI controllers via TCP/IP.
+        Each device is a separate GCSDevice instance.
         """
-        devices = self.device.OpenTCPIPDaisyChain(ip, port)
-        dcid = self.device.dcid
+        main_device = GCSDevice()
+        devices = main_device.OpenTCPIPDaisyChain(ip, port)
+        dcid = main_device.dcid
 
         available = []
         for index, desc in enumerate(devices, start=1):
@@ -53,30 +61,46 @@ class PIControllerBase:
 
         self.daisy_chains[(ip, port)] = available
 
-        # Connect to the first device by default
-        first_id, first_desc = available[0]
-        self.device.ConnectDaisyChainDevice(first_id, dcid)
-        self.connected = True
-        self.current_connection = (ip, port, first_id)
+        for device_id, desc in available:
+            dev = GCSDevice()
+            if device_id == 1:
+                dev = main_device
+            else:
+                dev.ConnectDaisyChainDevice(device_id, dcid)
+            self.devices[(ip, port, device_id)] = dev
+            self.logger.info(f"[{ip}:{port}] Connected to device {device_id}: {desc}")
 
-        self.logger.info(f"[{ip}:{port}] Connected to device {first_id}: {first_desc}")
+        self.connected = True
 
     def select_device_on_chain(self, ip, port, device_id):
         """
-        Switch to a specific device on an existing daisy chain connection.
+        Set the current device for subsequent operations.
         """
-        if (ip, port) not in self.daisy_chains:
-            raise RuntimeError(f"Daisy chain at {ip}:{port} not initialized")
-
-        dcid = self.device.dcid  # still valid for this connection
-        self.device.ConnectDaisyChainDevice(device_id, dcid)
-        self.current_connection = (ip, port, device_id)
+        if (ip, port, device_id) not in self.devices:
+            raise RuntimeError(f"Device {device_id} not connected at {ip}:{port}")
         self.logger.info(f"Switched to device {device_id} on {ip}:{port}")
 
-    def disconnect(self):
-        self.device.CloseConnection()
+    def disconnect_device(self, device_key):
+        """
+        Disconnect from a single device specified by device_key.
+        """
+        if device_key in self.devices:
+            self.devices[device_key].CloseConnection()
+            del self.devices[device_key]
+            self.logger.info(f"Disconnected device {device_key}")
+        if not self.devices:
+            self.connected = False
+
+    def disconnect_all(self):
+        """
+        Disconnect from all devices (e.g., the whole daisychain).
+        """
+        for device_key in list(self.devices.keys()):
+            self.devices[device_key].CloseConnection()
+            self.logger.info(f"Disconnected device {device_key}")
+        self.devices.clear()
         self.connected = False
-        self.logger.info("Disconnected from PI controller")
+        self.logger.info("Disconnected from all PI controllers")
 
     def list_devices_on_chain(self, ip, port):
         """
@@ -89,91 +113,93 @@ class PIControllerBase:
     def is_connected(self) -> bool:
         return self.connected
 
-    def get_idn(self) -> str:
+    def get_idn(self, device_key) -> str:
         """
-        Query the device identification string.
+        Return the identification string for the specified device.
         """
         self._require_connection()
-        return self.device.qIDN()
+        return self.devices[device_key].qIDN()
 
-    def get_serial_number(self) -> str:
+    def get_serial_number(self, device_key) -> str:
         """
-        Extract and return the serial number from the IDN string.
+        Return the serial number for the specified device.
         """
-        idn = self.get_idn()
+        idn = self.get_idn(device_key)
         return idn.split(',')[-2].strip()
 
-    def get_axes(self) -> str:
+    def get_axes(self, device_key):
         """
-        Get a string of available axes.
+        Return the list of axes for the specified device.
         """
         self._require_connection()
-        return self.device.axes
+        return self.devices[device_key].axes
 
-    def get_position(self, axis_number):
+    def get_position(self, device_key, axis_number):
         """
-        Get the current position of a specified axis by index.
+        Return the position of the specified axis for the given device.
         """
         self._require_connection()
+        device = self.devices[device_key]
         try:
-            axis = self.device.axes[axis_number]
-            return self.device.qPOS(axis)[axis]
+            axis = device.axes[axis_number]
+            return device.qPOS(axis)[axis]
         except (GCSError, IndexError) as e:
             self.logger.error(f'Error getting position: {e}')
             return None
 
-    def servo_status(self, axis):
+    def servo_status(self, device_key, axis):
         """
-        Check if the servo on the given axis is enabled.
+        Return True if the servo for the given axis is enabled, False otherwise.
         """
         self._require_connection()
         try:
-            return bool(self.device.qSVO(axis)[axis])
+            return bool(self.devices[device_key].qSVO(axis)[axis])
         except GCSError as e:
             self.logger.error(f'Error checking servo status: {e}')
             return False
 
-    def get_error_code(self):
+    def get_error_code(self, device_key):
         """
-        Get the last error code from the controller.
+        Return the error code for the specified device, or None if an error occurs.
         """
         self._require_connection()
         try:
-            return self.device.qERR()
+            return self.devices[device_key].qERR()
         except GCSError as e:
             self.logger.error(f'Error getting error code: {e}')
             return None
 
-    def halt_motion(self):
+    def halt_motion(self, device_key):
         """
-        Stop all motions immediately.
+        Halt all motion for the specified device.
         """
         self._require_connection()
         try:
-            self.device.HLT()
+            self.devices[device_key].HLT()
         except GCSError as e:
             self.logger.error(f'Error halting motion: {e}')
 
-    def set_position(self, axis, position):
+    def set_position(self, device_key, axis, position):
         """
-        Move the specified axis to the given position.
+        Move the specified axis to the given position for the specified device.
         """
         self._require_connection()
         try:
-            self.device.MOV(axis, position)
+            self.devices[device_key].MOV(axis, position)
         except GCSError as e:
             self.logger.error(f'Error setting position: {e}')
 
-    def set_named_position(self, axis, name):
+    def set_named_position(self, device_key, axis, name):
         """
         Save the current position of the axis under a named label, scoped to the controller serial number.
         """
-        pos = self.get_position(self.device.axes.index(axis))
+        device = self.devices[device_key]
+        pos = self.get_position(device_key, device.axes.index(axis))
         if pos is None:
             self.logger.warning(f"Could not get position for axis {axis}")
             return
 
-        serial = self.get_serial_number()
+        serial = self.get_serial_number(device_key)
         positions = {}
 
         if os.path.exists(self.named_position_file):
