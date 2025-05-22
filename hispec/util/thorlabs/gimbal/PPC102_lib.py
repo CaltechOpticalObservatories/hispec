@@ -1,3 +1,11 @@
+##### IMPORTANT NOTE:: #####
+# The PPC102 can(EXTREAMELY RARELY) fall into an "unhappy state" where the user
+# is unable to command or query the stage in any way. This state is not reflected
+# with software or hardware indications. The issue is that an interupt can get
+# out of sync with the internal firmware loop, and you are unable to hop back
+# into the loop. SOLUTION:: Power Cycle
+#                   -Elijah A-B(Dev of this Library)
+
 import time
 import socket
 from enum import IntEnum, IntFlag
@@ -1079,7 +1087,8 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
 
-    def __set_ppc_PIDCONSTS(self, channel, p_const, i_const, d_const, dfc_const, derivFilter=True):
+    def __set_ppc_PIDCONSTS(self, channel: int = 1, p_const: float = 900.0, i_const: float = 800.0, 
+                            d_const: float = 90.0, dfc_const: float = 1000.0, derivFilter: bool = True):
         '''
             When operating in Closed Loop mode, the proportional, integral and 
                 derivative (PID) constants can be used to fine tune the behaviour of 
@@ -1106,7 +1115,46 @@ class PPC102_Coms(object):
                                             d_const(x2bytes) dfc_const(x2bytes)
                                             derivFilter(x2bytes))**
         '''
-        return
+        #check Connection
+        if not self.sock:
+            raise RuntimeError("Socket is not connected.")
+        
+        try:
+            if 0 < channel < 3:
+                destination = (0x20 + channel) | 0x80
+
+            if not all(0 <= val <= 10000 for val in (p_const, i_const, d_const, dfc_const)):
+                raise ValueError("PID values must be between 0 and 10000")
+
+            chan_ident = channel.to_bytes(2, byteorder='little')
+
+            # Convert PID values to little-endian 2-byte words
+            p_bytes = int(p_const).to_bytes(2, byteorder='little')
+            i_bytes = int(i_const).to_bytes(2, byteorder='little')
+            d_bytes = int(d_const).to_bytes(2, byteorder='little')
+            dfc_bytes = int(dfc_const).to_bytes(2, byteorder='little')
+            filter_flag = (1 if derivFilter else 2).to_bytes(2, byteorder='little')
+
+            # Header: 90 06 0C 00 d s
+            # Assuming destination is generic device 0xD0 and source is 0x01
+            header = bytes([0x90, 0x06, 0x0C, 0x00, destination, 0x01])
+            data = chan_ident + p_bytes + i_bytes + d_bytes + dfc_bytes + filter_flag
+
+            packet = header + data
+            self.write(packet)
+            time.sleep(self.DELAY)
+
+            if self.logger:
+                self.logger.info(f"PID constants sent: P={p_const}, I={i_const}, D={d_const}, DFC={dfc_const}, Filter={'ON' if derivFilter else 'OFF'}")
+            else:
+                print(f"PID constants sent: P={p_const}, I={i_const}, D={d_const}, DFC={dfc_bytes}, Filter={'ON' if derivFilter else 'OFF'}")
+            return True
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error in set_pid_consts: {e}")
+            else:
+                print(f"Error in set_pid_consts: {e}")
+            return False
     
     def __get_ppc_PIDCONSTS(self, channel):
         '''
@@ -1115,7 +1163,56 @@ class PPC102_Coms(object):
             Returns: PID constants in the same format as the set
             **MGMSG_PZ_GET_PPC_PIDCONSTS**(91 06 Chan_Ident 00 d s )**
         '''
-        return
+        # check connection
+        if not self.sock:
+            raise RuntimeError("Socket is not connected.")
+        
+        try:
+            if 0 < channel < 3:
+                destination = (0x20 + channel) | 0x80
+            else:
+                raise ReferenceError("Channel must be 1 or 2.")
+
+            chan_ident = channel.to_bytes(2, byteorder='little')
+
+            # Header for GET command: 91 06 + ChanIdent + 00 + d + s
+            header = bytes([0x91, 0x06]) + chan_ident + bytes([0x00, destination, 0x01])
+            self.write(header)
+            time.sleep(self.DELAY)
+
+            response = self.read(18)
+            if len(response) != 18:
+                raise ValueError("Invalid response length received from device")
+
+            # Parse the 12-byte payload from byte 6 onwards
+            p_const = int.from_bytes(response[8:10], byteorder='little')
+            i_const = int.from_bytes(response[10:12], byteorder='little')
+            d_const = int.from_bytes(response[12:14], byteorder='little')
+            dfc_const = int.from_bytes(response[14:16], byteorder='little')
+            deriv_filter_flag = int.from_bytes(response[16:18], byteorder='little')
+            deriv_filter = True if deriv_filter_flag == 1 else False
+
+            pid_consts = {
+                'p_const': p_const,
+                'i_const': i_const,
+                'd_const': d_const,
+                'dfc_const': dfc_const,
+                'derivFilter': deriv_filter
+            }
+
+            if self.logger:
+                self.logger.info(f"Retrieved PID constants: {pid_consts}")
+            else:
+                print(f"Retrieved PID constants: {pid_consts}")
+
+            return pid_consts
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error in get_pid_consts: {e}")
+            else:
+                print(f"Error in get_pid_consts: {e}")
+            return None
     
     def __set_ppc_NOTCHPARAMS(self, channel, filterNO, filter_1fc, filter_1q, notch_filter1_on, filter_2fc, filter_2q, notch_filter2_on):
         '''
