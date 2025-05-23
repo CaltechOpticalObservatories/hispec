@@ -2,7 +2,7 @@ import json
 from unittest.mock import MagicMock, patch
 from hispec.util import PIControllerBase
 
-@patch('hispec.util.pi.base_controller.GCSDevice')
+@patch('hispec.util.pi.pi_controller.GCSDevice')
 def test_connect_tcpip_daisy_chain(mock_gcs_device_cls):
     mock_device = MagicMock()
     mock_device.OpenTCPIPDaisyChain.return_value = [
@@ -24,7 +24,7 @@ def test_connect_tcpip_daisy_chain(mock_gcs_device_cls):
     assert ("192.168.29.100", 10003, 1) in controller.devices
     assert ("192.168.29.100", 10003, 2) in controller.devices
 
-@patch('hispec.util.pi.base_controller.GCSDevice')
+@patch('hispec.util.pi.pi_controller.GCSDevice')
 def test_list_devices_on_chain(mock_gcs_device_cls):
     controller = PIControllerBase(quiet=True)
     ip_port = ("192.168.29.100", 10003)
@@ -33,7 +33,7 @@ def test_list_devices_on_chain(mock_gcs_device_cls):
     devices = controller.list_devices_on_chain(*ip_port)
     assert devices == [(1, "PI Device 1"), (2, "PI Device 2")]
 
-@patch('hispec.util.pi.base_controller.GCSDevice')
+@patch('hispec.util.pi.pi_controller.GCSDevice')
 def test_connect_disconnect_device(mock_gcs_device_cls):
     mock_device = MagicMock()
     mock_gcs_device_cls.return_value = mock_device
@@ -49,7 +49,7 @@ def test_connect_disconnect_device(mock_gcs_device_cls):
     mock_device.CloseConnection.assert_called_once()
     assert not controller.connected
 
-@patch('hispec.util.pi.base_controller.GCSDevice')
+@patch('hispec.util.pi.pi_controller.GCSDevice')
 def test_disconnect_all(mock_gcs_device_cls):
     mock_device1 = MagicMock()
     mock_device2 = MagicMock()
@@ -64,7 +64,7 @@ def test_disconnect_all(mock_gcs_device_cls):
     assert not controller.devices
     assert not controller.connected
 
-@patch('hispec.util.pi.base_controller.GCSDevice')
+@patch('hispec.util.pi.pi_controller.GCSDevice')
 def test_get_serial_number(mock_gcs_device_cls):
     controller = PIControllerBase(quiet=True)
     controller.connected = True
@@ -76,7 +76,8 @@ def test_get_serial_number(mock_gcs_device_cls):
     serial = controller.get_serial_number(device_key)
     assert serial == "123456"
 
-@patch('hispec.util.pi.base_controller.GCSDevice')
+
+@patch('hispec.util.pi.pi_controller.GCSDevice')
 def test_get_position(mock_gcs_device_cls):
     mock_device = MagicMock()
     mock_gcs_device_cls.return_value = mock_device

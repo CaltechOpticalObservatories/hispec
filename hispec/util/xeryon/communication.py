@@ -2,14 +2,9 @@ import time
 import serial
 import threading
 
-from keyring.util.platform_ import data_root
-
-from .axis import Axis
-from .utils import output_console
-
 
 class Communication:
-    def __init__(self, xeryon_object, com_port, baud):
+    def __init__(self, xeryon_object, com_port, baud, logger):
         self.xeryon_object = xeryon_object
         self.COM_port = com_port
         self.baud = baud
@@ -17,6 +12,7 @@ class Communication:
         self.thread = None
         self.ser = None
         self.stop_thread = False
+        self.logger = logger
 
     def start(self, external_communication_thread=False):
         """
@@ -83,7 +79,7 @@ class Communication:
                 try:
                     self.ser.write(str.encode(command.rstrip("\n\r") + "\n"))
                 except Exception as e:
-                    output_console(f"Write error: {e}", error=True)
+                    self.logger.info(f"Write error: {e}", error=True)
                     continue
 
             max_to_read = 10
@@ -108,7 +104,7 @@ class Communication:
 
                     max_to_read -= 1
             except Exception as e:
-                output_console(f"Read error: {e}", error=True)
+                self.logger.info(f"Read error: {e}", error=True)
 
             if external_while_loop is True:
                 return None

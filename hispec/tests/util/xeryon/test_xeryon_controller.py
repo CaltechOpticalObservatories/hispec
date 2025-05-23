@@ -106,7 +106,7 @@ class TestXeryonController(unittest.TestCase):
             tmp_path = tmp.name
 
         try:
-            with patch("hsfei.xeryon.controller.SETTINGS_FILENAME", new=tmp_path):
+            with patch("hispec.util.xeryon.xeryon_controller.SETTINGS_FILENAME", new=tmp_path):
                 controller = XeryonController()
                 axis = controller.add_axis(Stage.XLS_312, "X")
                 controller.read_settings()

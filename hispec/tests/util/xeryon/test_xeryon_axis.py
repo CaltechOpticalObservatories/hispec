@@ -19,13 +19,31 @@ class MockXeryonController:
     def get_communication(self):
         return MagicMock(send_command=MagicMock())
 
+class MockLogger:
+    def __init__(self):
+        self.messages = []
+
+    def info(self, msg, *args, **kwargs):
+        self.messages.append(('info', msg))
+
+    def debug(self, msg, *args, **kwargs):
+        self.messages.append(('debug', msg))
+
+    def warning(self, msg, *args, **kwargs):
+        self.messages.append(('warning', msg))
+
+    def error(self, msg, *args, **kwargs):
+        self.messages.append(('error', msg))
+
+    def critical(self, msg, *args, **kwargs):
+        self.messages.append(('critical', msg))
 
 class TestAxis(unittest.TestCase):
 
     def setUp(self):
         self.stage = MockStage()
         self.xeryon = MockXeryonController()
-        self.axis = Axis(self.xeryon, "X", self.stage)
+        self.axis = Axis(self.xeryon, "X", self.stage, MockLogger())
 
     def test_set_setting_stores_value(self):
         """Test that set_setting correctly stores a setting in the internal dictionary."""
