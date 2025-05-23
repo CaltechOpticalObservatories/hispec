@@ -1,3 +1,3 @@
-from .controller import SunpowerController
+from .sunpower_controller import SunpowerCryocooler
 
-__all__ = ["SunpowerController"]
+__all__ = ["SunpowerCryocooler"]
