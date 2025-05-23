@@ -18,6 +18,24 @@ class MockXeryon:
     def get_axis(self, letter):
         return self.axis_list[0]
 
+class MockLogger:
+    def __init__(self):
+        self.messages = []
+
+    def info(self, msg, *args, **kwargs):
+        self.messages.append(('info', msg))
+
+    def debug(self, msg, *args, **kwargs):
+        self.messages.append(('debug', msg))
+
+    def warning(self, msg, *args, **kwargs):
+        self.messages.append(('warning', msg))
+
+    def error(self, msg, *args, **kwargs):
+        self.messages.append(('error', msg))
+
+    def critical(self, msg, *args, **kwargs):
+        self.messages.append(('critical', msg))
 
 class TestCommunication(unittest.TestCase):
 
@@ -28,7 +46,7 @@ class TestCommunication(unittest.TestCase):
         mock_serial_class.return_value = mock_serial
         mock_xeryon = MockXeryon()
 
-        comm = Communication(mock_xeryon, 'COM3', 115200)
+        comm = Communication(mock_xeryon, 'COM3', 115200, MockLogger())
         comm.start()
 
         mock_serial_class.assert_called_with(
@@ -39,7 +57,7 @@ class TestCommunication(unittest.TestCase):
 
     def test_send_command_queues_command(self):
         mock_xeryon = MockXeryon()
-        comm = Communication(mock_xeryon, 'COM3', 115200)
+        comm = Communication(mock_xeryon, 'COM3', 115200, MockLogger())
         comm.send_command("DPOS=100")
 
         self.assertEqual(comm.readyToSend, ["DPOS=100"])
@@ -52,7 +70,7 @@ class TestCommunication(unittest.TestCase):
         mock_serial_class.return_value = mock_serial
 
         mock_xeryon = MockXeryon()
-        comm = Communication(mock_xeryon, 'COM3', 115200)
+        comm = Communication(mock_xeryon, 'COM3', 115200, MockLogger())
         comm.ser = mock_serial
         comm.readyToSend = ["X:MOVE=1"]
 

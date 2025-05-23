@@ -2,7 +2,8 @@ import time
 import math
 from .units import Units
 from .config import DEFAULT_POLI_VALUE, DISABLE_WAITING, DEBUG_MODE, NOT_SETTING_COMMANDS, AUTO_SEND_ENBL
-from .utils import output_console, get_dpos_epos_string, get_actual_time
+from .utils import get_dpos_epos_string, get_actual_time
+import hispec.util.helper.logger_utils as logger_utils
 
 
 class Axis:
@@ -27,6 +28,28 @@ class Axis:
 
     # { "EPOS": [...,...,...], "DPOS": [...,...,...], "STAT":[...,...,...],...}
 
+    def __init__(self, xeryon_object, axis_letter, stage, logger):
+        """
+            Initialize an Axis object.
+            :param xeryon_object: This points to the XeryonController object.
+            :type xeryon_object: Xeryon
+            :param axis_letter: This specifies a specific letter to this axis.
+            :type axis_letter: str
+            :param stage: This specifies the stage used in this axis.
+            :type stage: Stage
+        """
+        self.logger = logger
+        self.axis_letter = axis_letter
+        self.xeryon_object = xeryon_object
+        self.stage = stage
+        self.axis_data = dict({"EPOS": 0, "DPOS": 0, "STAT": 0, "SSPD": 0})
+        self.settings = dict({})
+        if self.stage.isLineair:
+            self.units = Units.mm
+        else:
+            self.units = Units.deg
+        # self.settings = self.stage.defaultSettings # Load default settings
+
     def find_index(self, forceWaiting=False, direction=0):
         """
         :return: None
@@ -40,16 +63,16 @@ class Axis:
             # Waits a couple of updates, so the EncoderValid flag is valid and doesn't lagg behind.
             self.__wait_for_update()
             self.__wait_for_update()
-            output_console("Searching index for axis " + str(self) + ".")
+            self.logger.info("Searching index for axis " + str(self) + ".")
             while not self.is_encoder_valid():  # While index not found, wait.
                 if not self.is_searching_index():  # Check if searching for index bit is true.
-                    output_console(
+                    self.logger.info(
                         "Index is not found, but stopped searching for index.", True)
                     break
                 time.sleep(0.2)
 
         if self.is_encoder_valid():
-            output_console("Index of axis " + str(self) + " found.")
+            self.logger.info("Index of axis " + str(self) + " found.")
 
     def move(self, value):
         value = int(value)
@@ -97,7 +120,7 @@ class Axis:
 
                 # Check if stage is at left end or right end. ==> out of range movement.
                 if self.is_at_left_end() or self.is_at_right_end():
-                    output_console("DPOS is out or range. (1) " +
+                    self.logger.info("DPOS is out or range. (1) " +
                                    get_dpos_epos_string(value, self.get_EPOS(), unit), True)
                     error = True
                     break
@@ -108,42 +131,42 @@ class Axis:
                 #     # Check if it's a lineair stage and DPOS is beyond it's limits.
                 #     if self.stage.isLineair and (
                 #             int(self.get_setting("LLIM")) > int(DPOS) or int(self.get_setting("HLIM")) < int(DPOS)):
-                #         output_console("DPOS is out or range.(2)" + get_dpos_epos_string(value, self.get_EPOS(), unit), True)
+                #         self.logger.info("DPOS is out or range.(2)" + get_dpos_epos_string(value, self.get_EPOS(), unit), True)
                 #         error = True
                 #         break
 
                 #     # EPOS is not within tolerance of DPOS, unknown reason.
-                #     output_console("Position not reached. (3) " + get_dpos_epos_string(value, self.get_EPOS(), unit), True)
+                #     self.logger.info("Position not reached. (3) " + get_dpos_epos_string(value, self.get_EPOS(), unit), True)
                 #     error = True
                 #     break
 
                 if self.is_encoder_error():
-                    output_console(
+                    self.logger.info(
                         "Position not reached. (4). Encoder gave an error.", True)
                     error = True
                     break
 
                 if self.is_error_limit():
-                    output_console(
+                    self.logger.info(
                         "Position not reached. (5) ELIM Triggered.", True)
                     error = True
                     break
 
                 if self.is_safety_timeout_triggered():
-                    output_console(
+                    self.logger.info(
                         "Position not reached. (6) TOU2 (Timeout 2) triggered.", True)
                     error = True
                     break
 
                 if self.is_thermal_protection_1() or self.is_thermal_protection_2():
-                    output_console(
+                    self.logger.info(
                         "Position not reached. (7) amplifier error.", True)
                     error = True
                     break
 
                 # # This movement took too long, timeout time is estimated with speed & distance.
                 # if self.__time_out_reached(send_time, distance):
-                #     output_console(
+                #     self.logger.info(
                 #         "Position not reached, timeout reached. (4) " + get_dpos_epos_string(value, self.get_EPOS(), unit),
                 #         True)
                 #     error = True
@@ -153,7 +176,7 @@ class Axis:
                 time.sleep(0.01)
 
         if outputToConsole and error is False and DISABLE_WAITING is False:  # Output new DPOS & EPOS if necessary
-            output_console(get_dpos_epos_string(value, self.get_EPOS(), unit))
+            self.logger.info(get_dpos_epos_string(value, self.get_EPOS(), unit))
 
     def set_TRGS(self, value):
         """
@@ -233,7 +256,7 @@ class Axis:
         if DISABLE_WAITING is False:
             # Waits a couple of updates, so the EPOS is valid and doesn't lagg behind.
             self.__wait_for_update()
-            output_console("Stepped: " + str(self.convert_encoder_units_to_units(step, self.units)) + " " + str(
+            self.logger.info("Stepped: " + str(self.convert_encoder_units_to_units(step, self.units)) + " " + str(
                 self.units) + " " + get_dpos_epos_string(self.getDPOS(), self.get_EPOS(), self.units))
 
     def get_EPOS(self):
@@ -517,27 +540,6 @@ class Axis:
                 value = str(self.convert_units_to_encoder(value, Units.deg))
         return str(value)
 
-    def __init__(self, xeryon_object, axis_letter, stage):
-        """
-            Initialize an Axis object.
-            :param xeryon_object: This points to the XeryonController object.
-            :type xeryon_object: Xeryon
-            :param axis_letter: This specifies a specific letter to this axis.
-            :type axis_letter: str
-            :param stage: This specifies the stage used in this axis.
-            :type stage: Stage
-        """
-        self.axis_letter = axis_letter
-        self.xeryon_object = xeryon_object
-        self.stage = stage
-        self.axis_data = dict({"EPOS": 0, "DPOS": 0, "STAT": 0, "SSPD": 0})
-        self.settings = dict({})
-        if self.stage.isLineair:
-            self.units = Units.mm
-        else:
-            self.units = Units.deg
-        # self.settings = self.stage.defaultSettings # Load default settings
-
     def __mass_to_CFREQ(self, mass):
         """
         Conversion table to change the value of the setting "MASS" into a value for the settings "CFRQ".
@@ -621,26 +623,26 @@ class Axis:
 
             if "STAT" in tag:
                 if self.is_safety_timeout_triggered():
-                    output_console("The safety timeout was triggered (TOU2 command). "
+                    self.logger.info("The safety timeout was triggered (TOU2 command). "
                                    "This means that the stage kept moving and oscillating around the desired position. "
                                    "A reset is required now OR 'ENBL=1' should be send.", True)
 
                 if self.is_thermal_protection_1() or self.is_thermal_protection_2() or self.is_error_limit() or self.is_safety_timeout_triggered():
                     if self.is_error_limit():
-                        output_console(
+                        self.logger.info(
                             "Error limit is reached (status bit 16). A reset is required now OR 'ENBL=1' should be send.", True)
 
                     if self.is_thermal_protection_2() or self.is_thermal_protection_1():
-                        output_console(
+                        self.logger.info(
                             "Thermal protection 1 or 2 is raised (status bit 2 or 3). A reset is required now OR 'ENBL=1' should be send.", True)
 
                     if self.is_safety_timeout_triggered():
-                        output_console(
+                        self.logger.info(
                             "Saftety timeout (TOU2 timeout reached) triggered. A reset is required now OR 'ENBL=1' should be send.", True)
 
                     if AUTO_SEND_ENBL:
                         self.xeryon_object.set_master_setting("ENBL", "1")
-                        output_console("'ENBL=1' is automatically send.")
+                        self.logger.info("'ENBL=1' is automatically send.")
 
             if "EPOS" in tag:  # This uses "EPOS" as an indicator that a new round of data is coming in.
 
