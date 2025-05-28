@@ -30,6 +30,9 @@ controller.move_abs(12.0, 1)
 # Move axis 2 to +12 degrees relative to current position
 controller.move_rel(12.0, 2)
 
+# For a comprehensive list of classes and methods, use the help function
+help(smc100pp)
+
 ```
 
 ## 🧪 Testing
