@@ -70,9 +70,8 @@ For stage 1 & 2 current values are:
 ESP stage check enabled
 Home type: use MZ switch only
 Backlash and hysteresis compensations are disabled.
-
-
 """
+
 import errno
 import logging
 import time
@@ -159,7 +158,7 @@ class StageController:
         :param move_rate: Float, move rate in degrees per second
         :param log: Boolean, whether to log to file or not
         :param logfile: Filename for log
-        :param quiet: Boolean, whether to log to console or not
+        :param quiet: Boolean, set to True to suppress DEBUG level messages
         """
 
         # Set up socket
@@ -173,8 +172,8 @@ class StageController:
         self.move_rate = move_rate
 
         # current values
-        self.current_position = [0.0, 0.0, 0.0]
-        self.current_limits = [(0., 0.), (-3600., 3600.), (-3600., 3600.)]
+        self.current_position = [0.0] * (num_stages + 1)
+        self.current_limits = [(0., 0.)] * (num_stages + 1)
 
         # set up logging
         if log:
@@ -493,7 +492,7 @@ class StageController:
                 msg_text = current_state['data']
             else:
                 # Verify position
-                if move_type != 'absolute':
+                if 'absolute' not in move_type:
                     position += self.current_position[stage_id]
                 if position < self.current_limits[stage_id][0] or \
                    position > self.current_limits[stage_id][1]:
