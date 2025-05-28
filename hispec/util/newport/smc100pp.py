@@ -492,7 +492,7 @@ class StageController:
                 msg_text = current_state['data']
             else:
                 # Verify position
-                if move_type != 'absolute':
+                if 'absolute' not in move_type:
                     position += self.current_position[stage_id]
                 if position < self.current_limits[stage_id][0] or \
                    position > self.current_limits[stage_id][1]:
