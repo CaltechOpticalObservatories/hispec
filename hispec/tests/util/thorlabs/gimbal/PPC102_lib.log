@@ -1,0 +1,735 @@
+2025-05-27 17:50:40,805--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:51:58,220--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:51:58,221--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:51:58,221--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:33,662--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:33,663--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:33,663--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:33,663--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:33,663--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:33,663--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:33,663--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:33,663--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:33,663--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:33,663--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:37,794--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:37,795--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:37,795--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:37,795--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:37,795--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:37,795--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:37,795--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:37,795--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:37,795--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:54:37,795--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:57:55,956--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:57:55,957--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-27 17:57:55,957--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-27 17:57:58,422--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-27 17:57:58,422--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-27 17:57:58,422--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-27 17:57:58,422--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-27 17:57:58,423--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-27 17:57:58,624--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:57:58,624--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:57:58,626--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-27 17:57:58,626--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-27 17:57:58,627--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-27 17:57:58,627--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-27 17:58:00,630--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-27 17:58:00,630--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-27 17:58:04,141--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-27 17:58:04,141--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-27 17:58:04,142--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-27 17:58:04,142--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-27 17:58:04,393--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-27 17:58:04,393--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-27 17:58:04,644--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-27 17:58:04,644--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-27 17:58:04,645--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-27 17:58:04,645--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-27 17:58:04,746--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:58:04,746--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:58:04,746--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:58:04,748--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-27 17:58:04,748--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-27 17:58:04,748--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-27 17:58:04,749--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-27 17:58:04,749--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-27 17:58:04,749--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-27 17:58:06,752--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-27 17:58:06,752--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-27 17:58:06,752--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-27 17:58:07,004--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:58:07,004--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:58:07,004--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:58:07,004--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-27 17:58:07,007--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-27 17:58:07,007--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-27 17:58:07,007--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-27 17:58:07,007--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-27 18:00:28,012--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:40:04,029--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:40:04,030--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:40:04,030--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:40:06,031--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:40:08,291--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:40:08,292--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:40:08,292--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:40:08,292--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:40:08,293--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:40:08,494--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:40:08,494--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:40:08,496--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:40:08,496--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:40:08,497--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:40:08,497--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:40:10,500--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:40:10,500--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:40:14,012--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:40:14,012--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:40:14,012--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:40:14,012--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:40:14,264--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:40:14,264--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:40:14,515--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:40:14,515--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:40:14,516--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:40:14,516--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:40:14,617--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:40:14,617--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:40:14,617--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:40:14,619--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:40:14,619--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:40:14,619--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:40:14,620--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:40:14,620--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:40:14,620--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:40:16,622--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:40:16,622--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:40:16,622--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:40:16,875--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:40:16,875--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:40:16,875--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:40:16,875--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:40:16,877--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:40:16,877--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:40:16,877--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:40:16,877--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:42:49,368--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:42:49,369--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:42:49,369--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:42:51,371--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:42:53,631--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:42:53,631--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:42:53,631--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:42:53,632--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:42:53,632--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:42:53,833--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:42:53,833--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:42:53,835--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:42:53,835--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:42:53,835--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:42:53,835--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:42:55,838--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:42:55,838--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:42:59,349--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:42:59,349--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:42:59,350--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:42:59,350--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:42:59,601--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:42:59,601--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:42:59,852--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:42:59,852--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:42:59,852--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:42:59,852--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:42:59,953--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:42:59,953--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:42:59,953--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:42:59,955--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:42:59,955--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:42:59,955--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:42:59,956--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:42:59,956--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:42:59,956--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:43:01,956--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:43:01,956--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:43:01,956--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:43:04,716--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:43:04,716--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:43:04,716--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:43:04,716--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:43:04,716--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:43:04,716--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:43:04,717--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:43:04,717--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:43:04,717--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:43:04,717--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:43:04,717--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:43:04,717--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:43:04,718--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:43:04,718--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:43:04,718--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:43:04,719--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:43:04,719--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:43:04,719--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:43:04,820--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:43:04,820--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:43:04,820--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:43:04,820--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:43:04,822--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:43:04,822--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:43:04,822--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:43:04,822--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:43:04,823--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:43:04,823--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:43:04,823--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:43:04,823--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:43:06,826--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:43:06,826--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:43:06,826--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:43:06,826--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:43:52,017--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:43:52,018--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:43:52,018--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:43:54,020--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:43:56,278--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:43:56,279--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:43:56,279--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:43:56,279--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:43:56,279--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:43:56,481--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:43:56,481--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:43:56,483--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:43:56,483--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:43:56,483--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:43:56,483--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:43:58,486--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:43:58,486--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:02,000--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:44:02,000--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:44:02,001--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:44:02,001--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:44:02,252--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:44:02,252--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:44:02,503--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:44:02,503--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:44:02,504--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:44:02,504--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:44:02,605--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:02,605--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:02,605--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:02,607--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:02,607--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:02,607--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:02,608--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:02,608--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:02,608--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:04,610--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:04,610--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:04,610--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:07,369--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:07,369--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:07,369--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:07,370--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:07,370--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:07,370--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:07,370--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:07,370--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:07,370--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:07,370--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:07,370--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:07,370--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:07,371--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:07,371--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:07,371--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:07,371--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:44:07,371--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:44:07,371--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:44:07,472--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:07,472--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:07,472--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:07,472--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:07,474--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:07,474--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:07,474--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:07,474--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:07,474--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:07,474--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:07,474--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:07,474--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:09,476--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:09,476--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:09,476--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:09,476--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:14,994--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:14,994--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:14,994--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:14,994--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:14,995--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:14,995--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:14,995--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:14,995--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:14,995--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:14,995--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:14,995--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:14,995--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:44:16,500--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:44:16,500--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:44:16,500--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:44:16,500--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:44:17,002--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:44:17,002--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:44:17,002--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:44:17,002--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:44:17,253--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:44:17,253--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:44:17,253--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:44:17,253--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:44:43,295--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:43,296--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:43,296--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:45,299--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:47,557--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:44:47,558--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:44:47,558--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:44:47,558--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:44:47,558--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:44:47,760--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:47,760--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:47,762--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:47,762--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:47,762--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:47,762--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:49,764--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:49,764--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:53,276--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:44:53,276--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:44:53,277--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:44:53,277--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:44:53,528--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:44:53,528--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:44:53,780--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:44:53,780--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:44:53,781--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:44:53,781--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:44:53,882--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:53,882--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:53,882--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:53,884--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:53,884--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:53,884--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:53,885--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:53,885--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:53,885--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:55,888--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:55,888--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:55,888--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:44:58,648--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:58,648--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:58,648--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:58,649--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:58,649--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:58,649--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:58,650--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:58,650--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:58,650--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:58,650--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:58,650--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:58,650--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:44:58,651--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:58,651--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:58,651--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:44:58,651--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:44:58,651--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:44:58,651--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:44:58,752--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:58,752--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:58,752--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:58,752--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:44:58,754--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:58,754--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:58,754--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:58,754--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:44:58,754--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:58,754--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:58,754--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:44:58,754--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:45:00,756--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:45:00,756--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:45:00,756--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:45:00,756--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:45:06,275--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:06,275--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:06,275--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:06,275--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:06,276--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:06,276--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:06,276--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:06,276--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:06,276--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:06,276--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:06,276--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:06,276--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:45:07,783--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:45:07,783--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:45:07,783--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:45:07,783--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:45:08,285--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:45:08,285--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:45:08,285--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:45:08,285--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:45:08,536--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:45:08,536--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:45:08,536--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:45:08,536--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:51:03,990--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:03,991--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:51:03,991--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:51:05,993--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:51:08,252--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:51:08,252--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:51:08,252--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:51:08,252--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:51:08,252--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:51:08,454--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:08,454--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:08,456--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:51:08,456--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:51:08,456--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:51:08,456--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:51:10,459--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:51:10,459--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:51:13,970--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:51:13,970--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:51:13,970--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:51:13,970--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:51:14,221--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:51:14,221--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:51:14,473--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:51:14,473--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:51:14,473--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:51:14,473--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:51:14,574--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:14,574--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:14,574--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:14,576--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:51:14,576--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:51:14,576--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:51:14,577--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:51:14,577--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:51:14,577--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:51:16,579--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:51:16,579--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:51:16,579--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:51:19,338--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:51:19,338--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:51:19,338--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:51:19,339--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:51:19,339--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:51:19,339--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:51:19,339--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:51:19,339--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:51:19,339--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:51:19,340--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:51:19,340--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:51:19,340--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:51:19,340--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:51:19,340--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:51:19,340--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:51:19,340--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:51:19,340--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:51:19,340--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:51:19,442--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:19,442--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:19,442--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:19,442--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:19,443--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:51:19,443--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:51:19,443--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:51:19,443--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:51:19,444--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:51:19,444--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:51:19,444--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:51:19,444--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:51:21,447--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:51:21,447--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:51:21,447--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:51:21,447--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:51:22,953--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:51:22,953--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:51:22,953--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:51:22,953--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:51:23,455--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:51:23,455--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:51:23,455--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:51:23,455--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:51:33,495--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:33,495--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:33,495--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:33,495--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:33,495--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:51:33,497--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:51:33,497--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:51:33,497--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:51:33,497--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:51:33,497--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:53:01,729--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:01,730--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:53:01,730--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:53:03,732--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:53:05,990--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:53:05,991--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:53:05,991--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:53:05,991--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:53:05,991--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:53:06,193--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:06,193--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:06,195--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:53:06,195--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:53:06,195--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:53:06,195--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:53:08,198--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:53:08,198--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:53:11,713--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:53:11,713--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:53:11,713--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:53:11,713--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:53:11,964--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:53:11,964--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:53:12,215--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:53:12,215--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:53:12,216--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:53:12,216--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:53:12,317--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:12,317--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:12,317--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:12,319--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:53:12,319--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:53:12,319--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:53:12,319--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:53:12,319--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:53:12,319--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:53:14,322--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:53:14,322--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:53:14,322--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:53:17,081--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:53:17,081--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:53:17,081--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:53:17,081--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:53:17,081--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:53:17,081--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:53:17,082--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:53:17,082--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:53:17,082--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:53:17,082--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:53:17,082--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:53:17,082--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:53:17,082--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:53:17,082--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:53:17,082--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:53:17,082--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:53:17,082--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:53:17,082--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:53:17,184--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:17,184--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:17,184--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:17,184--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:17,186--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:53:17,186--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:53:17,186--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:53:17,186--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:53:17,186--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:53:17,186--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:53:17,186--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:53:17,186--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:53:19,187--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:53:19,187--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:53:19,187--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:53:19,187--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:53:20,692--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:53:20,692--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:53:20,692--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:53:20,692--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:53:21,194--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:53:21,194--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:53:21,194--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:53:21,194--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:53:31,231--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:31,231--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:31,231--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:31,231--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:31,232--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:31,232--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:31,232--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:31,232--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:31,232--PPC102_lib--ERROR--PPC102_lib--get_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:31,232--PPC102_lib--ERROR--PPC102_lib--get_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:31,232--PPC102_lib--ERROR--PPC102_lib--get_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:31,232--PPC102_lib--ERROR--PPC102_lib--get_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:53:32,738--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:53:32,738--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:53:32,738--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:53:32,738--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:53:32,739--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:32,739--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:32,739--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:32,739--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:32,739--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:53:32,741--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:53:32,741--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:53:32,741--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:53:32,741--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:53:32,741--PPC102_lib--ERROR--PPC102_lib--open--Socket connection failed: [Errno 111] Connection refused
+2025-05-28 09:54:40,744--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:54:40,745--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:54:40,745--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:54:42,748--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:54:45,005--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:54:45,006--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Channel must be 1 or 2
+2025-05-28 09:54:45,006--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:54:45,006--PPC102_lib--ERROR--PPC102_lib--set_enable--Error: Enable state must be 1 (Enable) or 2 (Disable)
+2025-05-28 09:54:45,006--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:54:45,208--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:54:45,208--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:54:45,210--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:54:45,210--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:54:45,210--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:54:45,210--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:54:47,211--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:54:47,211--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:54:50,723--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:54:50,723--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:54:50,724--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:54:50,724--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Channel must be 1 or 2
+2025-05-28 09:54:50,975--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:54:50,975--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:54:51,227--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:54:51,227--PPC102_lib--ERROR--PPC102_lib--set_loop--Error: Loop mode out of range (must be 1 or 2)
+2025-05-28 09:54:51,228--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:54:51,228--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:54:51,329--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:54:51,329--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:54:51,329--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:54:51,331--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:54:51,331--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:54:51,331--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:54:51,331--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:54:51,331--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:54:51,331--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:54:53,334--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:54:53,334--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:54:53,334--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:54:56,095--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:54:56,095--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:54:56,095--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:54:56,095--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:54:56,095--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:54:56,095--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:54:56,096--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:54:56,096--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:54:56,096--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:54:56,096--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:54:56,096--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:54:56,096--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Channel must be 1 or 2
+2025-05-28 09:54:56,096--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:54:56,096--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:54:56,096--PPC102_lib--ERROR--PPC102_lib--set_max_output_voltage--Error: Voltage out of Range
+2025-05-28 09:54:56,097--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:54:56,097--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:54:56,097--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:54:56,198--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:54:56,198--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:54:56,198--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:54:56,198--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:54:56,200--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:54:56,200--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:54:56,200--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:54:56,200--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:54:56,201--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:54:56,201--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:54:56,201--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:54:56,201--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:54:58,203--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:54:58,203--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:54:58,203--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:54:58,203--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:54:59,709--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:54:59,709--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:54:59,709--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:54:59,709--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:55:00,211--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:55:00,211--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:55:00,211--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:55:00,211--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Loops Must be OPEN
+2025-05-28 09:55:10,247--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:10,247--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:10,247--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:10,247--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:10,247--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:10,247--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:10,247--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:10,247--PPC102_lib--ERROR--PPC102_lib--set_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:10,248--PPC102_lib--ERROR--PPC102_lib--get_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:10,248--PPC102_lib--ERROR--PPC102_lib--get_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:10,248--PPC102_lib--ERROR--PPC102_lib--get_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:10,248--PPC102_lib--ERROR--PPC102_lib--get_output_volts--Error: Channel must be 1 or 2
+2025-05-28 09:55:11,754--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:55:11,754--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:55:11,754--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:55:11,754--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:55:11,755--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:55:11,755--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:55:11,755--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:55:11,755--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:55:11,755--PPC102_lib--INFO--PPC102_lib--__init__--Logger initialized for PPC102_Coms
+2025-05-28 09:55:11,857--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:55:11,857--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:55:11,857--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:55:11,857--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:55:11,857--PPC102_lib--INFO--PPC102_lib--open--Connected to 192.168.29.100:10013
+2025-05-28 09:55:11,858--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:55:11,858--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:55:11,858--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:55:11,858--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:55:11,858--PPC102_lib--INFO--PPC102_lib--open--Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer
+2025-05-28 09:55:13,859--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:55:13,859--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:55:13,859--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:55:13,859--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:55:13,859--PPC102_lib--ERROR--PPC102_lib--read_buff--Read timed out.
+2025-05-28 09:55:19,479--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,479--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,479--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,479--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,479--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,480--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,480--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,480--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,480--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,480--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,480--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,480--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,480--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,480--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:19,480--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Channel must be 1 or 2
+2025-05-28 09:55:20,986--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:55:20,986--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:55:20,986--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:55:20,986--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:55:20,986--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:55:21,488--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:55:21,488--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:55:21,488--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:55:21,488--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:55:21,488--PPC102_lib--ERROR--PPC102_lib--set_position--Error: Loops Must be Closed
+2025-05-28 09:55:21,740--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:55:21,740--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:55:21,740--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:55:21,740--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:55:21,740--PPC102_lib--ERROR--PPC102_lib--get_position--Error: Loops Must be Closed and chanel must be enabled
+2025-05-28 09:55:24,250--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:55:24,250--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:55:24,250--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:55:24,250--PPC102_lib--INFO--PPC102_lib--close--Socket closed.
+2025-05-28 09:55:24,250--PPC102_lib--INFO--PPC102_lib--close--Socket closed.

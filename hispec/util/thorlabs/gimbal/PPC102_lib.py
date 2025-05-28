@@ -1045,7 +1045,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
     
-    def set_max_output_voltages(self, channel: int = 1, limit:int=1500):
+    def set_max_output_voltage(self, channel: int = 1, limit:int=1500):
         '''
             The piezo actuator connected to the unit has a specific maximum 
                 operating voltage range: 75, 100 or 150 V. This function sets the 
