@@ -3,7 +3,7 @@
 Low-level Python library to control PI 863 and PI 663 motion controllers using the [pipython](https://pypi.org/project/pipython/) library.
 
 ## Features
-- Connect to a single PI controller over TCP/IP
+- Connect to a single PI controller over TCP/IP, including through terminal server
 - Connect to a TCP/IP-based daisy chain via a terminal server
 - Automatically detect and select connected devices in a daisy chain
 - Manage multiple controllers in the same daisy chain

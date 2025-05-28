@@ -68,14 +68,6 @@ class PIControllerBase:
 
         self.connected = True
 
-    def select_device_on_chain(self, ip, port, device_id):
-        """
-        Set the current device for subsequent operations.
-        """
-        if (ip, port, device_id) not in self.devices:
-            raise RuntimeError(f"Device {device_id} not connected at {ip}:{port}")
-        self.logger.info(f"Switched to device {device_id} on {ip}:{port}")
-
     def disconnect_device(self, device_key):
         """
         Disconnect from a single device specified by device_key.
