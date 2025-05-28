@@ -12,6 +12,7 @@ from enum import IntEnum, IntFlag
 import logging
 import os
 from configparser import ConfigParser
+import struct
 
 # Should Modify:
 # Provide a build mode which does not print
@@ -256,16 +257,22 @@ class PPC102_Coms(object):
             #self.close()
             return []
     
-    def interpret_error_code(self, code: int) -> str:
-        """Helper function to interpret Error codes"""
+    def _interpret_error_code(self, code: int) -> str:
+        """
+            Helper function to interpret Error codes
+            NOTE:: testing error states under progress    
+        """
         try:
             return f"{DATA_CODES(code).name} ({code})"
         except ValueError:
             return f"Unknown error code: {code}"
     
-    def interpret_bit_flags(self, status_bytes):
-        """Helper function to interpret bits"""
-        code = int.from_bytes(status_bytes, byteorder='little')
+    def _interpret_bit_flags(self, status_bytes):
+        """
+            Helper function to interpret bits
+            NOTE:: interpreting bit flags still being implemented
+        """
+        code = status_bytes[::-1]#int.from_bytes(status_bytes, byteorder='little')
         flags = [flag for flag in BIT_CODES if flag & code]
         if flags:
             return [f"{flag.name} ({hex(flag.value)})" for flag in flags]
@@ -293,7 +300,7 @@ class PPC102_Coms(object):
         except socket.error as e:
             self.logger.error(f"Error: {e}")
     
-    def set_enable(self, channel=1, enable=1):
+    def set_enable(self, channel: int = 1, enable: int = 1):
         '''
             Sets enable on PPC102 Controller
             channel param:(int) 1 or 2
@@ -321,7 +328,7 @@ class PPC102_Coms(object):
             self.logger.error(f"Error: {e}")
             return False
         
-    def get_enable(self, channel=1):
+    def get_enable(self, channel: int = 1):
         '''
             Gets enable on PPC102 Controller
             channel param:(int) 1 or 2
@@ -332,12 +339,11 @@ class PPC102_Coms(object):
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
-            if 0 < channel < 3:
-                chan = 0x20 + channel  # '2' + str(channel) → ASCII math: '20' = 0x32, but for binary values use 0x20 + channel
-            else:
-                raise ReferenceError('Channel Out of Range')
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
 
             # Send Req Enable Command
+            chan = 0x20 + channel
             command = bytes([0x11, 0x02, 0x01, 0x00, chan, 0x01])
 
             # REQ
@@ -355,7 +361,7 @@ class PPC102_Coms(object):
             self.logger.error(f"Error: {e}")
             return -1
 
-    def set_digital_outputs(self,channel=1, bit=0000):
+    def _set_digital_outputs(self,channel:int=1, bit=0000):
         '''
             Sets Digital Output on PPC102 Controller
                 (Trigger Fucntionality must be disabled by calling set_trigger first)
@@ -363,16 +369,19 @@ class PPC102_Coms(object):
             bit param:1111 for all on and 0000 for all off(Only capable of all or nothing setting)
             Returns: True/False based on successful com send
             **MGMSG_MOD_SET_DIGOUTPUTS**(13 02 Bit 00 d s)**
+
+            NOTE:: Only sets all on or all off, must implment more detailed controls if you need it
+
         '''
         # Check if socket is open
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
             # Validate channel
-            if 0 < channel < 3:
-                chan = 0x20 + channel  # '2' + channel, as hex
-            else:
-                raise ReferenceError('Channel Out of Range')
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            chan = 0x20 + channel  # '2' + channel, as hex
 
             # Validate bit
             if bit == 0b1111:
@@ -400,22 +409,25 @@ class PPC102_Coms(object):
             self.logger.error(f"Error: {e}")
             return False
 
-    def get_digital_outputs(self,channel=1, bit=0000):
+    def _get_digital_outputs(self,channel:int=1, bit=0000):
         '''
             Gets Digital Output on PPC102 Controller
             channel param:(int) 1 or 2
             Returns: Bit
             **MGMSG_MOD_REQ_DIGOUTPUTS**(14 02 Bits 00 d s)**
+
+            NOTE:: bit not requred but original logic from maunal includes
+
         '''
         # Check if socket is open
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
             # Validate channel
-            if 0 < channel < 3:
-                chan = 0x20 + channel  # '2' + channel, as hex
-            else:
-                raise ReferenceError('Channel Out of Range')
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            chan = 0x20 + channel  # '2' + channel, as hex
 
             # Validate bit (not strictly needed for a "get", but preserved from original logic)
             if bit == 0b1111:
@@ -450,7 +462,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
 
-    def hw_disconnect(self):
+    def _hw_disconnect(self):
         '''
             Sent by hardware unit or host to disconnect from Ethernet or USB bus
             Returns: True/False based on successful com send
@@ -469,7 +481,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
     
-    def __hw_response(self):
+    def _hw_response(self):
         '''
             Sent by the controllers to notify Thorlabs Server of some event that 
                 requires user intervention, usually some fault or error condition that 
@@ -497,7 +509,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
     
-    def __hw_richresponse(self): #TODO:: Finish
+    def _hw_richresponse(self): #TODO:: Finish
         '''
             Similarly, to HW_RESPONSE, this message is sent by the controllers 
                 to notify Thorlabs Server of some event that requires user 
@@ -509,7 +521,10 @@ class PPC102_Coms(object):
                 the cause of the problem.  
             Returns: 
             **MGMSG_HW_RICHRESPONSE**(81 00 44 00 d s MsgIdent(x2bytes) code(x2bytes))**
+
+            NOTE:: Not implmeneted
         '''
+        raise NotImplementedError("MGMSG_HW_RICHRESPONSE: Has not been fully implemented")
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
@@ -526,7 +541,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
     
-    def __hw_start_update_msgs(self):
+    def _hw_start_update_msgs(self):
         '''
             Sent to start automatic status updates from the embedded 
                 controller. Status update messages contain information about the 
@@ -554,7 +569,7 @@ class PPC102_Coms(object):
             self.logger.error(f"Error: {e}")
             return False
     
-    def __hw_stop_update_msgs(self):
+    def _hw_stop_update_msgs(self):
         '''
             Sent to stop automatic status updates from the controller – usually 
                 called by a client application when it is shutting down, to instruct 
@@ -581,6 +596,9 @@ class PPC102_Coms(object):
             Sent to request hardware information from the controller.
             Returns: True/False on successful com send
             **MGMSG_HW_REQ_INFO**(05 00 00 00 d s)**
+
+            NOTE:: Response Data Packet Not parsed yet
+
         '''
         # Check if socket is open
         if not self.sock:
@@ -596,7 +614,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
 
-    def get_rack_bay_used(self, bay=0):
+    def get_rack_bay_used(self, bay:int=0):
         '''
             Sent to determine whether the specified bay in the controller is occupied. 
             bay param: int
@@ -629,7 +647,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
 
-    def set_loop(self, channel=1, loop=1):
+    def set_loop(self, channel: int = 1, loop:int=1):
         '''
             Sets the loop to open or closed on each channel
                 -Must change for each channel to have a completely closed loop
@@ -643,10 +661,11 @@ class PPC102_Coms(object):
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
-            if 1 <= channel <= 2:
-                chan = 0x20 + channel  # '2' + str(channel) as byte
-            else:
-                raise ReferenceError('Channel Out of Range')
+            # Validate channel
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            chan = 0x20 + channel  # '2' + channel, as hex
 
             #Check for enable, instruct to set enable if needed
             if self.get_enable(channel) == DATA_CODES.CHAN_DISABLED:
@@ -668,7 +687,7 @@ class PPC102_Coms(object):
             self.logger.error(f"Error: {e}")
             return False
     
-    def get_loop(self, channel=1):
+    def get_loop(self, channel: int = 1):
         '''
             Gathers the current state of a channels loop
             channel:(int) 1 or 2
@@ -679,10 +698,11 @@ class PPC102_Coms(object):
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
-            if 1 <= channel <= 2:
-                chan = 0x20 + channel
-            else:
-                raise ReferenceError('Channel Out of Range')
+            # Validate channel
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            chan = 0x20 + channel  # '2' + channel, as hex
 
             # Construct command: [0x41, 0x06, 0x01, 0x00, chan, 0x01]
             command = bytes([0x41, 0x06, 0x01, 0x00, chan, 0x01])
@@ -699,7 +719,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
     
-    def set_output_volts(self, channel=1, volts=0):
+    def set_output_volts(self, channel: int = 1, volts:int=0):
         '''
             Sets voltage going to specified channel
                 -Must be in open loop
@@ -713,10 +733,10 @@ class PPC102_Coms(object):
             raise RuntimeError("Socket is not connected.")
         try:
             # Validate channel
-            if 0 < channel < 3:
-                destination = (0x20 + channel) | 0x80
-            else:
-                raise ReferenceError('Channel Out of Range')
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            destination = (0x20 + channel) | 0x80  # '2' + channel, as hex
 
             # Check if channel is enabled
             if self.get_enable(channel) == DATA_CODES.CHAN_DISABLED:
@@ -748,7 +768,7 @@ class PPC102_Coms(object):
             self.logger.error(f"Error: {e}")
             return False
     
-    def get_output_volts(self, channel=1):
+    def get_output_volts(self, channel: int = 1):
         '''
             Gathers the current state of a channels voltage
                 -must be in open loop
@@ -761,10 +781,10 @@ class PPC102_Coms(object):
             raise RuntimeError("Socket is not connected.")
         try:
             # Validate channel
-            if 0 < channel < 3:
-                destination = (0x20 + channel)
-            else:
-                raise ReferenceError('Channel Out of Range')
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            destination = (0x20 + channel)
 
             # Only proceed if open loop and enabled
             if (self.get_loop(channel) == DATA_CODES.OPEN_LOOP and
@@ -795,7 +815,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
     
-    def set_position(self, channel=1, pos= 50):
+    def set_position(self, channel: int = 1, pos:int = 50):
         '''
             Sets the position of the stage channel
                 -only settable while in closed loop
@@ -807,10 +827,12 @@ class PPC102_Coms(object):
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
-            if 0 < channel < 3:
-                destination = (0x20 + channel) | 0x80
-            else:
-                raise ReferenceError('Channel Out of Range')
+            # Validate channel
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            destination = (0x20 + channel) | 0x80 
+
             #Check for enable, set enable if needed
             if self.get_enable(channel) == DATA_CODES.CHAN_DISABLED:
                 raise PermissionError('Channel Must Be enabled\n' +
@@ -838,7 +860,7 @@ class PPC102_Coms(object):
             self.logger.error(f"Error: {e}")
             return False
         
-    def get_position(self, channel=1):
+    def get_position(self, channel: int = 1):
         '''
             Gets Positional Value of an axis of a stage
                 -can only read positions while in closed loop
@@ -850,10 +872,11 @@ class PPC102_Coms(object):
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
-            if 0 < channel < 3:
-                destination = (0x20 + channel)
-            else:
-                raise ReferenceError('Channel Out of Range')
+            # Validate channel
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            destination = (0x20 + channel)
 
             # Send Req OUTPUTPOS command if in closed loop
             if (self.get_loop(channel) == DATA_CODES.CLOSED_LOOP and
@@ -880,7 +903,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
 
-    def get_max_travel(self, channel=1):
+    def get_max_travel(self, channel: int = 1):
         '''
             In the case of actuators with built in position sensing, the 
                 Piezoelectric Control Unit can detect the range of travel of the 
@@ -897,10 +920,11 @@ class PPC102_Coms(object):
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
-            if 0 < channel < 3:
-                destination = (0x20 + channel)
-            else:
-                raise ReferenceError('Channel Out of Range')
+            # Validate channel
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            destination = (0x20 + channel)
 
             # Send Req OUTPUTPOS command if in closed loop
             if (self.get_loop(channel) == DATA_CODES.CLOSED_LOOP and
@@ -925,7 +949,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
 
-    def get_status_bits(self, channel=1):
+    def _get_status_bits(self, channel: int = 1):
         '''
             Returns a number of status flags pertaining to the operation of the 
                 piezo controller channel specified in the Chan Ident parameter.  
@@ -936,15 +960,19 @@ class PPC102_Coms(object):
             channel: (int) 1 or 2
             Returns: Status Bytes 4 hex values
             **MGMSG_PZ_REQ_PZSTATUSBITS**(5B 06 Chan_Ident 00 d s)**
+            
+            NOTE:: Implementation of flag bit library and comparison still needed.
+
         '''
         # Check if socket is open
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
-            if 0 < channel < 3:
-                destination = 0x20 + channel
-            else:
-                raise ReferenceError('Channel Out of Range')
+            # Validate channel
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            destination = (0x20 + channel)
 
             # Send
             command = bytes([0x5B, 0x06, 0x01, 0x00,destination, 0x01])
@@ -959,7 +987,8 @@ class PPC102_Coms(object):
             # Collect status bytes 8 through 11 (LSB to MSB)
             status_bytes = bytes(int(b, 16) for b in status[8:12])
             code = int.from_bytes(status_bytes, byteorder='little')
-
+            fin = status_bytes[::-1]
+            print(fin)
             # Optionally interpret the flags
             flags = self.interpret_bit_flags(status_bytes)
             self.logger.info("Status Flags:", flags)
@@ -968,7 +997,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
     
-    def get_status_update(self, channel=1):
+    def get_status_update(self, channel: int = 1):
         '''
             This function is used in applications where spontaneous status 
                 messages (i.e. messages sent using the START_STATUSUPDATES 
@@ -985,10 +1014,11 @@ class PPC102_Coms(object):
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
-            if 0 < channel < 3:
-                destination = 0x20 + channel
-            else:
-                raise ReferenceError('Channel Out of Range')
+            # Validate channel
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            destination = (0x20 + channel)
 
             command = bytes([0x60, 0x06, 0x01, 0x00,destination, 0x01])
             self.write(command) #REQ
@@ -1004,17 +1034,18 @@ class PPC102_Coms(object):
 
             voltage = int.from_bytes(volt_bytes, byteorder='little')
             position = int.from_bytes(pos_bytes, byteorder='little')
-            flags = self.interpret_bit_flags(stat_bytes)
+            #flags = self.interpret_bit_flags(stat_bytes)
 
             self.logger.info(f"Voltage: {voltage}")
             self.logger.info(f"Position: {position}")
-            self.logger.info("Status Flags:", flags)
+            #TODO:: Figue out status flag
+            #self.logger.info("Status Flags:", flags)
 
-            return voltage, position, stat_bytes
+            return voltage, position#, stat_bytes
         except Exception as e:
             self.logger.error(f"Error: {e}")
     
-    def set_max_output_voltages(self, channel=1, limit=1500):
+    def set_max_output_voltages(self, channel: int = 1, limit:int=1500):
         '''
             The piezo actuator connected to the unit has a specific maximum 
                 operating voltage range: 75, 100 or 150 V. This function sets the 
@@ -1031,10 +1062,10 @@ class PPC102_Coms(object):
             raise RuntimeError("Socket is not connected.")
         try:
             #Check for enable, set enable if needed
-            if 0 < channel < 3:
-                destination = (0x20 + channel) | 0x80
-            else:
-                raise ReferenceError('Channel Out of Range')
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            destination = (0x20 + channel) | 0x80 
             
             #Check for valid inputs
             if 0 < limit <= 1500:
@@ -1057,7 +1088,7 @@ class PPC102_Coms(object):
             self.logger.error(f"Error: {e}")
             return False
         
-    def get_max_output_voltage(self, channel=1):
+    def get_max_output_voltage(self, channel: int = 1):
         '''
             Gets Max voltage for associated channel 
             channel: (int) 1 or 2
@@ -1068,10 +1099,11 @@ class PPC102_Coms(object):
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
-            if 0 < channel < 3:
-                destination = (0x20 + channel)
-            else:
-                raise ReferenceError('Channel Out of Range')
+            # Validate channel
+            if channel not in (1, 2):
+                raise ValueError("Channel must be 1 or 2")
+            
+            destination = (0x20 + channel)
             
             #Send command for reqOUTPUTMAXVOLTS
             command = bytes([0x81, 0x06, 0x01, 0x00,destination, 0x01])
@@ -1087,7 +1119,7 @@ class PPC102_Coms(object):
         except Exception as e:
             self.logger.error(f"Error: {e}")
 
-    def __set_ppc_PIDCONSTS(self, channel: int = 1, p_const: float = 900.0, i_const: float = 800.0, 
+    def _set_ppc_PIDCONSTS(self, channel: int = 1, p_const: float = 900.0, i_const: float = 800.0, 
                             d_const: float = 90.0, dfc_const: float = 1000.0, derivFilter: bool = True):
         '''
             When operating in Closed Loop mode, the proportional, integral and 
@@ -1114,7 +1146,10 @@ class PPC102_Coms(object):
                                             p_const(x2bytes) i_const(x2bytes)
                                             d_const(x2bytes) dfc_const(x2bytes)
                                             derivFilter(x2bytes))**
+
+            NOTE:: Not tested
         '''
+        raise NotImplementedError("MGMSG_PZ_SET_PPC_PIDCONSTS: Implemented but not tested")
         #check Connection
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
@@ -1126,7 +1161,7 @@ class PPC102_Coms(object):
             if not all(0 <= val <= 10000 for val in (p_const, i_const, d_const, dfc_const)):
                 raise ValueError("PID values must be between 0 and 10000")
 
-            chan_ident = channel.to_bytes(2, byteorder='little')
+            chan_ident = (1).to_bytes(2, byteorder='little')
 
             # Convert PID values to little-endian 2-byte words
             p_bytes = int(p_const).to_bytes(2, byteorder='little')
@@ -1156,40 +1191,44 @@ class PPC102_Coms(object):
                 print(f"Error in set_pid_consts: {e}")
             return False
     
-    def __get_ppc_PIDCONSTS(self, channel):
+    def _get_ppc_PIDCONSTS(self, channel:int = 1):
         '''
             Gets current state values based on description from set
             channel:(int) 1 or 2
             Returns: PID constants in the same format as the set
             **MGMSG_PZ_GET_PPC_PIDCONSTS**(91 06 Chan_Ident 00 d s )**
+
+            NOTE:: Parsing seems to be incorrect
+
         '''
+        raise NotImplementedError("MGMSG_PZ_GET_PPC_PIDCONSTS: Parseing seems to be Incorrect")
         # check connection
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         
         try:
             if 0 < channel < 3:
-                destination = (0x20 + channel) | 0x80
+                destination = (0x20 + channel)
             else:
                 raise ReferenceError("Channel must be 1 or 2.")
 
-            chan_ident = channel.to_bytes(2, byteorder='little')
+            chan_ident = (1).to_bytes(1, byteorder='little')
 
             # Header for GET command: 91 06 + ChanIdent + 00 + d + s
             header = bytes([0x91, 0x06]) + chan_ident + bytes([0x00, destination, 0x01])
             self.write(header)
             time.sleep(self.DELAY)
-
-            response = self.read(18)
-            if len(response) != 18:
-                raise ValueError("Invalid response length received from device")
+            
+            response = self.read_buff()
+            #Make into bytes for easier parsing
+            response_bytes = bytes([int(b, 16) for b in response])
 
             # Parse the 12-byte payload from byte 6 onwards
-            p_const = int.from_bytes(response[8:10], byteorder='little')
-            i_const = int.from_bytes(response[10:12], byteorder='little')
-            d_const = int.from_bytes(response[12:14], byteorder='little')
-            dfc_const = int.from_bytes(response[14:16], byteorder='little')
-            deriv_filter_flag = int.from_bytes(response[16:18], byteorder='little')
+            p_const = int.from_bytes(response_bytes[8:10], byteorder='little')
+            i_const = int.from_bytes(response_bytes[10:12], byteorder='little')
+            d_const = int.from_bytes(response_bytes[12:14], byteorder='little')
+            dfc_const = int.from_bytes(response_bytes[14:16], byteorder='little')
+            deriv_filter_flag = int.from_bytes(response_bytes[16:18], byteorder='little')
             deriv_filter = True if deriv_filter_flag == 1 else False
 
             pid_consts = {
@@ -1214,7 +1253,9 @@ class PPC102_Coms(object):
                 print(f"Error in get_pid_consts: {e}")
             return None
     
-    def __set_ppc_NOTCHPARAMS(self, channel, filterNO, filter_1fc, filter_1q, notch_filter1_on, filter_2fc, filter_2q, notch_filter2_on):
+    def _set_ppc_NOTCHPARAMS(self, channel: int, filterNO: int,
+                          filter_1fc: float, filter_1q: float, notch_filter1_on: bool,
+                          filter_2fc: float, filter_2q: float, notch_filter2_on: bool):
         '''
             Due to their construction, most actuators are prone to mechanical 
                 resonance at well-defined frequencies. The underlying reason is that 
@@ -1248,19 +1289,129 @@ class PPC102_Coms(object):
             notch_filter2_on: word ON or OFF
             Returns: true or false based on successful com send
             **MGMSG_PZ_SET_PPC_NOTCHPARAMS**(93 06 10 00 d s (16 byte data packet))**
+
+            NOTE:: not tested
         '''
-        return
+        # Check for connection
+        if not self.sock:
+            raise RuntimeError("Socket is not connected.")
+        try:
+            #Check Channel and Filter values
+            if channel not in [1, 2]:
+                raise ValueError("Channel must be 1 or 2")
+            if filterNO not in [1, 2, 3]:
+                raise ValueError("Filter number must be 1, 2, or 3")
+
+            #Assign values
+            destination = (0x20 + channel) | 0x80
+            chan_ident = (1).to_bytes(2, byteorder='little')
+            filter_no_bytes = filterNO.to_bytes(2, byteorder='little')
+
+            #Notch filters based on bools
+            notch1_on_bytes = (1 if notch_filter1_on else 2).to_bytes(2, 'little')
+            notch2_on_bytes = (1 if notch_filter2_on else 2).to_bytes(2, 'little')
+
+            #Creation of data packet
+            package = (
+                    chan_ident +
+                    filter_no_bytes +
+                    struct.pack('<f', filter_1fc) +
+                    struct.pack('<f', filter_1q) +
+                    notch1_on_bytes +
+                    struct.pack('<f', filter_2fc) +
+                    struct.pack('<f', filter_2q) +
+                    notch2_on_bytes
+                    )
+
+            #Adding header to data packet
+            header = bytes([0x93, 0x06, 0x10, 0x00, destination, 0x01])
+            datapacket = header + package
+
+            #Write to controler and log to logger
+            self.write(datapacket)
+            time.sleep(self.DELAY)
+
+            if self.logger:
+                self.logger.info(f"Set NotchParams CH{channel}: F1({filter_1fc}Hz/Q={filter_1q})={'ON' if notch_filter1_on else 'OFF'}, "
+                                f"F2({filter_2fc}Hz/Q={filter_2q})={'ON' if notch_filter2_on else 'OFF'}")
+            else:
+                print(f"Set NotchParams CH{channel}: F1({filter_1fc}Hz/Q={filter_1q})={'ON' if notch_filter1_on else 'OFF'}, "
+                    f"F2({filter_2fc}Hz/Q={filter_2q})={'ON' if notch_filter2_on else 'OFF'}")
+
+            return True
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error in set_notch_params: {e}")
+            else:
+                print(f"Error in set_notch_params: {e}")
+            return False
     
-    def __get_ppc_PIDCONSTS(self, channel=1):
+    def _get_ppc_NOTCHPARAMS(self, channel: int = 1):
         '''
             Gets current state values based on description from set
             channel:(int) 1 or 2
             Returns: PID constants in the same format as the set
             **MGMSG_PZ_GET_PPC_NOTCHPARAMS**(95 06 Chan_Ident 00 d s )**
         '''
-        return
+        #Check Connection
+        if not self.sock:
+            raise RuntimeError("Socket is not connected.")
+        try:
+            #Check Channel Validity
+            if channel not in [1, 2]:
+                raise ValueError("Channel must be 1 or 2")
+
+            #Creaste and write request header
+            destination = (0x20 + channel)
+            chan_ident = (1).to_bytes(1, byteorder='little')
+
+            header = bytes([0x94, 0x06]) + chan_ident + bytes([0x00, destination, 0x01])
+            self.write(header)
+            time.sleep(self.DELAY)
+
+            # Expecting 6-byte header + 16-byte data = 22 bytes total
+            response = self.read_buff()
+            #Make into bytes for easier parsing
+            response_bytes = bytes([int(b, 16) for b in response])
+
+            # Parse fields
+            filterNO = int.from_bytes(response_bytes[8:10], 'little')
+            filter_1fc = struct.unpack('<f', response_bytes[10:14])[0]
+            filter_1q = struct.unpack('<f', response_bytes[14:18])[0]
+            notch1_on = int.from_bytes(response_bytes[18:20], 'little') == 1
+            filter_2fc = struct.unpack('<f', response_bytes[20:24])[0]
+            filter_2q = struct.unpack('<f', response_bytes[24:28])[0]
+            notch2_on = int.from_bytes(response_bytes[28:30], 'little') == 1
+
+            #Package results
+            result = {
+                'filterNO': filterNO,
+                'filter_1fc': filter_1fc,
+                'filter_1q': filter_1q,
+                'notch_filter1_on': notch1_on,
+                'filter_2fc': filter_2fc,
+                'filter_2q': filter_2q,
+                'notch_filter2_on': notch2_on,
+            }
+
+            #Log or print results
+            if self.logger:
+                self.logger.info(f"Got NotchParams CH{channel}: {result}")
+            else:
+                print(f"Got NotchParams CH{channel}: {result}")
+
+            return result
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error in get_notch_params: {e}")
+            else:
+                print(f"Error in get_notch_params: {e}")
+            return None
     
-    def __set_ppc_IOSETTINGS(self, channel, cntl_src, monitor_opsig, monitor_opbw, feedback_src, fp_brightness, reserved):
+    def _set_ppc_IOSETTINGS(self, channel: int = 1, cntl_src:int = 3, monitor_opsig:int = 2, 
+                                monitor_opbw:int = 1, feedback_src:int = 1, fp_brightness:int = 2, reserved=0):
         '''
             This message is used to set various input and output parameter 
                 values associated with the rear panel BNC IO connectors. 
@@ -1272,20 +1423,109 @@ class PPC102_Coms(object):
             fp_brightness:int 1,2,3
             reserved: reserved
             Returns: true or false based on successful com send
-            **MGMSG_PZ_SET_PPC_NOTCHPARAMS**(96 06 0E 00 d s (14 byte data packet))**
+            **MGMSG_PZ_SET_PPC_IOSETTINGS**(96 06 0E 00 d s (14 byte data packet))**
+
+            NOTE:: Not Tested
         '''
-        return
+        raise NotImplementedError("MGMSG_PPC_IOSETTINGS: Has been implemented but not tested yet")
+        if not self.sock:
+            raise RuntimeError("Socket is not connected.")
+        try:
+            #Check Channel Validity
+            if channel not in [1, 2]:
+                raise ValueError("Channel must be 1 or 2")
+            destination = (0x20 + channel) | 0x80
+
+            #Create values from inputs
+            chan_ident = (1).to_bytes(2, 'little')
+            cntl_src_bytes = cntl_src.to_bytes(2, 'little')
+            monitor_opsig_bytes = monitor_opsig.to_bytes(2, 'little')
+            monitor_opbw_bytes = monitor_opbw.to_bytes(2, 'little')
+            feedback_src_bytes = feedback_src.to_bytes(2, 'little')
+            fp_brightness_bytes = fp_brightness.to_bytes(2, 'little')
+            reserved_bytes = reserved.to_bytes(2, 'little')
+
+            #Make Package
+            package = (
+                chan_ident +
+                cntl_src_bytes +
+                monitor_opsig_bytes +
+                monitor_opbw_bytes +
+                feedback_src_bytes +
+                fp_brightness_bytes +
+                reserved_bytes
+            )
+
+            # Connect Header and write
+            header = bytes([0x96, 0x06, 0x0E, 0x00, destination, 0x01])
+            datapacket = header + package
+            self.write(datapacket)
+            if self.logger:
+                self.logger.info(
+                        f"Set IOSettings CH{channel}: "
+                        f"ControlSrc={cntl_src}, MonitorOutSig={monitor_opsig}, MonitorOutBW={monitor_opbw}, "
+                        f"FeedbackSrc={feedback_src}, FPBrightness={fp_brightness}, Reserved={reserved}"
+                    )
+            else:
+                print(
+                    f"Set IOSettings CH{channel}: "
+                    f"ControlSrc={cntl_src}, MonitorOutSig={monitor_opsig}, MonitorOutBW={monitor_opbw}, "
+                    f"FeedbackSrc={feedback_src}, FPBrightness={fp_brightness}, Reserved={reserved}"
+                )
+
+            return True
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error in set_ppc_IOSETTINGS: {e}")
+            else:
+                print(f"Error in set_ppc_IOSETTINGS: {e}")
+            return False
     
-    def __get_ppc_IOSETTINGS(self, channel=1):
+    def _get_ppc_IOSETTINGS(self, channel: int = 1):
         '''
             Gets current state values based on description from set
             channel:(int) 1 or 2
             Returns: PID constants in the same format as the set
             **MGMSG_PZ_GET_PPC_IOSETTINGS**(97 06 01 00 d s )**
         '''
-        return
+        if not self.sock:
+            raise RuntimeError("Socket is not connected.")
+        try:
+            #Check Channel Validity
+            if channel not in [1, 2]:
+                raise ValueError("Channel must be 1 or 2")
+            destination = (0x20 + channel)
+            # Connect Header and write
+            header = bytes([0x97, 0x06, 0x01, 0x00, destination, 0x01])
+            self.write(header)
+
+            #Read and parse
+            res = self.read_buff()
+            if res is None:
+                return None
+            def parse_word(lo_index):
+                # Assumes little endian: lo byte at lo_index, hi byte at lo_index + 1
+                lo = int(res[lo_index], 16)
+                hi = int(res[lo_index + 1], 16)
+                return hi << 8 | lo
+
+            return {
+                        'channel':        parse_word(6),
+                        'cntl_src':       parse_word(8),
+                        'monitor_opsig':  parse_word(10),
+                        'monitor_opbw':   parse_word(12),
+                        'feedback_src':   parse_word(14),
+                        'fp_brightness':  parse_word(16),
+                        'reserved':       parse_word(18),
+                    }
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error in set_ppc_IOSETTINGS: {e}")
+            else:
+                print(f"Error in set_ppc_IOSETTINGS: {e}")
+            return None
     
-    def __set_ppc_EEPROMPARAMS(self, channel, msg_id):
+    def _set_ppc_EEPROMPARAMS(self, channel, msg_id):
         '''
             Used to save the parameter settings for the specified message. 
                 These settings may have been altered either through the various 
@@ -1296,7 +1536,11 @@ class PPC102_Coms(object):
             msg_id: word
             Returns: true or false based on successful com send
             **MGMSG_PZ_SET_PPC_NOTCHPARAMS**(96 06 0E 00 d s (14 byte data packet))**
+
+            Note:: Not implemented
+
         '''
-        return
+        raise NotImplementedError("MGMSG_PZ_SET_PPC_NOTCHPARAMS: Has not been implemented yet")
+        return 
     
     
