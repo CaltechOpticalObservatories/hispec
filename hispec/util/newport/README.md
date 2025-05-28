@@ -13,7 +13,7 @@ Low-level Python modules to send commands to Newport motion controllers.
 ## Usage
 
 ```python
-    from util import smc100pp
+from hispec.util import smc100pp
 
 controller = smc100pp.StageController()
 controller.connect(ip='192.168.29.100', port=10006)
