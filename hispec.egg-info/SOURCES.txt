@@ -1,8 +1,0 @@
-README.md
-pyproject.toml
-hispec.egg-info/PKG-INFO
-hispec.egg-info/SOURCES.txt
-hispec.egg-info/dependency_links.txt
-hispec.egg-info/requires.txt
-hispec.egg-info/top_level.txt
-hispec/util/__init__.py
