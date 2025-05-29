@@ -5,6 +5,8 @@ import unittest
 from hispec.util.thorlabs.gimbal.PPC102_lib import PPC102_Coms, DATA_CODES
 import time
 
+inifile = "BlueGimbalMount.ini"
+
 class Test_GimbalMount(unittest.TestCase):
 
     def test_enable(self):
@@ -13,7 +15,7 @@ class Test_GimbalMount(unittest.TestCase):
                                     -Checks Error Handling
         '''
         # Checks "getter" function: gets state of enable
-        self.dev = PPC102_Coms("BlueGimbalMount.ini", log=False)
+        self.dev = PPC102_Coms(inifile, log=False)
         self.dev.open()
         ret = self.dev.get_enable()
         assert ret == DATA_CODES.CHAN_ENABLED or ret == DATA_CODES.CHAN_DISABLED
@@ -37,7 +39,7 @@ class Test_GimbalMount(unittest.TestCase):
         time.sleep(.1)
     
     def test_loop(self):
-        self.dev = PPC102_Coms("BlueGimbalMount.ini", log=False)
+        self.dev = PPC102_Coms(inifile, log=False)
         time.sleep(.2)
         self.dev.open()
         time.sleep(.25)
@@ -63,7 +65,7 @@ class Test_GimbalMount(unittest.TestCase):
 
     def test_max_voltages(self):
         #Max Voltage
-        self.dev = PPC102_Coms("BlueGimbalMount.ini", log=False)
+        self.dev = PPC102_Coms(inifile, log=False)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:
@@ -89,7 +91,7 @@ class Test_GimbalMount(unittest.TestCase):
     
     def test_positions(self):
         #CLOSED LOOP CONTROL
-        self.dev = PPC102_Coms("BlueGimbalMount.ini", log=False)
+        self.dev = PPC102_Coms(inifile, log=False)
         time.sleep(.1)
         self.dev.open()
         time.sleep(.1)
@@ -118,7 +120,7 @@ class Test_GimbalMount(unittest.TestCase):
 
     def test_output_voltage(self):
         #OPEN LOOP CONTROL
-        self.dev = PPC102_Coms("BlueGimbalMount.ini", log=False)
+        self.dev = PPC102_Coms(inifile, log=False)
         self.dev.open()
         for ch in [1,2]:
             self.dev.set_loop(channel=ch,loop=2)
