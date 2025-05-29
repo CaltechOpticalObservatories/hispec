@@ -10,7 +10,8 @@ Low-level Python library to control PPC102 2 axis controllers using the Thor Lab
 ```python
     from hispec.util.thorlabs.gimbal.PPC102_lib import PPC102_Coms, DATA_CODES
 
-    dev =  PPC102_Coms("BlueGimbalMount.ini")
+    # log = false will now print to command line
+    dev =  PPC102_Coms("BlueGimbalMount.ini",log=False)
 
     #Open connection
     dev.open()

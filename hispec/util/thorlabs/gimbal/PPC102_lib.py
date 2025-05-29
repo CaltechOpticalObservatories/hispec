@@ -192,12 +192,19 @@ class PPC102_Coms(object):
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(self.timeout)
             self.sock.connect((self.host, self.port))
-            self.logger.info(f"Connected to {self.host}:{self.port}")
-            self.logger.info("Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer")
+            if self.logger:
+                self.logger.info(f"Connected to {self.host}:{self.port}")
+                self.logger.info("Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer")
+            else:
+                print(f"Connected to {self.host}:{self.port}")
+                print("Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer")
             _ = self.read_buff() # Clear buff, sometimes inicialized with 0x00 is buffer
             return True # Successful Connection to Device
         except socket.error as e:
-            self.logger.error(f"Socket connection failed: {e}")
+            if self.logger:
+                self.logger.error(f"Socket connection failed: {e}")
+            else:
+                print(f"Socket connection failed: {e}")
             self.sock = None
             return False #Unsuccessful Connection
 
@@ -209,9 +216,15 @@ class PPC102_Coms(object):
         if self.sock:
             try:
                 self.sock.close()
-                self.logger.info("Socket closed.")
+                if self.logger:
+                    self.logger.info("Socket closed.")
+                else:
+                    print("Socket closed")
             except socket.error as e:
-                self.logger.error(f"Error closing socket: {e}")
+                if self.logger:
+                    self.logger.error(f"Error closing socket: {e}")
+                else:
+                    print(f"Error closing socket: {e}")
             finally:
                 self.sock = None
     
@@ -231,7 +244,10 @@ class PPC102_Coms(object):
             self.sock.sendall(msg)
             time.sleep(.1)
         except socket.error as e:
-            self.logger.error(f"Error sending data: {e}")
+            if self.logger:
+                self.logger.error(f"Error sending data: {e}")
+            else:
+                print(f"Error sending data: {e}")
             #self.close()
         
     def read_buff(self):
@@ -250,10 +266,16 @@ class PPC102_Coms(object):
             #print(hex_array)
             return hex_array
         except socket.timeout:
-            self.logger.error("Read timed out.")
+            if self.logger:
+                self.logger.error("Read timed out.")
+            else:
+                print("Read Timed Out")
             return []
         except socket.error as e:
-            self.logger.error(f"Error receiving data: {e}")
+            if self.logger:
+                self.logger.error(f"Error receiving data: {e}")
+            else:
+                print(f"Error receiving data: {e}")
             #self.close()
             return []
     
@@ -298,7 +320,10 @@ class PPC102_Coms(object):
             self.write(bytes([0x23, 0x02, 0x02, 0x00, 0x11, 0x01]))
             time.sleep(3)
         except socket.error as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
     
     def set_enable(self, channel: int = 1, enable: int = 1):
         '''
@@ -325,7 +350,10 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
             return True
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
             return False
         
     def get_enable(self, channel: int = 1):
@@ -358,7 +386,10 @@ class PPC102_Coms(object):
             enable_state = enable_status[3]  # This should be a single byte
             return int(enable_state[2:],16)  # Already an int if read_buff returns a byte array
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
             return -1
 
     def _set_digital_outputs(self,channel:int=1, bit=0000):
@@ -406,7 +437,10 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)  # Wait for execution of set
             return True
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
             return False
 
     def _get_digital_outputs(self,channel:int=1, bit=0000):
@@ -460,7 +494,10 @@ class PPC102_Coms(object):
             digioutputs_state = digioutputs_status[2]
             return int(digioutputs_state[2:],16)
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
 
     def _hw_disconnect(self):
         '''
@@ -477,9 +514,15 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)  # Data Grab
             res = self.read_buff()
             #Save all info needed into self.variables
-            self.logger.info("Disconnected from Hardware")
+            if self.logger:
+                self.logger.info("Disconnected from Hardware")
+            else:
+                print("Disconnected from Hardware")
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
     
     def _hw_response(self):
         '''
@@ -507,7 +550,10 @@ class PPC102_Coms(object):
                 raise BufferError("Buffer empty when expecting response")
             return res  # TODO: Optional – parse return code if needed
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
     
     def _hw_richresponse(self): #TODO:: Finish
         '''
@@ -539,7 +585,10 @@ class PPC102_Coms(object):
                 raise BufferError("Buffer empty when expecting response")
             return res  # TODO: Optional – parse message content
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
     
     def _hw_start_update_msgs(self):
         '''
@@ -566,7 +615,10 @@ class PPC102_Coms(object):
             #returns printed state 
             return True
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
             return False
     
     def _hw_stop_update_msgs(self):
@@ -588,7 +640,10 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)  # Wait Delay time for write
             return True
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
             return False
 
     def get_info(self):#TODO:: Parse this message
@@ -612,7 +667,10 @@ class PPC102_Coms(object):
                 raise BufferError("Buffer empty when expecting response")
             #Save all info needed into self.variables
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
 
     def get_rack_bay_used(self, bay:int=0):
         '''
@@ -645,7 +703,10 @@ class PPC102_Coms(object):
             bay_state = bay_res[3]  # Already an int if read_buff returns bytes/bytearray
             return int(bay_state[2:],16) == 1
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
 
     def set_loop(self, channel: int = 1, loop:int=1):
         '''
@@ -684,7 +745,10 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
             return True
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
             return False
     
     def get_loop(self, channel: int = 1):
@@ -717,7 +781,10 @@ class PPC102_Coms(object):
             # retrun loop state
             return int(loop_state[2:],16)
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
     
     def set_output_volts(self, channel: int = 1, volts:int=0):
         '''
@@ -765,7 +832,10 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
             return True
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
             return False
     
     def get_output_volts(self, channel: int = 1):
@@ -813,7 +883,10 @@ class PPC102_Coms(object):
                 voltage_raw -= 0x10000
             return voltage_raw
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
     
     def set_position(self, channel: int = 1, pos:int = 50):
         '''
@@ -857,7 +930,10 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
             return True
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
             return False
         
     def get_position(self, channel: int = 1):
@@ -901,7 +977,10 @@ class PPC102_Coms(object):
 
             return position
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
 
     def get_max_travel(self, channel: int = 1):
         '''
@@ -947,7 +1026,10 @@ class PPC102_Coms(object):
             hexVal = byte2 << 8 | byte1
             return hexVal
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
 
     def _get_status_bits(self, channel: int = 1):
         '''
@@ -995,7 +1077,10 @@ class PPC102_Coms(object):
 
             return code
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
     
     def get_status_update(self, channel: int = 1):
         '''
@@ -1043,7 +1128,10 @@ class PPC102_Coms(object):
 
             return voltage, position#, stat_bytes
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
     
     def set_max_output_voltage(self, channel: int = 1, limit:int=1500):
         '''
@@ -1085,7 +1173,10 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
             return True
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
             return False
         
     def get_max_output_voltage(self, channel: int = 1):
@@ -1117,7 +1208,10 @@ class PPC102_Coms(object):
             max_volts = byte2 << 8 | byte1
             return max_volts
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            if self.logger:
+                self.logger.error(f"Error: {e}")
+            else:
+                print(f"Error: {e}")
 
     def _set_ppc_PIDCONSTS(self, channel: int = 1, p_const: float = 900.0, i_const: float = 800.0, 
                             d_const: float = 90.0, dfc_const: float = 1000.0, derivFilter: bool = True):
