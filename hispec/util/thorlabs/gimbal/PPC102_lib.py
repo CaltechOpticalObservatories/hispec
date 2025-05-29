@@ -174,7 +174,7 @@ class PPC102_Coms(object):
         self.buffsize = 1024
         # Other Instance Variables
         self.sock = None
-        self.DELAY = .15  # Number of seconds to wait after writing a message
+        self.DELAY = .1  # Number of seconds to wait after writing a message
 
     ########### Socket Communitcations ###########
     def open(self):
@@ -242,7 +242,6 @@ class PPC102_Coms(object):
         # Send message using Socket
         try:
             self.sock.sendall(msg)
-            time.sleep(.1)
         except socket.error as e:
             if self.logger:
                 self.logger.error(f"Error sending data: {e}")
