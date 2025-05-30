@@ -208,10 +208,12 @@ class FilterWheelController:
         retries = 3
         reply = ''
         send_command = f"{command}\r"
+        send_command = send_command.encode('utf-8')
 
         self.lock.acquire()
 
         while retries > 0:
+            self.logger.info("sending command %s", send_command)
             try:
                 self.socket.send(send_command)
 
@@ -240,14 +242,15 @@ class FilterWheelController:
                 timeout = 1
 
             start = time.time()
-            while time.time() - start < timeout:
+            time.sleep(0.1)
+            reply = self.socket.recv(1024)
+            while delimiter not in reply and time.time() - start < timeout:
                 try:
-                    reply = self.socket.recv(1024)
+                    reply += self.socket.recv(1024)
+                    self.logger.debug("reply: %s", reply)
                 except OSError as e:
                     if e.errno == ETIMEDOUT:
                         reply = ''
-                if delimiter in reply:
-                    break
                 time.sleep(0.1)
 
             if reply == '':
@@ -255,6 +258,7 @@ class FilterWheelController:
                 # is unresponsive. Just try again.
                 retries -= 1
                 continue
+            break
 
         self.lock.release()
 
