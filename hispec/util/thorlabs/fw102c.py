@@ -1,5 +1,6 @@
 #! @KPYTHON3@
 """ Thorlabs FW102C controller class """
+
 from errno import ETIMEDOUT, EISCONN
 import logging
 import socket
@@ -18,7 +19,6 @@ class FilterWheelController:
     socket = None
     connected = False
     status = None
-    current_position = 0
     ip = ''
     port = 0
 
@@ -39,7 +39,12 @@ class FilterWheelController:
             self.logger = None
 
     def set_connection(self, ip=None, port=None):
-        """ Configure the connection to the controller."""
+        """ Configure the connection to the controller.
+
+        :param ip: String, IP address of the controller.
+        :param port: Int, port number of the controller.
+
+        """
         self.ip = ip
         self.port = port
 
@@ -120,7 +125,11 @@ class FilterWheelController:
 
 
     def set_status(self, status):
-        """ Set the status of the filter wheel. """
+        """ Set the status of the filter wheel.
+
+        :param status: String, status of the controller.
+
+        """
 
         status = status.lower()
 
@@ -176,20 +185,15 @@ class FilterWheelController:
 
 
     def command(self, command):
-        """ Wrapper to issueCommand(), ensuring the command lock is
+        """ Wrapper to issue_command(), ensuring the command lock is
             released if an exception occurs.
+
+        :param command: String, command to issue.
+
         """
 
-        try:
+        with self.lock:
             result = self.issue_command(command)
-        except:
-            self.lock.acquire(False)
-            self.lock.release()
-            if not self.connected:
-                self.initialized = False
-            self.success = False
-            self.check_status()
-            raise
 
         self.success = True
         self.check_status()
@@ -198,6 +202,9 @@ class FilterWheelController:
 
     def issue_command(self, command):
         """ Wrapper to send/receive with error checking and retries.
+
+        :param command: String, command to issue.
+
         """
 
         if not self.connected:
@@ -207,13 +214,10 @@ class FilterWheelController:
 
         retries = 3
         reply = ''
-        send_command = f"{command}\r"
-        send_command = send_command.encode('utf-8')
-
-        self.lock.acquire()
+        send_command = f"{command}\r".encode('utf-8')
 
         while retries > 0:
-            self.logger.info("sending command %s", send_command)
+            self.logger.debug("sending command %s", send_command)
             try:
                 self.socket.send(send_command)
 
@@ -231,7 +235,7 @@ class FilterWheelController:
                 continue
 
             # Wait for a reply.
-            delimiter = '>'
+            delimiter = b'>'
 
             if 'pos=' in command:
                 # The next response will wait
@@ -259,8 +263,6 @@ class FilterWheelController:
                 retries -= 1
                 continue
             break
-
-        self.lock.release()
 
         if isinstance(reply, str):
             reply = reply.strip()
@@ -298,7 +300,11 @@ class FilterWheelController:
         return self.command('pos?')
 
     def move(self, target):
-        """ Move the filter wheel to the target position."""
+        """ Move the filter wheel to the target position.
+
+        :param target: Int, target position to move.
+
+        """
         if not self.initialized:
             self.initialize()
 
@@ -310,9 +316,7 @@ class FilterWheelController:
         if response is not None:
             raise RuntimeError('error response to command: ' + response)
 
-
-        current = self.get_position()
-        current = int(current)
+        current = int(self.get_position())
 
         if current != target:
             raise RuntimeError(
