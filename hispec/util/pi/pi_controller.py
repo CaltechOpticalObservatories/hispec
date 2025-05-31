@@ -58,11 +58,12 @@ class PIControllerBase:
         self.daisy_chains[(ip, port)] = available
 
         for device_id, desc in available:
-            dev = GCSDevice()
             if device_id == 1:
                 dev = main_device
             else:
-                dev.ConnectDaisyChainDevice(device_id, dcid)
+                dev = GCSDevice()
+
+            dev.ConnectDaisyChainDevice(device_id, dcid)
             self.devices[(ip, port, device_id)] = dev
             self.logger.info(f"[{ip}:{port}] Connected to device {device_id}: {desc}")
 
