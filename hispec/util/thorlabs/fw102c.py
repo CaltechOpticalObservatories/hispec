@@ -15,8 +15,7 @@ class FilterWheelController:
         Thorlabs FW102C filter wheel.
     """
 
-    lock = threading.Lock()
-    socket = None
+
     connected = False
     status = None
     ip = ''
@@ -27,6 +26,9 @@ class FilterWheelController:
     success = False
 
     def __init__(self, log=True, logfile=None, quiet=False):
+
+        self.lock = threading.Lock()
+        self.socket = None
 
         # set up logging
         if log:
@@ -193,10 +195,12 @@ class FilterWheelController:
         """
 
         with self.lock:
-            result = self.issue_command(command)
-
-        self.success = True
-        self.check_status()
+            try:
+                result = self.issue_command(command)
+                self.success = True
+            finally:
+                # Ensure that status is always checked, even on failure
+                self.check_status()
 
         return result
 
@@ -210,7 +214,6 @@ class FilterWheelController:
         if not self.connected:
             self.set_status('connecting')
             self.connect()
-            self.set_status('ready')
 
         retries = 3
         reply = ''
@@ -288,7 +291,7 @@ class FilterWheelController:
         chunks = reply.split('\r')
 
         if len(chunks) != expected:
-            raise ValueError('unexpected number of fields in response: ' + repr(reply))
+            raise ValueError(f"unexpected number of fields in response: {repr(reply)}")
 
         if expected == 3:
             return chunks[1]
@@ -314,12 +317,12 @@ class FilterWheelController:
         response = self.command(command)
 
         if response is not None:
-            raise RuntimeError('error response to command: ' + response)
+            raise RuntimeError(f"error response to command: {response}")
 
         current = int(self.get_position())
 
         if current != target:
             raise RuntimeError(
-                f"wound up at position {response:d} instead of commanded {target:d}")
+                f"wound up at position {current:d} instead of commanded {target:d}")
 
 # end of class Controller
