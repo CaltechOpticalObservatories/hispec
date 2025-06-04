@@ -329,8 +329,8 @@ class PPC102_Coms(object):
         '''
             Sets enable on PPC102 Controller
             channel param:(int) 1 or 2
-                          NOTE: Default channel is set to 0, This will change both enables to 
-                          the desired state the user is attempting to set it to
+                          NOTE: Default channel is set to 0, This will change both channels to 
+                          the desired enable state provided by the user
             enable param:(int) Enable=1 or Disable=2
             Returns: True/False based on successful com send
             **MGMSG_MOD_SET_CHANENABLESTATE**(10 02 Chan_Ident Enable_State d s)
