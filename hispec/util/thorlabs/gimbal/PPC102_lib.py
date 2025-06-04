@@ -49,8 +49,10 @@ class BIT_CODES(IntFlag):
 
 class DATA_CODES(IntEnum):
     #Channel States
-    CLOSED_LOOP = 2
     OPEN_LOOP = 1
+    CLOSED_LOOP = 2
+    OPEN_LOOP_SMOOTH = 3
+    CLOSED_LOOP_SMOOTH = 4
     CHAN_ENABLED = 1
     CHAN_DISABLED = 2
 
@@ -768,7 +770,11 @@ class PPC102_Coms(object):
             channel:(int) 1 or 2 
                     NOTE: Default channel is set to 0, This will change both loops to the desired state
                             the user is attempting to set it to
-            loop: Loop state int (OPEN LOOP = 1)(CLOSED LOOP = 2)
+            loop: Loop state int:   1 Open Loop (no feedback)  
+                                    2 Closed Loop (feedback employed)  
+                                    3 Open Loop Smooth 
+                                    4 Closed Loop Smooth 
+            **MGMSG_PZ_GET_POSCONTROLMODE**(41 06 Chan_Iden
             Returns: True or False on successful com send
             **MGMSG_PZ_SET_POSCONTROLMODE**(40 06 Chan_Ident Mode d s)**
         '''
@@ -777,7 +783,7 @@ class PPC102_Coms(object):
             raise RuntimeError("Socket is not connected.")
         try:
             #Check valid loop state
-            if 1 <= loop <= 2:
+            if loop in (1,2,3,4):
                 set_val = loop
             else:
                 raise ReferenceError('Loop mode out of range (must be 1 or 2)')
@@ -824,7 +830,10 @@ class PPC102_Coms(object):
             channel:(int) 1 or 2
                     NOTE: channel=0 will query both channels, returning a 
                           list (channel 1 result, channel 2 result)
-            Returns: Loop state int (OPEN LOOP = 1)(CLOSED LOOP = 2)
+            Returns: Loop state int 1 Open Loop (no feedback)  
+                                    2 Closed Loop (feedback employed)  
+                                    3 Open Loop Smooth 
+                                    4 Closed Loop Smooth 
             **MGMSG_PZ_GET_POSCONTROLMODE**(41 06 Chan_Ident 00 d s)**
         '''
         # Check if socket is open

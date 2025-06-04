@@ -60,16 +60,24 @@ class Test_GimbalMount(unittest.TestCase):
             assert self.dev.set_loop(channel=ch, loop=1)
             ret = self.dev.get_loop(channel=ch)
             assert ret == DATA_CODES.OPEN_LOOP
-        self.assertFalse(self.dev.set_loop(channel=3))
+        self.assertFalse(self.dev.set_loop(channel=5))
         self.assertFalse(self.dev.set_loop(channel=-1))
         self.assertFalse(self.dev.set_loop(loop=-1))
-        self.assertFalse(self.dev.set_loop(loop=3))
+        self.assertFalse(self.dev.set_loop(loop=10))
+        self.assertTrue(self.dev.set_loop(loop = 4))
+        ret = self.dev.get_loop(channel = 0)
+        assert ret[0] == DATA_CODES.CLOSED_LOOP
+        assert ret[1] == DATA_CODES.CLOSED_LOOP
+        self.assertTrue(self.dev.set_loop(loop = 3))
+        ret = self.dev.get_loop(channel = 0)
+        assert ret[0] == DATA_CODES.OPEN_LOOP
+        assert ret[1] == DATA_CODES.OPEN_LOOP
         self.assertTrue(self.dev.set_loop(loop = 2))
-        ret = self.dev.get_loop()
+        ret = self.dev.get_loop(channel = 0)
         assert ret[0] == DATA_CODES.CLOSED_LOOP
         assert ret[1] == DATA_CODES.CLOSED_LOOP
         self.assertTrue(self.dev.set_loop(loop = 1))
-        ret = self.dev.get_loop()
+        ret = self.dev.get_loop(channel = 0)
         assert ret[0] == DATA_CODES.OPEN_LOOP
         assert ret[1] == DATA_CODES.OPEN_LOOP
         self.dev.close()
