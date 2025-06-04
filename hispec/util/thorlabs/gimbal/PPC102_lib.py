@@ -882,6 +882,23 @@ class PPC102_Coms(object):
             else:
                 print(f"Error: {e}")
             return None
+        
+    def is_loops_closed(self, channel: int = 0):
+        '''
+            Uses the get_loop function that returns an int to return a 
+            boolean for the state of the loops
+            channel: 0=both loops
+                     1=channel 1 loop
+                     2=channel 2 loop
+            returns: Bool True(int returned = 2) False(int returned = 1)
+            NOTE: ONLY returns true when both channels are in a closed-loop
+                  state. will return true/false if querying for individual 
+                  channel
+        '''
+        loop_state = self.get_loop(channel)
+        if isinstance(loop_state, tuple):
+            return loop_state[0] == 2 and loop_state[1] == 2
+        return loop_state == 2
     
     def set_output_volts(self, channel: int = 1, volts:int = 0):
         '''
