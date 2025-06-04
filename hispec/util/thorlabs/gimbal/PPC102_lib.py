@@ -51,8 +51,6 @@ class DATA_CODES(IntEnum):
     #Channel States
     OPEN_LOOP = 1
     CLOSED_LOOP = 2
-    OPEN_LOOP_SMOOTH = 3
-    CLOSED_LOOP_SMOOTH = 4
     CHAN_ENABLED = 1
     CHAN_DISABLED = 2
 
