@@ -784,7 +784,7 @@ class PPC102_Coms(object):
             if loop in (1,2,3,4):
                 set_val = loop
             else:
-                raise ReferenceError('Loop mode out of range (must be 1 or 2)')
+                raise ReferenceError('Loop mode out of range (must be 1,2,3 or 4)')
             
             # Validate channel
             if channel == 0:
@@ -883,7 +883,7 @@ class PPC102_Coms(object):
                 print(f"Error: {e}")
             return None
         
-    def is_loops_closed(self, channel: int = 0):
+    def are_loops_closed(self, channel: int = 0):
         '''
             Uses the get_loop function that returns an int to return a 
             boolean for the state of the loops
@@ -1115,6 +1115,7 @@ class PPC102_Coms(object):
                 Travel parameter. 
             channel: (int) 1 0r 2
             Returns: travel of a single acuator in microns
+                  or None if there was an error reading the value
             **MGMSG_PZ_REQ_MAXTRAVEL**(50 06 Chan_Ident 00 d s)**
         '''
         # Check if socket is open
