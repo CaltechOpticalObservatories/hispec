@@ -121,12 +121,14 @@ class PPC102_Coms(object):
         - The output of the device depends solely on the 'enable' bit
     '''
 
-    def __init__(self, IP: str, port: int, timeout: float= 2.0, log: bool = True):
+    def __init__(self, IP: str, port: int, timeout: float= 2.0, 
+                                                            log: bool = True):
         '''
             Create socket connection instance variable
             Parameters: Ini file and logger bool 
             old default ini params
-                (host: str = '192.168.29.100', port: int = 10013, timeout: float = 2.0)
+                (host: str = '192.168.29.100', port: int = 10013, 
+                                                        timeout: float = 2.0)
         '''
         # Logger setup
         if log:
@@ -135,7 +137,8 @@ class PPC102_Coms(object):
             self.logger.setLevel(logging.DEBUG)
             log_handler = logging.FileHandler(logname + ".log")
             formatter = logging.Formatter(
-                "%(asctime)s--%(name)s--%(levelname)s--%(module)s--%(funcName)s--%(message)s")
+                "%(asctime)s--%(name)s--%(levelname)s--%(module)s--"
+                "%(funcName)s--%(message)s")
             log_handler.setFormatter(formatter)
             self.logger.addHandler(log_handler)
 
@@ -177,15 +180,18 @@ class PPC102_Coms(object):
             self.sock.connect((self.IP, self.port))
             if self.logger is not None:
                 self.logger.info(f"Connected to {self.IP}:{self.port}")
-                self.logger.info("Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer")
+                self.logger.info("Preliminary read_buff to clear buffer: " \
+                                    "Sometimes inicializes with 0x00 in buffer")
             else:
                 print(f"Connected to {self.IP}:{self.port}")
-                print("Preliminary read_buff to clear buffer: Sometimes inicializes with 0x00 in buffer")
+                print("Preliminary read_buff to clear buffer: " \
+                                    "Sometimes inicializes with 0x00 in buffer")
             # silent this single read buff execution!!!
             original_logger_level = None
             if self.logger:
                 original_logger_level = self.logger.level
-                self.logger.setLevel(100)  # Temporarily silence logger (higher than CRITICAL)
+                self.logger.setLevel(100)  # Temporarily silence logger 
+                                                        #(higher than CRITICAL)
 
             try:
                 with contextlib.redirect_stdout(io.StringIO()):
@@ -329,8 +335,8 @@ class PPC102_Coms(object):
         '''
             Sets enable on PPC102 Controller
             channel param:(int) 1 or 2
-                          NOTE: Default channel is set to 0, This will change both channels to 
-                          the desired enable state provided by the user
+                          NOTE: Default channel is set to 0, This will change both 
+                          channels to the desired enable state provided by the user
             enable param:(int) Enable=1 or Disable=2
             Returns: True/False based on successful com send
             **MGMSG_MOD_SET_CHANENABLESTATE**(10 02 Chan_Ident Enable_State d s)
@@ -419,7 +425,8 @@ class PPC102_Coms(object):
                 raise BufferError("Buffer empty when expecting response")
 
             enable_state = enable_status[3]  # This should be a single byte
-            return int(enable_state[2:],16)  # Already an int if read_buff returns a byte array
+            return int(enable_state[2:],16)  # Already an int if read_buff 
+                                                        #returns a byte array
         except Exception as e:
             if self.logger is not None:
                 self.logger.error(f"Error: {e}")
@@ -430,13 +437,15 @@ class PPC102_Coms(object):
     def _set_digital_outputs(self,channel:int = 1, bit=0000):
         '''
             Sets Digital Output on PPC102 Controller
-                (Trigger Fucntionality must be disabled by calling set_trigger first)
+            (Trigger Fucntionality must be disabled by calling set_trigger first)
             channel param:(int) 1 or 2
-            bit param:1111 for all on and 0000 for all off(Only capable of all or nothing setting)
+            bit param:1111 for all on and 0000 for all off
+                            (Only capable of all or nothing setting)
             Returns: True/False based on successful com send
             **MGMSG_MOD_SET_DIGOUTPUTS**(13 02 Bit 00 d s)**
 
-            NOTE:: Only sets all on or all off, must implment more detailed controls if you need it
+            NOTE: Only sets all on or all off, must implment more detailed 
+            controls if you need it
 
         '''
         # Check if socket is open
@@ -498,7 +507,8 @@ class PPC102_Coms(object):
             
             chan = 0x20 + channel  # '2' + channel, as hex
 
-            # Validate bit (not strictly needed for a "get", but preserved from original logic)
+            # Validate bit (not strictly needed for a "get", 
+            #                                  but preserved from original logic)
             if bit == 0b1111:
                 set_val = 0x0F
             elif bit == 0b0000:
@@ -541,8 +551,9 @@ class PPC102_Coms(object):
             Returns: True/False based on successful com send
             **MGMSG_HW_DISCONNECT**(02 00 00 00 d s)**
 
-            NOTE:: Do not disconnect, this would require a power cycle as there is no
-                    reconnect set of bytes to send based on the thorlabs comms documentation
+            NOTE:: Do not disconnect, this would require a power cycle as there
+            is noreconnect set of bytes to send based on the thorlabs comms 
+            documentation
 
         '''
         # Check if socket is open
@@ -569,16 +580,17 @@ class PPC102_Coms(object):
     def _hw_response(self):
         '''
             Sent by the controllers to notify Thorlabs Server of some event that 
-                requires user intervention, usually some fault or error condition that 
-                needs to be handled before normal operation can resume. The 
+                requires user intervention, usually some fault or error condition 
+                that needs to be handled before normal operation can resume. The 
                 message transmits the fault code as a numerical value--see the 
-                Return Codes listed in the Thorlabs Server helpfile for details on the 
-                specific return codes. 
+                Return Codes listed in the Thorlabs Server helpfile for details 
+                on the specific return codes. 
             Returns: return code
             **MGMSG_HW_RESPONSE**(80 00 00 00 d s)**
 
-            NOTE:: According to thor labs technical team, this function and hw_richresponse 
-                    are messages that we recieve from the hardware. Rare occation.
+            NOTE:: According to thor labs technical team, this function and 
+            hw_richresponse are messages that we recieve from the hardware. 
+            Rare occation.
 
         '''
         raise NotImplementedError("MGMSG_HW_RESPONSE: Has not been fully implemented")
@@ -616,14 +628,21 @@ class PPC102_Coms(object):
             Returns: 
             **MGMSG_HW_RICHRESPONSE**(81 00 44 00 d s MsgIdent(x2bytes) code(x2bytes))**
 
-            NOTE:: Not implmeneted
+            NOTE:: HW_Response and HW_RichResponse basically do the same thing, 
+            these are usually sent by the controller indicating some sort of fault 
+            that needs to be addressed by the user before continuing. The only 
+            difference being that RichResponse gives you a text string to help 
+            debug the fault. I've never seen these be returned before so they 
+            don't come up very often.
         '''
         raise NotImplementedError("MGMSG_HW_RICHRESPONSE: Has not been fully implemented")
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
         try:
             # Send Req rich response Command
-            command = bytes([0x81, 0x00, 0x44, 0x00, 0x11, 0x01, 0x00, 0x00, 0x00, 0x00])
+            command = bytes([
+                0x81, 0x00, 0x44, 0x00, 0x11, 0x01, 0x00, 0x00, 0x00, 0x00
+                ])
             #REQ
             self.write(command) 
             time.sleep(self.DELAY)  # Wait Delay time for write
@@ -643,15 +662,17 @@ class PPC102_Coms(object):
         '''
             Sent to start automatic status updates from the embedded 
                 controller. Status update messages contain information about the 
-                position and status of the controller (for example limit switch status, 
-                motion indication, etc). The messages will be sent by the controller 
-                every 100 msec until it receives a STOP STATUS UPDATE MESSAGES 
-                command. In applications where spontaneous messages (i.e., 
-                messages which are not received as a response to a specific 
-                command) must be avoided the same information can also be 
-                obtained by using the relevant GET_STATUTSUPDATES function.   
+                position and status of the controller (for example limit switch 
+                status, motion indication, etc). The messages will be sent by 
+                the controller every 100 msec until it receives a STOP STATUS 
+                UPDATE MESSAGES command. In applications where spontaneous 
+                messages (i.e., messages which are not received as a response to
+                a specific command) must be avoided the same information can 
+                also be obtained by using the relevant GET_STATUTSUPDATES function.   
             Returns: True/False on successful com send
             **MGMSG_HW_START_UPDATEMSGS**(11 00 unused unused d s)**
+
+            NOTE: This function starts the polling loop inside the hardware that is
         '''
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
@@ -704,7 +725,8 @@ class PPC102_Coms(object):
             NOTE:: Response Data Packet Not parsed yet
 
         '''
-        raise NotImplementedError(" MGMSG_HW_REQ_INFO Correctly send and recieved but not parsed ")
+        raise NotImplementedError(" MGMSG_HW_REQ_INFO Correctly send and " \
+                                                    "recieved but not parsed ")
         # Check if socket is open
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
@@ -766,8 +788,8 @@ class PPC102_Coms(object):
                 -Must change for each channel to have a completely closed loop
                 -each channel must be enabled
             channel:(int) 1 or 2 
-                    NOTE: Default channel is set to 0, This will change both loops to the desired state
-                            the user is attempting to set it to
+                    NOTE: Default channel is set to 0, This will change both 
+                    loops to the desired state the user is attempting to set it to
             loop: Loop state int:   1 Open Loop (no feedback)  
                                     2 Closed Loop (feedback employed)  
                                     3 Open Loop Smooth 
@@ -908,7 +930,8 @@ class PPC102_Coms(object):
             channel:(int) 1 or 2
             volts:(int) -32768 --> 32767
             Returns: True or False on successful com send
-            **MGMSG_PZ_SET_OUTPUTVOLTS**(43 06 04 00 d s Chan_Ident(x2bytes) Volts(x2bytes))**
+            **MGMSG_PZ_SET_OUTPUTVOLTS**(43 06 04 00 d s Chan_Ident(x2bytes) 
+                                                                Volts(x2bytes))**
         '''
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
@@ -981,14 +1004,16 @@ class PPC102_Coms(object):
                 command = bytes([0x44, 0x06, 0x01, 0x00,destination,0x01 ])
                 self.write(command)
             else:
-                raise PermissionError("Loops Must be OPEN and channel must be enabled")
+                raise PermissionError("Loops Must be OPEN and channel must be " \
+                                                                    "enabled")
 
             time.sleep(self.DELAY)
 
             # Read response
             volts = self.read_buff()
             if len(volts) != 10:
-                raise BufferError("Buffer did not return expected response length (10 bytes)")
+                raise BufferError("Buffer did not return expected response " \
+                                                            "length (10 bytes)")
 
             # Voltage is in bytes 8 and 9 (little endian hex strings like '0xA3', '0x00')
             low_byte = int(volts[8], 16)   # LSB
@@ -1012,7 +1037,8 @@ class PPC102_Coms(object):
                 -only settable while in closed loop
             pos: (int) 0 --> 32767
             Returns: True or False based on successful com send
-            **MGMSG_PZ_SET_OUTPUTPOS**(46 06 04 00 d s Chan_Ident(x2bytes) Pos(x2bytes))**
+            **MGMSG_PZ_SET_OUTPUTPOS**(46 06 04 00 d s Chan_Ident(x2bytes) 
+                                                                Pos(x2bytes))**
         '''
         # Check if socket is open
         if not self.sock:
@@ -1081,7 +1107,8 @@ class PPC102_Coms(object):
                 command = bytes([0x47, 0x06, 0x01, 0x00,destination, 0x01])
                 self.write(command) #REQ
             else:
-                raise PermissionError("Loops Must be Closed and channel must be enabled")
+                raise PermissionError("Loops Must be Closed and channel must be " \
+                                                                    "enabled")
 
             time.sleep(self.DELAY)  # Wait Delay time for write
 
@@ -1348,8 +1375,9 @@ class PPC102_Coms(object):
                 print(f"Error: {e}")
             return None
 
-    def _set_ppc_PIDCONSTS(self, channel: int = 1, p_const: float = 900.0, i_const: float = 800.0, 
-                            d_const: float = 90.0, dfc_const: float = 1000.0, derivFilter: bool = True):
+    def _set_ppc_PIDCONSTS(self, channel: int = 1, p_const: float = 900.0, 
+                           i_const: float = 800.0, d_const: float = 90.0, 
+                           dfc_const: float = 1000.0, derivFilter: bool = True):
         '''
             When operating in Closed Loop mode, the proportional, integral and 
                 derivative (PID) constants can be used to fine tune the behaviour of 
@@ -1378,7 +1406,8 @@ class PPC102_Coms(object):
 
             NOTE:: Not tested
         '''
-        raise NotImplementedError("MGMSG_PZ_SET_PPC_PIDCONSTS: Implemented but not tested")
+        raise NotImplementedError("MGMSG_PZ_SET_PPC_PIDCONSTS: Implemented but " \
+                                                                    "not tested")
         #check Connection
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
@@ -1387,7 +1416,8 @@ class PPC102_Coms(object):
             if 0 < channel < 3:
                 destination = (0x20 + channel) | 0x80
 
-            if not all(0 <= val <= 10000 for val in (p_const, i_const, d_const, dfc_const)):
+            if not all(0 <= val <= 10000 for val in (p_const, i_const, 
+                                                     d_const, dfc_const)):
                 raise ValueError("PID values must be between 0 and 10000")
 
             chan_ident = (1).to_bytes(2, byteorder='little')
@@ -1409,9 +1439,13 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
 
             if self.logger is not None:
-                self.logger.info(f"PID constants sent: P={p_const}, I={i_const}, D={d_const}, DFC={dfc_const}, Filter={'ON' if derivFilter else 'OFF'}")
+                self.logger.info(f"PID constants sent: P={p_const}, "\
+                    "I={i_const}, D={d_const}, DFC={dfc_const}, "\
+                    "Filter={'ON' if derivFilter else 'OFF'}")
             else:
-                print(f"PID constants sent: P={p_const}, I={i_const}, D={d_const}, DFC={dfc_bytes}, Filter={'ON' if derivFilter else 'OFF'}")
+                print(f"PID constants sent: P={p_const}, I={i_const}, "\
+                      "D={d_const}, DFC={dfc_bytes}, "\
+                      "Filter={'ON' if derivFilter else 'OFF'}")
             return True
         except Exception as e:
             if self.logger is not None:
@@ -1430,7 +1464,8 @@ class PPC102_Coms(object):
             NOTE:: Parsing seems to be incorrect
 
         '''
-        raise NotImplementedError("MGMSG_PZ_GET_PPC_PIDCONSTS: Parseing seems to be Incorrect")
+        raise NotImplementedError("MGMSG_PZ_GET_PPC_PIDCONSTS: " \
+                                            "Parseing seems to be Incorrect")
         # check connection
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
@@ -1561,10 +1596,12 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
 
             if self.logger is not None:
-                self.logger.info(f"Set NotchParams CH{channel}: F1({filter_1fc}Hz/Q={filter_1q})={'ON' if notch_filter1_on else 'OFF'}, "
-                                f"F2({filter_2fc}Hz/Q={filter_2q})={'ON' if notch_filter2_on else 'OFF'}")
+                self.logger.info(f"Set NotchParams CH{channel}: F1({filter_1fc}"
+                    f"Hz/Q={filter_1q})={'ON' if notch_filter1_on else 'OFF'}, "
+                    f"F2({filter_2fc}Hz/Q={filter_2q})={'ON' if notch_filter2_on else 'OFF'}")
             else:
-                print(f"Set NotchParams CH{channel}: F1({filter_1fc}Hz/Q={filter_1q})={'ON' if notch_filter1_on else 'OFF'}, "
+                print(f"Set NotchParams CH{channel}: F1({filter_1fc}"
+                    f"Hz/Q={filter_1q})={'ON' if notch_filter1_on else 'OFF'}, "
                     f"F2({filter_2fc}Hz/Q={filter_2q})={'ON' if notch_filter2_on else 'OFF'}")
 
             return True
@@ -1639,8 +1676,9 @@ class PPC102_Coms(object):
                 print(f"Error in get_notch_params: {e}")
             return None
     
-    def _set_ppc_IOSETTINGS(self, channel: int = 1, cntl_src:int = 3, monitor_opsig:int = 2, 
-                                monitor_opbw:int = 1, feedback_src:int = 1, fp_brightness:int = 2, reserved=0):
+    def _set_ppc_IOSETTINGS(self, channel: int = 1, cntl_src:int = 3, 
+            monitor_opsig:int = 2, monitor_opbw:int = 1, feedback_src:int = 1, 
+            fp_brightness:int = 2, reserved=0):
         '''
             This message is used to set various input and output parameter 
                 values associated with the rear panel BNC IO connectors. 
