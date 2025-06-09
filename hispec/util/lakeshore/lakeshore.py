@@ -210,21 +210,10 @@ class LakeshoreController:
                 retries -= 1
                 continue
 
-            # Wait for a reply.
+            # Get a reply, if needed.
             if command[-1] == '?':
-                timeout = 1
-
-                start = time.time()
                 time.sleep(0.1)
                 reply = self.socket.recv(1024)
-                while time.time() - start < timeout:
-                    try:
-                        reply += self.socket.recv(1024)
-                        self.logger.debug("reply: %s", reply)
-                    except OSError as e:
-                        if e.errno == ETIMEDOUT:
-                            reply = ''
-                    time.sleep(0.1)
             else:
                 break
 
