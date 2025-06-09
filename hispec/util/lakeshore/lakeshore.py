@@ -23,7 +23,7 @@ class LakeshoreController:
     initialized = False
     revision = None
     success = False
-    termchars = '\r\n'
+    termchars = '\r\n'.encode('utf-8')
 
     def __init__(self, log=True, logfile=None, quiet=False):
 
@@ -216,7 +216,8 @@ class LakeshoreController:
                 timeout = 1
                 start = time.time()
                 reply = self.socket.recv(1024)
-                while self.termchars not in reply and time.time() - start < timeout:
+                while self.termchars not in reply.decode('utf-8') and \
+                        time.time() - start < timeout:
                     try:
                         reply += self.socket.recv(1024)
                         self.logger.debug("reply: %s", reply)
