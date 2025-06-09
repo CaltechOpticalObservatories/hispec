@@ -23,7 +23,7 @@ class LakeshoreController:
     initialized = False
     revision = None
     success = False
-    termchars = '\r\n'.encode('utf-8')
+    termchars = '\r\n'
 
     def __init__(self, log=True, logfile=None, quiet=False):
 
