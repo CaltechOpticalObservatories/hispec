@@ -23,6 +23,7 @@ class LakeshoreController:
     initialized = False
     revision = None
     success = False
+    termchars = '\r\n'
 
     def __init__(self, log=True, logfile=None, quiet=False):
 
@@ -188,9 +189,9 @@ class LakeshoreController:
         retries = 3
         reply = ''
         if params:
-            send_command = f"{command} {params}".encode('utf-8')
+            send_command = f"{command} {params}{self.termchars}".encode('utf-8')
         else:
-            send_command = f"{command}\n".encode('utf-8')
+            send_command = f"{command}{self.termchars}".encode('utf-8')
 
         while retries > 0:
             self.logger.debug("sending command %s", send_command)
@@ -212,7 +213,24 @@ class LakeshoreController:
 
             # Get a reply, if needed.
             if command[-1] == '?':
+                timeout = 1
+                start = time.time()
                 reply = self.socket.recv(1024)
+                while self.termchars not in reply and time.time() - start < timeout:
+                    try:
+                        reply += self.socket.recv(1024)
+                        self.logger.debug("reply: %s", reply)
+                    except OSError as e:
+                        if e.errno == ETIMEDOUT:
+                            reply = ''
+                    time.sleep(0.1)
+
+                if reply == '':
+                    # Don't log here, because it happens a lot when the controller
+                    # is unresponsive. Just try again.
+                    retries -= 1
+                    continue
+                break
             break
 
         if isinstance(reply, str):
