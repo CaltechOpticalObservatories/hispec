@@ -190,7 +190,7 @@ class LakeshoreController:
         if params:
             send_command = f"{command} {params}".encode('utf-8')
         else:
-            send_command = f"{command}\r".encode('utf-8')
+            send_command = f"{command}\n".encode('utf-8')
 
         while retries > 0:
             self.logger.debug("sending command %s", send_command)
