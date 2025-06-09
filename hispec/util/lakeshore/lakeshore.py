@@ -212,10 +212,8 @@ class LakeshoreController:
 
             # Get a reply, if needed.
             if command[-1] == '?':
-                time.sleep(0.1)
                 reply = self.socket.recv(1024)
-            else:
-                break
+            break
 
         if isinstance(reply, str):
             reply = reply.strip()
