@@ -259,10 +259,7 @@ class LakeshoreController:
 
         :param celsius: Boolean, True: set units to Celsius or False: Kelvin.
         """
-        if celsius:
-            self.celsius = True
-        else:
-            self.celsius = False
+        self.celsius = celsius
 
     def get_temperature(self, sensor):
         """ Get sensor temperature.
@@ -271,7 +268,7 @@ class LakeshoreController:
 
         """
         retval = None
-        if sensor not in self.sensors:
+        if sensor.upper() not in self.sensors:
             self.logger.error("Sensor %s is not available", sensor)
         else:
             if self.celsius:
