@@ -25,7 +25,7 @@ class LakeshoreController:
     success = False
     termchars = '\r\n'
 
-    def __init__(self, log=True, logfile=None, quiet=False):
+    def __init__(self, log=True, logfile=None, quiet=False, opt3062=False):
 
         self.lock = threading.Lock()
         self.socket = None
@@ -39,6 +39,13 @@ class LakeshoreController:
                 self.logger.setLevel(logging.INFO)
         else:
             self.logger = None
+
+        if opt3062:
+            self.sensors = ['A', 'B', 'C', 'D1', 'D2', 'D3', 'D4', 'D5']
+        else:
+            self.sensors = ['A', 'B', 'C', 'D']
+
+        self.outputs = ['1', '2', '3', '4']
 
     def set_connection(self, ip=None, port=None):
         """ Configure the connection to the controller.
@@ -243,5 +250,26 @@ class LakeshoreController:
             raise RuntimeError('unable to successfully issue command: ' + repr(command))
 
         return reply
+
+    def get_temperature(self, sensor, celsius=True):
+        """ Get sensor temperature.
+
+        :param sensor: String, name of the sensor: A-D or A-C, D1=D5.
+        :param celsius: Boolean, whether to return Celsius.
+
+        """
+        retval = None
+        if sensor not in self.sensors:
+            self.logger.error("Sensor %s is not available", sensor)
+        else:
+            if celsius:
+                reply = self.command('crdg?', sensor)
+                if len(reply) > 0:
+                    retval = float(reply)
+            else:
+                reply = self.command('krdg?', sensor)
+                if len(reply) > 0:
+                    retval = float(reply)
+        return retval
 
 # end of class Controller
