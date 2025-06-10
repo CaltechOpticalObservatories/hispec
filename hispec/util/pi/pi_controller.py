@@ -305,7 +305,7 @@ class PIControllerBase:
                         self.logger.error(f"Reference move timed out after {timeout} seconds on axis {axis}")
                         return False
                     time.sleep(0.1)
-                    print("still moving..." + str(time.time() - start_time) + ", timeout" + str(timeout) + ", is moving: " + str(self.is_moving(device_key, axis)))
+
             return True
         except Exception as e:
             self.logger.error(f"Error during reference move '{method}' on axis {axis}: {e}")
