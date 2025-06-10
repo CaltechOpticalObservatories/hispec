@@ -173,7 +173,7 @@ class PIControllerBase:
         except GCSError as e:
             self.logger.error(f'Error halting motion: {e}')
 
-    def set_position(self, device_key, axis, position, blocking=False):
+    def set_position(self, device_key, axis, position, blocking=True):
         """
         Move the specified axis to the given position for the specified device.
         If blocking=True, wait until move is complete.
