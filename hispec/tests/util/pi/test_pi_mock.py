@@ -89,7 +89,7 @@ def test_get_position(mock_gcs_device_cls):
     mock_device.qPOS.return_value = {'1': 42.0}
     controller.devices[device_key] = mock_device
 
-    pos = controller.get_position(device_key, 0)
+    pos = controller.get_position(device_key, '1')
     assert pos == 42.0
     mock_device.qPOS.assert_called_once_with('1')
 
@@ -100,8 +100,9 @@ def test_set_and_go_to_named_position(tmp_path):
     device_key = ("ip", 1, 1)
     device = MagicMock()
     device.axes = ['1']
+    # Mock qMOV to return a real float value
+    device.qMOV.return_value = {'1': 10.0}
     controller.devices[device_key] = device
-    controller.get_position = MagicMock(return_value=10.0)
     controller.get_serial_number = MagicMock(return_value="123456")
 
     controller.set_named_position(device_key, '1', 'home')
@@ -112,3 +113,50 @@ def test_set_and_go_to_named_position(tmp_path):
     assert "123456" in data
     assert "home" in data["123456"]
     assert data["123456"]["home"][1] == 10.0
+
+@patch('hispec.util.pi.pi_controller.GCSDevice')
+def test_reference_move_success(mock_gcs_device_cls):
+    mock_device = MagicMock()
+    mock_device.IsMoving.return_value = {'1': False}
+    mock_gcs_device_cls.return_value = mock_device
+
+    controller = PIControllerBase(quiet=True)
+    controller.connected = True
+    device_key = ("ip", 1, 1)
+    controller.devices[device_key] = mock_device
+
+    # Test allowed method
+    for method in ["FRF", "FNL", "FPL"]:
+        getattr(mock_device, method).reset_mock()
+        result = controller.reference_move(device_key, '1', method=method, blocking=True, timeout=1)
+        assert result is True
+        getattr(mock_device, method).assert_called_once_with('1')
+
+@patch('hispec.util.pi.pi_controller.GCSDevice')
+def test_reference_move_invalid_method(mock_gcs_device_cls):
+    mock_device = MagicMock()
+    mock_gcs_device_cls.return_value = mock_device
+
+    controller = PIControllerBase(quiet=True)
+    controller.connected = True
+    device_key = ("ip", 1, 1)
+    controller.devices[device_key] = mock_device
+
+    # Test disallowed method
+    result = controller.reference_move(device_key, '1', method="INVALID", blocking=True)
+    assert result is False
+
+@patch('hispec.util.pi.pi_controller.GCSDevice')
+def test_reference_move_timeout(mock_gcs_device_cls):
+    mock_device = MagicMock()
+    # Simulate IsMoving always True
+    mock_device.IsMoving.return_value = {'1': True}
+    mock_gcs_device_cls.return_value = mock_device
+
+    controller = PIControllerBase(quiet=True)
+    controller.connected = True
+    device_key = ("ip", 1, 1)
+    controller.devices[device_key] = mock_device
+
+    result = controller.reference_move(device_key, '1', method="FRF", blocking=True, timeout=0.1)
+    assert result is False
