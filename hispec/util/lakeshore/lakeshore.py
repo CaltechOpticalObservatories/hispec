@@ -180,8 +180,6 @@ class LakeshoreController:
         :param command: String, command to issue.
         :param params: String, parameters to issue.
 
-        TODO: strip termchars off of reply, handle multiple returns, convert to floats
-
         """
 
         if not self.connected:
@@ -239,7 +237,7 @@ class LakeshoreController:
         if isinstance(reply, str):
             reply = reply.strip()
         else:
-            reply = reply.decode('utf-8')
+            reply = reply.decode('utf-8').strip()
 
         if retries == 0:
             raise RuntimeError('unable to successfully issue command: ' + repr(command))
