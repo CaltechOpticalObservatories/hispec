@@ -2,6 +2,7 @@ from pipython import GCSDevice, GCSError
 import hispec.util.helper.logger_utils as logger_utils
 import json
 import os
+import time
 
 
 class PIControllerBase:
@@ -38,7 +39,7 @@ class PIControllerBase:
         self.connected = True
         self.logger.info(f"Connected to single PI controller at {ip}:{port}")
 
-    def connect_tcpip_daisy_chain(self, ip, port):
+    def connect_tcpip_daisy_chain(self, ip, port, blocking=True):
         """
         Connect to all available devices on a daisy-chained set of PI controllers via TCP/IP.
         Each device is a separate GCSDevice instance.
@@ -68,6 +69,11 @@ class PIControllerBase:
             self.logger.info(f"[{ip}:{port}] Connected to device {device_id}: {desc}")
 
         self.connected = True
+
+        if blocking:
+            # Wait until all devices are ready
+            while not all(dev.IsControllerReady() for dev in self.devices.values()):
+                time.sleep(0.1)
 
     def disconnect_device(self, device_key):
         """
@@ -123,14 +129,13 @@ class PIControllerBase:
         self._require_connection()
         return self.devices[device_key].axes
 
-    def get_position(self, device_key, axis_number):
+    def get_position(self, device_key, axis):
         """
         Return the position of the specified axis for the given device.
         """
         self._require_connection()
         device = self.devices[device_key]
         try:
-            axis = device.axes[axis_number]
             return device.qPOS(axis)[axis]
         except (GCSError, IndexError) as e:
             self.logger.error(f'Error getting position: {e}')
@@ -168,13 +173,18 @@ class PIControllerBase:
         except GCSError as e:
             self.logger.error(f'Error halting motion: {e}')
 
-    def set_position(self, device_key, axis, position):
+    def set_position(self, device_key, axis, position, blocking=False):
         """
         Move the specified axis to the given position for the specified device.
+        If blocking=True, wait until move is complete.
         """
         self._require_connection()
         try:
             self.devices[device_key].MOV(axis, position)
+            if blocking:
+                while self.devices[device_key].IsMoving(axis):
+                    time.sleep(0.1)
+
         except GCSError as e:
             self.logger.error(f'Error setting position: {e}')
 
@@ -183,7 +193,11 @@ class PIControllerBase:
         Save the current position of the axis under a named label, scoped to the controller serial number.
         """
         device = self.devices[device_key]
-        pos = self.get_position(device_key, device.axes.index(axis))
+        try:
+            pos = device.qMOV(axis)[axis]
+        except Exception:
+            pos = self.get_position(device_key, axis)
+
         if pos is None:
             self.logger.warning(f"Could not get position for axis {axis}")
             return
@@ -237,6 +251,62 @@ class PIControllerBase:
         self.set_position(axis, pos)
         self.logger.info(f"Moved axis {axis} to named position '{name}' for controller {serial}: {pos}")
 
-    # TODO
-    def is_moving(self, axis, position_name):
-        raise NotImplementedError("is_moving is not implemented")
+    def is_moving(self, device_key, axis):
+        """Check if stage/axis is moving."""
+        self._require_connection()
+        return self.devices[device_key].IsMoving(axis)[axis]
+
+    def set_servo(self, device_key, axis, enable=True):
+        """Open (enable) or close (disable) servo loop."""
+        self._require_connection()
+        return self.devices[device_key].SVO(axis, int(enable))
+
+    def get_limit_min(self, device_key, axis):
+        """Query stage minimum limit."""
+        self._require_connection()
+        return self.devices[device_key].qTMN(axis)[axis]
+
+    def get_limit_max(self, device_key, axis):
+        """Query stage maximum limit."""
+        self._require_connection()
+        return self.devices[device_key].qTMX(axis)[axis]
+
+    def is_controller_ready(self, device_key):
+        """Check if stage/controller is ready."""
+        self._require_connection()
+        return self.devices[device_key].IsControllerReady()
+
+    def q_frf(self, device_key, axis):
+        """Check reference/home state for axis."""
+        self._require_connection()
+        return self.devices[device_key].qFRF(axis)[axis]
+
+    def reference_move(self, device_key, axis, method="FRF", blocking=True, timeout=20):
+        """
+        Execute a reference/home move (FRF, FNL, FPL).
+        method: which command to use ("FRF", "FNL", "FPL")
+        blocking: if True, wait until move is complete
+        Returns True if successful, False otherwise.
+        """
+        self._require_connection()
+        allowed_methods = {"FRF", "FNL", "FPL"}
+        if method not in allowed_methods:
+            self.logger.error(f"Invalid reference method: {method}. Must be one of {allowed_methods}")
+            return False
+
+        device = self.devices[device_key]
+        try:
+            getattr(device, method)(axis)
+            self.logger.info(f"Started reference move '{method}' on axis {axis} (device {device_key})")
+            if blocking:
+                start_time = time.time()
+                while self.is_moving(device_key, axis):
+                    if time.time() - start_time > timeout:
+                        self.logger.error(f"Reference move timed out after {timeout} seconds on axis {axis}")
+                        return False
+                    time.sleep(0.1)
+                    print("still moving..." + str(time.time() - start_time) + ", timeout" + str(timeout) + ", is moving: " + str(self.is_moving(device_key, axis)))
+            return True
+        except Exception as e:
+            self.logger.error(f"Error during reference move '{method}' on axis {axis}: {e}")
+            return False
