@@ -25,10 +25,13 @@ class LakeshoreController:
     success = False
     termchars = '\r\n'
 
-    def __init__(self, log=True, logfile=None, quiet=False, opt3062=False):
+    def __init__(self, log=True, logfile=None, quiet=False, opt3062=False,
+                 celsius=True):
 
         self.lock = threading.Lock()
         self.socket = None
+
+        self.celsius = celsius
 
         # set up logging
         if log:
@@ -251,18 +254,27 @@ class LakeshoreController:
 
         return reply
 
-    def get_temperature(self, sensor, celsius=True):
+    def set_units(self, celsius=True):
+        """ Set units to Celsius or Kelvin.
+
+        :param celsius: Boolean, True: set units to Celsius or False: Kelvin.
+        """
+        if celsius:
+            self.celsius = True
+        else:
+            self.celsius = False
+
+    def get_temperature(self, sensor):
         """ Get sensor temperature.
 
         :param sensor: String, name of the sensor: A-D or A-C, D1=D5.
-        :param celsius: Boolean, whether to return Celsius.
 
         """
         retval = None
         if sensor not in self.sensors:
             self.logger.error("Sensor %s is not available", sensor)
         else:
-            if celsius:
+            if self.celsius:
                 reply = self.command('crdg?', sensor)
                 if len(reply) > 0:
                     retval = float(reply)
