@@ -182,7 +182,7 @@ class PIControllerBase:
         try:
             self.devices[device_key].MOV(axis, position)
             if blocking:
-                while self.devices[device_key].IsMoving(axis):
+                while self.is_moving(device_key, axis):
                     time.sleep(0.1)
 
         except GCSError as e:
