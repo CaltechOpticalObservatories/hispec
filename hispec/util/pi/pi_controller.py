@@ -222,11 +222,11 @@ class PIControllerBase:
 
         self.logger.info(f"Saved position '{name}' for controller {serial}, axis {axis}: {pos}")
 
-    def go_to_named_position(self, name):
+    def go_to_named_position(self, device_key, name, blocking=True):
         """
-        Load a named position for the current controller from file and move the corresponding axis to it.
+        Move the specified device's axis to a previously saved named position.
         """
-        serial = self.get_serial_number()
+        serial = self.get_serial_number(device_key)
 
         if not os.path.exists(self.named_position_file):
             self.logger.warning(f"Named positions file not found: {self.named_position_file}")
@@ -248,7 +248,7 @@ class PIControllerBase:
             return
 
         axis, pos = positions[serial][name]
-        self.set_position(axis, pos)
+        self.set_position(device_key, axis, pos, blocking)
         self.logger.info(f"Moved axis {axis} to named position '{name}' for controller {serial}: {pos}")
 
     def is_moving(self, device_key, axis):
@@ -276,7 +276,7 @@ class PIControllerBase:
         self._require_connection()
         return self.devices[device_key].IsControllerReady()
 
-    def q_frf(self, device_key, axis):
+    def is_controller_referenced(self, device_key, axis):
         """Check reference/home state for axis."""
         self._require_connection()
         return self.devices[device_key].qFRF(axis)[axis]

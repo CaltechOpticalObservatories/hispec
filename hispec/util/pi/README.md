@@ -39,7 +39,7 @@ device_key = ("192.168.29.100", 10005, 2)
 print("Now on device 2:", controller.get_idn(device_key))
 
 # Check if axis '1' is referenced
-is_referenced = controller.q_frf(device_key, '1')
+is_referenced = controller.is_controller_referenced(device_key, '1')
 print("Axis 1 referenced:", is_referenced)
 
 # Perform a reference move (home) on axis '1'

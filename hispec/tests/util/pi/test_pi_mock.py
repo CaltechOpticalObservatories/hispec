@@ -93,7 +93,7 @@ def test_get_position(mock_gcs_device_cls):
     assert pos == 42.0
     mock_device.qPOS.assert_called_once_with('1')
 
-def test_set_and_go_to_named_position(tmp_path):
+def test_set_named_position(tmp_path):
     controller = PIControllerBase(quiet=True)
     controller.named_position_file = tmp_path / "positions.json"
     controller.connected = True
@@ -113,6 +113,28 @@ def test_set_and_go_to_named_position(tmp_path):
     assert "123456" in data
     assert "home" in data["123456"]
     assert data["123456"]["home"][1] == 10.0
+
+def test_go_to_named_position(tmp_path):
+    controller = PIControllerBase(quiet=True)
+    controller.named_position_file = tmp_path / "positions.json"
+    controller.connected = True
+    device_key = ("ip", 1, 1)
+    device = MagicMock()
+    controller.devices[device_key] = device
+    controller.get_serial_number = MagicMock(return_value="123456")
+    controller.set_position = MagicMock()
+
+    # Prepare a named position file
+    named_positions = {
+        "123456": {
+            "home": ["1", 42.0]
+        }
+    }
+    with open(controller.named_position_file, "w") as f:
+        json.dump(named_positions, f)
+
+    controller.go_to_named_position(device_key, "home", blocking=False)
+    controller.set_position.assert_called_once_with(device_key, "1", 42.0, False)
 
 @patch('hispec.util.pi.pi_controller.GCSDevice')
 def test_reference_move_success(mock_gcs_device_cls):
