@@ -281,7 +281,7 @@ class PIControllerBase:
         self._require_connection()
         return self.devices[device_key].qFRF(axis)[axis]
 
-    def reference_move(self, device_key, axis, method="FRF", blocking=True, timeout=20):
+    def reference_move(self, device_key, axis, method="FRF", blocking=True, timeout=30):
         """
         Execute a reference/home move (FRF, FNL, FPL).
         method: which command to use ("FRF", "FNL", "FPL")
@@ -295,6 +295,12 @@ class PIControllerBase:
             return False
 
         device = self.devices[device_key]
+
+        # Check if the device supports the specified method
+        if not getattr(device, f"Has{method}")():
+            self.logger.error(f"Device {device_key} does not support method '{method}'")
+            return False
+
         try:
             getattr(device, method)(axis)
             self.logger.info(f"Started reference move '{method}' on axis {axis} (device {device_key})")
