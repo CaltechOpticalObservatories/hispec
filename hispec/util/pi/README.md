@@ -8,8 +8,10 @@ Low-level Python library to control PI 863 and PI 663 motion controllers using t
 - Automatically detect and select connected devices in a daisy chain
 - Manage multiple controllers in the same daisy chain
 - Log controller actions and errors (with optional quiet mode)
+- Check the reference (home) state and execute reference moves (homing)
 - Store and recall named positions per controller
-- Query servo and motion status
+- Query and set servo status (open/close firmware loops)
+- Query motion status
 - Emergency halt of motion
 - Structured error handling via `pipython.GCSError`
 
@@ -36,6 +38,17 @@ for device_id, desc in devices:
 # Use a device_key for further operations
 device_key = ("192.168.29.100", 10005, 2)
 print("Now on device 2:", controller.get_idn(device_key))
+
+# Check if axis '1' is referenced
+is_referenced = controller.is_controller_referenced(device_key, '1')
+print("Axis 1 referenced:", is_referenced)
+
+# Perform a reference move (home) on axis '1'
+success = controller.reference_move(device_key, '1', method="FRF", blocking=True, timeout=30)
+if success:
+    print("Reference move completed successfully.")
+else:
+    print("Reference move failed or timed out.")
 
 # Move axis 1 to position 12.0
 controller.set_position(device_key, '1', 12.0)
