@@ -10,7 +10,8 @@ Low-level Python library to control PI 863 and PI 663 motion controllers using t
 - Log controller actions and errors (with optional quiet mode)
 - Check the reference (home) state and execute reference moves (homing)
 - Store and recall named positions per controller
-- Query servo and motion status
+- Query and set servo status (open/close firmware loops)
+- Query motion status
 - Emergency halt of motion
 - Structured error handling via `pipython.GCSError`
 
