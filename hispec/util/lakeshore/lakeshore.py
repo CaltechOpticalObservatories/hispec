@@ -25,18 +25,20 @@ class LakeshoreController:
     success = False
     termchars = '\r\n'
 
+    # Heater dictionaries
     resistance = {'1': 25, '2': 50}
     max_current = {'0': 0.0, '1': 0.707, '2': 1.0, '3': 1.141, '4': 2.0}
     htr_display = {'1': 'current', '2': 'power'}
     htr_errors = {'0': 'no error', '1': 'heater open load', '2': 'heater short'}
 
     def __init__(self, log=True, logfile=None, quiet=False, opt3062=False,
-                 celsius=True):
+                 model336=True):
 
         self.lock = threading.Lock()
         self.socket = None
 
-        self.celsius = celsius
+        self.celsius = True
+        self.model336 = model336
 
         # set up logging
         if log:
@@ -48,21 +50,28 @@ class LakeshoreController:
         else:
             self.logger = None
 
-        if opt3062:
-            self.sensors = {'A': 1, 'B': 2, 'C': 3,
-                            'D1': 4, 'D2': 5, 'D3': 6, 'D4': 7, 'D5': 8}
-        else:
-            self.sensors = {'A': 1, 'B': 2, 'C': 3, 'D': 4}
+        if model336:
+            if opt3062:
+                self.sensors = {'A': 1, 'B': 2, 'C': 3,
+                                'D1': 4, 'D2': 5, 'D3': 6, 'D4': 7, 'D5': 8}
+            else:
+                self.sensors = {'A': 1, 'B': 2, 'C': 3, 'D': 4}
 
-        self.outputs = {'1':
-                            {'resistance': None, 'max_current': 0.0,
-                             'user_max_current': 0.0, 'htr_display': '',
-                             'status': ''},
-                        '2':
-                            {'resistance': None, 'max_current': 0.0,
-                             'user_max_current': 0.0, 'htr_display': '',
-                             'status': ''},
-        }
+            self.outputs = {'1':
+                                {'resistance': None, 'max_current': 0.0,
+                                 'user_max_current': 0.0, 'htr_display': '',
+                                 'status': ''},
+                            '2':
+                                {'resistance': None, 'max_current': 0.0,
+                                 'user_max_current': 0.0, 'htr_display': '',
+                                 'status': ''},
+            }
+        else:
+            # Model 224
+            self.sensors = {'A':1, 'B':2,
+                            'C1': 3, 'C2': 4, 'C3': 5, 'C4': 6, 'C5': 7,
+                            'D1': 8, 'D2': 9, 'D3': 10, 'D4': 11, 'D5': 12}
+            self.outputs = None
 
     def set_connection(self, ip=None, port=None):
         """ Configure the connection to the controller.
@@ -168,19 +177,26 @@ class LakeshoreController:
             self.status = status
 
 
-    def initialize(self):
+    def initialize(self, celsius=True):
         """ Initialize the lakeshore status. """
 
         self.revision = self.command('*idn?')
 
-        for htr in self.outputs.keys():
-            res, maxc, umaxc, disp = self.get_heater_settings(htr)
-            status = self.get_heater_status(htr)
-            self.outputs[htr]['resistance'] = self.resistance[res]
-            self.outputs[htr]['max_current'] = self.max_current[maxc]
-            self.outputs[htr]['user_max_current'] = float(umaxc)
-            self.outputs[htr]['htr_display'] = self.htr_display[disp]
-            self.outputs[htr]['status'] = status
+        if self.model336:
+
+            for htr in self.outputs.keys():
+                res, maxc, umaxc, disp = self.get_heater_settings(htr)
+                status = self.get_heater_status(htr)
+                self.outputs[htr]['resistance'] = self.resistance[res]
+                self.outputs[htr]['max_current'] = self.max_current[maxc]
+                self.outputs[htr]['user_max_current'] = float(umaxc)
+                self.outputs[htr]['htr_display'] = self.htr_display[disp]
+                self.outputs[htr]['status'] = status
+
+        if celsius:
+            self.set_celsius()
+        else:
+            self.set_kelvin()
 
         self.initialized = True
 
@@ -308,12 +324,15 @@ class LakeshoreController:
         1,3,+1.414,1
         """
         retval = None
-        if output.upper() not in self.outputs:
-            self.logger.error("Heater %s is not available", output)
+        if self.model336:
+            if output.upper() not in self.outputs:
+                self.logger.error("Heater %s is not available", output)
+            else:
+                reply = self.command('htrset?', output)
+                if len(reply) > 0:
+                    retval = reply.split(',')
         else:
-            reply = self.command('htrset?', output)
-            if len(reply) > 0:
-                retval = reply.split(',')
+            self.logger.error("Heater is not available with this model")
         return retval
 
     def get_heater_status(self, output):
@@ -323,17 +342,20 @@ class LakeshoreController:
         returns status string
         """
         retval = 'unknown'
-        if output.upper() not in self.outputs:
-            self.logger.error("Heater %s is not available", output)
+        if self.model336:
+            if output.upper() not in self.outputs:
+                self.logger.error("Heater %s is not available", output)
+            else:
+                reply = self.command('htrst?', output)
+                if len(reply) > 0:
+                    reply = reply.strip()
+                    if reply in self.htr_errors:
+                        retval = self.htr_errors[reply]
+                    else:
+                        self.logger.error("Heater error %s and status is unknown",
+                                          reply)
         else:
-            reply = self.command('htrst?', output)
-            if len(reply) > 0:
-                reply = reply.strip()
-                if reply in self.htr_errors:
-                    retval = self.htr_errors[reply]
-                else:
-                    self.logger.error("Heater error %s and status is unknown",
-                                      reply)
+            self.logger.error("Heater is not available with this model")
         return retval
 
     def get_heater_output(self, output):
@@ -341,17 +363,20 @@ class LakeshoreController:
         :param output: String, output number of the sensor (1 or 2).
         """
         retval = None
-        if output.upper() not in self.outputs:
-            self.logger.error("Heater %s is not available", output)
-        else:
-            reply = self.command('htr?', output)
-            if len(reply) > 0:
-                reply = reply.strip()
-                try:
-                    retval = float(reply)
-                except ValueError:
-                    self.logger.error("Heater output error: %s", reply)
+        if self.model336:
+            if output.upper() not in self.outputs:
+                self.logger.error("Heater %s is not available", output)
             else:
-                self.logger.error("Heater output error")
+                reply = self.command('htr?', output)
+                if len(reply) > 0:
+                    reply = reply.strip()
+                    try:
+                        retval = float(reply)
+                    except ValueError:
+                        self.logger.error("Heater output error: %s", reply)
+                else:
+                    self.logger.error("Heater output error")
+        else:
+            self.logger.error("Heater is not available with this model")
         return retval
 # end of class Controller
