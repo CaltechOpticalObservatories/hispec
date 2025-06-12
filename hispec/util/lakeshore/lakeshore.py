@@ -25,6 +25,11 @@ class LakeshoreController:
     success = False
     termchars = '\r\n'
 
+    resistance = {'1': 25, '2': 50}
+    max_current = {'0': 0.0, '1': 0.707, '2': 1.0, '3': 1.141, '4': 2.0}
+    htr_display = {'1': 'current', '2': 'power'}
+    htr_errors = {'0': 'no error', '1': 'heater open load', '2': 'heater short'}
+
     def __init__(self, log=True, logfile=None, quiet=False, opt3062=False,
                  celsius=True):
 
@@ -44,11 +49,20 @@ class LakeshoreController:
             self.logger = None
 
         if opt3062:
-            self.sensors = ['A', 'B', 'C', 'D1', 'D2', 'D3', 'D4', 'D5']
+            self.sensors = {'A': 1, 'B': 2, 'C': 3,
+                            'D1': 4, 'D2': 5, 'D3': 6, 'D4': 7, 'D5': 8}
         else:
-            self.sensors = ['A', 'B', 'C', 'D']
+            self.sensors = {'A': 1, 'B': 2, 'C': 3, 'D': 4}
 
-        self.outputs = ['1', '2', '3', '4']
+        self.outputs = {'1':
+                            {'resistance': None, 'max_current': 0.0,
+                             'user_max_current': 0.0, 'htr_display': '',
+                             'status': ''},
+                        '2':
+                            {'resistance': None, 'max_current': 0.0,
+                             'user_max_current': 0.0, 'htr_display': '',
+                             'status': ''},
+        }
 
     def set_connection(self, ip=None, port=None):
         """ Configure the connection to the controller.
@@ -155,12 +169,18 @@ class LakeshoreController:
 
 
     def initialize(self):
-        """ Initialize the filter wheel. """
-
-        # Give it an initial dummy command to flush out the buffer.
-        self.command('*idn?')
+        """ Initialize the lakeshore status. """
 
         self.revision = self.command('*idn?')
+
+        for htr in self.outputs.keys():
+            res, maxc, umaxc, disp = self.get_heater_settings(htr)
+            status = self.get_heater_status(htr)
+            self.outputs[htr]['resistance'] = self.resistance[res]
+            self.outputs[htr]['max_current'] = self.max_current[maxc]
+            self.outputs[htr]['user_max_current'] = float(umaxc)
+            self.outputs[htr]['htr_display'] = self.htr_display[disp]
+            self.outputs[htr]['status'] = status
 
         self.initialized = True
 
@@ -254,12 +274,13 @@ class LakeshoreController:
 
         return reply
 
-    def set_units(self, celsius=True):
-        """ Set units to Celsius or Kelvin.
+    def set_celsius(self):
+        """ Set units to Celsius. """
+        self.celsius = True
 
-        :param celsius: Boolean, True: set units to Celsius or False: Kelvin.
-        """
-        self.celsius = celsius
+    def set_kelvin(self):
+        """ Set units to Kelvin. """
+        self.celsius = False
 
     def get_temperature(self, sensor):
         """ Get sensor temperature.
@@ -281,4 +302,56 @@ class LakeshoreController:
                     retval = float(reply)
         return retval
 
+    def get_heater_settings(self, output):
+        """ Get heater settings.
+        :param output: String, output number of the sensor (1 or 2).
+        1,3,+1.414,1
+        """
+        retval = None
+        if output.upper() not in self.outputs:
+            self.logger.error("Heater %s is not available", output)
+        else:
+            reply = self.command('htrset?', output)
+            if len(reply) > 0:
+                retval = reply.split(',')
+        return retval
+
+    def get_heater_status(self, output):
+        """ Get heater status.
+
+        :param output: String, output number of the sensor (1 or 2).
+        returns status string
+        """
+        retval = 'unknown'
+        if output.upper() not in self.outputs:
+            self.logger.error("Heater %s is not available", output)
+        else:
+            reply = self.command('htrst?', output)
+            if len(reply) > 0:
+                reply = reply.strip()
+                if reply in self.htr_errors:
+                    retval = self.htr_errors[reply]
+                else:
+                    self.logger.error("Heater error %s and status is unknown",
+                                      reply)
+        return retval
+
+    def get_heater_output(self, output):
+        """ Get heater output.
+        :param output: String, output number of the sensor (1 or 2).
+        """
+        retval = None
+        if output.upper() not in self.outputs:
+            self.logger.error("Heater %s is not available", output)
+        else:
+            reply = self.command('htr?', output)
+            if len(reply) > 0:
+                reply = reply.strip()
+                try:
+                    retval = float(reply)
+                except ValueError:
+                    self.logger.error("Heater output error: %s", reply)
+            else:
+                self.logger.error("Heater output error")
+        return retval
 # end of class Controller
