@@ -7,6 +7,8 @@ A collection of Python interfaces for communicating with HISPEC FEI components.
 
 - Query device status, error, and firmware version
 - Get and set target temperature
+- Get and set user commanded power
+- Get reject and cold head temperatures
 - Turn cooler on or off
 - Async API for non-blocking operation
 
@@ -28,6 +30,10 @@ async def main():
     await controller.get_status()
     await controller.set_target_temp(300.0)
     await controller.turn_on_cooler()
+    await controller.get_commanded_power()
+    await controller.set_commanded_power(10.0)
+    await controller.get_reject_temp()
+    await controller.get_cold_head_temp()
 
 
 asyncio.run(main())
