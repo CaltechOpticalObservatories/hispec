@@ -17,6 +17,7 @@ from hispec.util import lakeshore
 
 controller = lakeshore.LakeshoreController()    # defaults to 336
 controller.set_connection(ip='192.168.29.104', port=7777)
+controller.connect()
 
 # Initialize controller
 controller.initialize(celsius=False)    # print temperatures in Kelvin
