@@ -1,0 +1,17 @@
+import pytest
+from hispec.util.lakeshore.lakeshore import LakeshoreController
+
+def test_not_connected():
+    controller = LakeshoreController()
+    assert not controller.connected
+
+def test_not_initialized():
+    controller = LakeshoreController()
+    assert not controller.initialized
+
+def test_connection_fail():
+    with pytest.raises(Exception):
+        controller = LakeshoreController()
+        controller.set_connection(ip="127.0.0.1", port=50000)
+        controller.connect()
+        assert not controller.connected
