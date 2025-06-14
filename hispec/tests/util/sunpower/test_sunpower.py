@@ -1,4 +1,5 @@
 import unittest
+import asyncio
 from unittest.mock import patch
 from hispec.util import SunpowerCryocooler
 
@@ -32,6 +33,26 @@ class TestSunpowerController(unittest.TestCase):
         with patch.object(self.controller.logger, 'warning') as mock_warn:
             self.controller._read_reply()
             mock_warn.assert_called_with('Failed to parse value: ERROR= notanumber')
+
+    def test_get_commanded_power(self):
+        with patch.object(self.controller, '_send_and_read') as mock_send_and_read:
+            asyncio.run(self.controller.get_commanded_power())
+            mock_send_and_read.assert_called_once_with('PWOUT')
+
+    def test_set_commanded_power(self):
+        with patch.object(self.controller, '_send_and_read') as mock_send_and_read:
+            asyncio.run(self.controller.set_commanded_power(12.34))
+            mock_send_and_read.assert_called_once_with('PWOUT=12.34')
+
+    def test_get_reject_temp(self):
+        with patch.object(self.controller, '_send_and_read') as mock_send_and_read:
+            asyncio.run(self.controller.get_reject_temp())
+            mock_send_and_read.assert_called_once_with('TEMP RJ')
+
+    def test_get_cold_head_temp(self):
+        with patch.object(self.controller, '_send_and_read') as mock_send_and_read:
+            asyncio.run(self.controller.get_cold_head_temp())
+            mock_send_and_read.assert_called_once_with('TC')
 
 if __name__ == '__main__':
     unittest.main()

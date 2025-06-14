@@ -55,6 +55,14 @@ class SunpowerCryocooler:
         """Query the firmware version."""
         await self._send_and_read('VERSION')
 
+    async def get_cold_head_temp(self):
+        """Get the cold head temperature setting."""
+        await self._send_and_read('TC')
+
+    async def get_reject_temp(self):
+        """Get the reject temperature setting."""
+        await self._send_and_read('TEMP RJ')
+
     async def get_target_temp(self):
         """Get the target temperature setting."""
         await self._send_and_read('TTARGET')
@@ -62,6 +70,14 @@ class SunpowerCryocooler:
     async def set_target_temp(self, temp_kelvin: float):
         """Set the target temperature in Kelvin."""
         await self._send_and_read(f'TTARGET={temp_kelvin}')
+
+    async def get_commanded_power(self):
+        """Get the user commanded power setting."""
+        await self._send_and_read('PWOUT')
+
+    async def set_commanded_power(self, watts: float):
+        """Set the user commanded power in Watts."""
+        await self._send_and_read(f'PWOUT={watts}')
 
     async def turn_on_cooler(self):
         """Turn the cooler ON."""
