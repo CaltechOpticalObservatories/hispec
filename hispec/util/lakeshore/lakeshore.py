@@ -190,14 +190,14 @@ class LakeshoreController:
                     if self.logger:
                         self.logger.warning("Unable to get settings for htr %s", htr)
                 else:
-                    r, m, u, d = htr_settings 
+                    r, m, u, d = htr_settings
                     self.outputs[htr]['resistance'] = r
                     self.outputs[htr]['max_current'] = m
                     self.outputs[htr]['user_max_current'] = u
                     self.outputs[htr]['htr_display'] = d
-                
+
                 self.outputs[htr]['status'] = self.get_heater_status(htr)
-                
+
                 pid = self.get_heater_pid(htr)
                 if pid is None:
                     if self.logger:
