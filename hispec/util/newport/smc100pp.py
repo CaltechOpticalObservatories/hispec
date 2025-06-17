@@ -76,6 +76,7 @@ import errno
 import logging
 import time
 import socket
+import threading
 
 from hispec.util.helper import logger_utils
 
@@ -160,6 +161,9 @@ class StageController:
         :param logfile: Filename for log
         :param quiet: Boolean, set to True to suppress DEBUG level messages
         """
+
+        # thread lock
+        self.lock = threading.Lock()
 
         # Set up socket
         self.socket = None
@@ -416,7 +420,10 @@ class StageController:
             self.logger.debug("Input command: %s", cmd)
 
         # Send serial command
-        return self.__send_serial_command(stage_id, cmd)
+        with self.lock:
+            result = self.__send_serial_command(stage_id, cmd)
+
+        return result
 
     def __verify_send_command(self, cmd, stage_id, custom_command=False):
         """ Verify cmd and stage_id
