@@ -185,16 +185,23 @@ class LakeshoreController:
         if self.model336:
 
             for htr in self.outputs.keys():
-                res, maxc, umaxc, disp = self.get_heater_settings(htr)
-                status = self.get_heater_status(htr)
+                htr_settings = self.get_heater_settings(htr)
+                if htr_settings is None:
+                    if self.logger:
+                        self.logger.warning("Unable to get settings for htr %s", htr)
+                else:
+                    r, m, u, d = htr_settings 
+                    self.outputs[htr]['resistance'] = r
+                    self.outputs[htr]['max_current'] = m
+                    self.outputs[htr]['user_max_current'] = u
+                    self.outputs[htr]['htr_display'] = d
+                
+                self.outputs[htr]['status'] = self.get_heater_status(htr)
+                
                 pid = self.get_heater_pid(htr)
-                self.outputs[htr]['resistance'] = self.resistance[res]
-                self.outputs[htr]['max_current'] = self.max_current[maxc]
-                self.outputs[htr]['user_max_current'] = float(umaxc)
-                self.outputs[htr]['htr_display'] = self.htr_display[disp]
-                self.outputs[htr]['status'] = status
                 if pid is None:
-                    self.logger.warning("PID not set for htr '%s'", htr)
+                    if self.logger:
+                        self.logger.warning("PID not set for htr %s", htr)
                 else:
                     p, i, d = pid
                     self.outputs[htr]['p'] = p
@@ -346,7 +353,9 @@ class LakeshoreController:
             else:
                 reply = self.command('htrset?', output)
                 if len(reply) > 0:
-                    retval = reply.split(',')
+                    ires, imaxcur, strusermaxcur, idisp = reply.split(',')
+                    retval = (self.resistance[ires], self.max_current[imaxcur],
+                              float(strusermaxcur), self.htr_display[idisp])
         else:
             if self.logger:
                 self.logger.error("Heater is not available with this model")
