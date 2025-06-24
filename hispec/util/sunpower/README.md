@@ -9,7 +9,6 @@ A collection of Python interfaces for communicating with HISPEC FEI components.
 - Get and set user commanded power
 - Get reject and cold head temperatures
 - Turn cooler on or off
-- Async API for non-blocking operation
 - Supports both serial and TCP (socket) connections with error handling
 
 ## Installation
@@ -40,7 +39,7 @@ from hispec.util.sunpower.sunpower_controller import SunpowerCryocooler
 
 controller = SunpowerCryocooler(
     connection_type='tcp',
-    tcp_host='192.168.1.100',
+    tcp_host='192.168.29.100',
     tcp_port=10016,
     quiet=True
 )
