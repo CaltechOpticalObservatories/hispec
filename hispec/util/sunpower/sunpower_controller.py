@@ -1,42 +1,74 @@
 import serial
+import socket
 import io
 import hispec.util.helper.logger_utils as logger_utils
 
+
 class SunpowerCryocooler:
-    def __init__(self, port='/dev/ttyUSB0', baudrate=9600, quiet=True):
+    def __init__(self, port='/dev/ttyUSB0', baudrate=9600, quiet=True, connection_type='serial', tcp_host=None,
+                 tcp_port=None):
         logfile = __name__.rsplit(".", 1)[-1] + ".log"
         self.logger = logger_utils.setup_logger(__name__, log_file=logfile, quiet=quiet)
+        self.connection_type = connection_type
 
-        self.ser = serial.Serial(
-            port=port,
-            baudrate=baudrate,
-            timeout=0.1,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE
-        )
-        self.sio = io.TextIOWrapper(io.BufferedRWPair(self.ser, self.ser))
-        self.logger.info(f"Serial connection opened: {self.ser.is_open}")
+        try:
+            if connection_type == 'serial':
+                self.ser = serial.Serial(
+                    port=port,
+                    baudrate=baudrate,
+                    timeout=0.1,
+                    parity=serial.PARITY_NONE,
+                    stopbits=serial.STOPBITS_ONE
+                )
+                self.sio = io.TextIOWrapper(io.BufferedRWPair(self.ser, self.ser))
+                self.logger.info(f"Serial connection opened: {self.ser.is_open}")
+            elif connection_type == 'tcp':
+                if tcp_host is None or tcp_port is None:
+                    raise ValueError("tcp_host and tcp_port must be specified for TCP connection")
+                self.sock = socket.create_connection((tcp_host, tcp_port), timeout=2)
+                self.sio = self.sock.makefile('rwb', buffering=0)
+                self.logger.info(f"TCP connection opened: {tcp_host}:{tcp_port}")
+            else:
+                raise ValueError("connection_type must be 'serial' or 'tcp'")
+        except (socket.error, ValueError) as e:
+            self.logger.error(f"Failed to establish connection: {e}")
+            raise
 
     def _send_command(self, command: str):
         """Send a command to the Sunpower controller."""
-        self.ser.write(f"{command}\r".encode())
-        self.sio.flush()
+        try:
+            if self.connection_type == 'serial':
+                self.ser.write(f"{command}\r".encode())
+                self.sio.flush()
+            elif self.connection_type == 'tcp':
+                self.sio.write(f"{command}\r".encode())
+                self.sio.flush()
+        except (serial.SerialException, socket.error) as e:
+            self.logger.error(f"Failed to send command '{command}': {e}")
+            raise
 
     def _read_reply(self):
         """Read and parse the reply from the device."""
-        while True:
-            line = self.ser.readline()
-            if not line.strip():
-                break
-            decoded = line.decode().strip()
-            self.logger.debug(f"Received line: {decoded}")
-            parts = decoded.split("= ")
-            if len(parts) == 2 and parts[1] != 'GT':
-                try:
-                    value = round(float(parts[1]), 6)
-                    self.logger.info(f"{parts[0]}: {value}")
-                except ValueError:
-                    self.logger.warning(f"Failed to parse value: {decoded}")
+        try:
+            while True:
+                if self.connection_type == 'serial':
+                    line = self.ser.readline()
+                elif self.connection_type == 'tcp':
+                    line = self.sio.readline()
+                if not line.strip():
+                    break
+                decoded = line.decode().strip()
+                self.logger.debug(f"Received line: {decoded}")
+                parts = decoded.split("= ")
+                if len(parts) == 2 and parts[1] != 'GT':
+                    try:
+                        value = round(float(parts[1]), 6)
+                        self.logger.info(f"{parts[0]}: {value}")
+                    except ValueError:
+                        self.logger.warning(f"Failed to parse value: {decoded}")
+        except (serial.SerialException, socket.error) as e:
+            self.logger.error(f"Failed to read reply: {e}")
+            raise
 
     async def _send_and_read(self, command: str):
         """Send a command and await its reply."""

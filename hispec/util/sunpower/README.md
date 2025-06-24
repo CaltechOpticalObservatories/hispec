@@ -4,13 +4,13 @@ A collection of Python interfaces for communicating with HISPEC FEI components.
 
 ## Features
 
-
 - Query device status, error, and firmware version
 - Get and set target temperature
 - Get and set user commanded power
 - Get reject and cold head temperatures
 - Turn cooler on or off
 - Async API for non-blocking operation
+- Supports both serial and TCP (socket) connections with error handling
 
 ## Installation
 
@@ -19,7 +19,7 @@ pip install .
 ```
 
 ## Usage
-
+### Serial Connection
 ```python
 import asyncio
 from hispec.util.sunpower.sunpower_controller import SunpowerCryocooler
@@ -37,6 +37,30 @@ async def main():
 
 
 asyncio.run(main())
+```
+
+### TCP Connection
+```python
+import asyncio
+from hispec.util.sunpower.sunpower_controller import SunpowerCryocooler
+
+async def main():
+    controller = SunpowerCryocooler(
+        connection_type='tcp',
+        tcp_host='192.168.1.100',
+        tcp_port=4000,
+        quiet=True
+    )
+    await controller.get_status()
+    await controller.set_target_temp(300.0)
+    await controller.turn_on_cooler()
+    await controller.get_commanded_power()
+    await controller.set_commanded_power(10.0)
+    await controller.get_reject_temp()
+    await controller.get_cold_head_temp()
+
+asyncio.run(main())
+
 ```
 
 ## 🧪 Testing
