@@ -51,11 +51,16 @@ class SunpowerCryocooler:
         """Read and parse the reply from the device."""
         try:
             while True:
-                if self.connection_type == 'serial':
-                    line = self.ser.readline()
-                elif self.connection_type == 'tcp':
-                    line = self.sio.readline()
-                if not line.strip():
+                try:
+                    if self.connection_type == 'serial':
+                        line = self.ser.readline()
+                    elif self.connection_type == 'tcp':
+                        line = self.sio.readline()
+                except OSError as e:
+                    self.logger.error(f"Socket read error: {e}")
+                    break  # Exit the loop on timeout or read error
+
+                if not line or not line.strip():
                     break
                 decoded = line.decode().strip()
                 self.logger.debug(f"Received line: {decoded}")
