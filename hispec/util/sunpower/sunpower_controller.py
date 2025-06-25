@@ -102,6 +102,9 @@ class SunpowerCryocooler:
     def set_target_temp(self, temp_kelvin: float):
         return self._send_and_read(f'TTARGET={temp_kelvin}')
 
+    def get_measured_power(self):
+        return self._send_and_read('P')
+
     def get_commanded_power(self):
         return self._send_and_read('PWOUT')
 
