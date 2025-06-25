@@ -54,6 +54,11 @@ class TestSunpowerController(unittest.TestCase):
             self.controller.get_cold_head_temp()
             mock_send_and_read.assert_called_once_with('TC')
 
+    def test_get_measured_power_returns_p_and_value(self):
+        with patch.object(self.controller, '_send_and_read', return_value=['P', '72']) as mock_send_and_read:
+            result = self.controller.get_measured_power()
+            self.assertEqual(result, ['P', '72'])
+            mock_send_and_read.assert_called_once_with('P')
 
 if __name__ == '__main__':
     unittest.main()
