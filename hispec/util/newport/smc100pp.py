@@ -189,6 +189,18 @@ class StageController:
         else:
             self.logger = None
 
+    def set_quiet(self, quiet=True):
+        """ Set quiet flag
+
+        :param quiet: Boolean, set to True to suppress DEBUG level messages,
+                        False to enable DEBUG level messages
+        """
+
+        if quiet:
+            self.logger.setLevel(logging.INFO)
+        else:
+            self.logger.setLevel(logging.DEBUG)
+
     def connect(self, ip=None, port=None):
         """ Connect to stage controller.
 
