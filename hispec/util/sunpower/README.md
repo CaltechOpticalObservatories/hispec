@@ -20,7 +20,7 @@ pip install .
 ## Usage
 ### Serial Connection
 ```python
-from hispec.util.sunpower.sunpower_controller import SunpowerCryocooler
+from hispec.util import SunpowerCryocooler
 
 controller = SunpowerCryocooler(port='/dev/ttyUSB0', baudrate=9600, quiet=True)
 
@@ -35,7 +35,7 @@ print("\n".join(controller.get_cold_head_temp()))
 
 ### TCP Connection
 ```python
-from hispec.util.sunpower.sunpower_controller import SunpowerCryocooler
+from hispec.util import SunpowerCryocooler
 
 controller = SunpowerCryocooler(
     connection_type='tcp',

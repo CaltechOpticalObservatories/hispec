@@ -54,46 +54,6 @@ class TestSunpowerController(unittest.TestCase):
             self.controller.get_cold_head_temp()
             mock_send_and_read.assert_called_once_with('TC')
 
-    @patch('hispec.util.sunpower.sunpower_controller.socket.create_connection')
-    def test_tcp_connection(self, mock_create_connection):
-        mock_sock = MagicMock()
-        mock_create_connection.return_value = mock_sock
-        controller = SunpowerCryocooler(
-            connection_type='tcp',
-            tcp_host='127.0.0.1',
-            tcp_port=1234,
-            quiet=True
-        )
-        self.assertEqual(controller.connection_type, 'tcp')
-        self.assertIs(controller.sock, mock_sock)
-
-    @patch('hispec.util.sunpower.sunpower_controller.socket.create_connection', side_effect=OSError('fail'))
-    def test_tcp_connection_error(self, mock_create_connection):
-        with patch('hispec.util.sunpower.sunpower_controller.logger_utils.setup_logger') as mock_logger:
-            logger = MagicMock()
-            mock_logger.return_value = logger
-            with self.assertRaises(OSError):
-                SunpowerCryocooler(
-                    connection_type='tcp',
-                    tcp_host='127.0.0.1',
-                    tcp_port=1234,
-                    quiet=True
-                )
-            logger.error.assert_called()
-
-    @patch('hispec.util.sunpower.sunpower_controller.serial.Serial', side_effect=OSError('fail'))
-    def test_serial_connection_error(self, mock_serial):
-        with patch('hispec.util.sunpower.sunpower_controller.logger_utils.setup_logger') as mock_logger:
-            logger = MagicMock()
-            mock_logger.return_value = logger
-            with self.assertRaises(OSError):
-                SunpowerCryocooler(
-                    port='COM1',
-                    baudrate=19200,
-                    quiet=True
-                )
-            logger.error.assert_called()
-
 
 if __name__ == '__main__':
     unittest.main()

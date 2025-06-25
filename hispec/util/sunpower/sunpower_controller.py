@@ -81,7 +81,6 @@ class SunpowerCryocooler:
         return self._read_reply()
 
     # --- User-Facing Methods (synchronous) ---
-
     def get_status(self):
         return self._send_and_read('STATUS')
 
@@ -114,3 +113,4 @@ class SunpowerCryocooler:
 
     def turn_off_cooler(self):
         return self._send_and_read('COOLER=OFF')
+
