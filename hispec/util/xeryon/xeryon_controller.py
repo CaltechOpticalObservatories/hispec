@@ -7,7 +7,7 @@ import hispec.util.helper.logger_utils as logger_utils
 
 
 class XeryonController:
-    def __init__(self, COM_port=None, baudrate=115200, quiet=True):
+    def __init__(self, COM_port=None, baudrate=115200, quiet=True, settings_filename=SETTINGS_FILENAME):
         """
             :param COM_port: Specify the COM port used
             :type COM_port: string
@@ -25,6 +25,7 @@ class XeryonController:
         self.axis_list = []
         self.axis_letter_list = []
         self.master_settings = {}
+        self.settings_filename = settings_filename
 
     def is_single_axis_system(self):
         """
@@ -152,7 +153,7 @@ class XeryonController:
         It first determines for what axis the setting is, then it reads the setting and saves it.
         If there are commands for axis that don't exist, it just ignores them.
         """
-        filepath = settings_file if settings_file is not None else SETTINGS_FILENAME
+        filepath = settings_file if settings_file is not None else self.settings_filename
 
         try:
             with open(filepath, "r") as file:
