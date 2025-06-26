@@ -151,7 +151,7 @@ class XeryonController:
 
     def read_settings(self, settings_file: str = None):
         """
-        :param settings_file: Optional path to a settings file. Defaults to SETTINGS_FILENAME.
+        :param settings_file: Optional path to a settings file. If not provided, uses self.settings_filename.
         :return: None
         This function reads the settings.txt file and processes each line.
         It first determines for what axis the setting is, then it reads the setting and saves it.
