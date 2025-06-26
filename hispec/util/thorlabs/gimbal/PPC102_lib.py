@@ -284,27 +284,32 @@ class PPC102_Coms(object):
             #self.close()
             return []
     
-    def _interpret_error_code(self, code: int) -> str:
-        """
-            Helper function to interpret Error codes
-            NOTE:: testing error states under progress    
-        """
-        try:
-            return f"{DATA_CODES(code).name} ({code})"
-        except ValueError:
-            return f"Unknown error code: {code}"
-    
-    def _interpret_bit_flags(self, status_bytes):
+    def _interpret_bit_flags(self, byte_data):
         """
             Helper function to interpret bits
+                All bit interpretation comes from pg.204 of APT Coms Doc
             NOTE:: interpreting bit flags still being implemented
         """
-        code = status_bytes[::-1]#int.from_bytes(status_bytes, byteorder='little')
-        flags = [flag for flag in BIT_CODES if flag & code]
-        if flags:
-            return [f"{flag.name} ({hex(flag.value)})" for flag in flags]
-        else:
-            return ["No BIT_CODES set"]
+        if len(byte_data) != 4:
+            raise ValueError("Expected exactly 4 bytes")
+
+        # Convert from little endian bytes to a 32-bit unsigned integer
+        status = int.from_bytes(byte_data, byteorder='little', signed=False)
+
+        # Define bit meanings
+        bit_flags = {
+            0:  "Piezo actuator connected",
+            10: "Position control mode (closed loop)",
+            29: "Active (unit is active)",
+            31: "Channel enabled",
+        }
+
+        # Extract and report set bits
+        results = {}
+        for bit, description in bit_flags.items():
+            results[description] = bool(status & (1 << bit))
+
+        return results
 
 
     ######## Functions for Complete Stage Control ########
@@ -1031,12 +1036,14 @@ class PPC102_Coms(object):
                 print(f"Error: {e}")
             return None
     
-    def set_position(self, channel: int = 1, pos:int = 50):
+    def set_position(self, channel: int = 1, pos:float = 0.00):
         '''
             Sets the position of the stage channel
                 -only settable while in closed loop
-            pos: (int) 0 --> 32767
+            pos: (float-10.0 mRad -> +10.0 mRad
             Returns: True or False based on successful com send
+            NOTE:Sending Controller 0 --> 32767 based on the angular range 
+                    user provides
             **MGMSG_PZ_SET_OUTPUTPOS**(46 06 04 00 d s Chan_Ident(x2bytes) 
                                                                 Pos(x2bytes))**
         '''
@@ -1060,9 +1067,10 @@ class PPC102_Coms(object):
                 raise PermissionError("Loops Must be Closed")
 
             #Check for valid inputs
+            converted_pos = int(round((pos + 10)/20*32767))
             #Check Loop State
-            if 0 <= pos <= 32767:
-                pos_bytes = pos.to_bytes(2, byteorder='little', signed=False)
+            if 0 <= converted_pos <= 32767:
+                pos_bytes = converted_pos.to_bytes(2, byteorder='little', signed=False)
             else:
                 if self.logger is not None:
                     self.logger.error('Position out of Range')
@@ -1088,7 +1096,9 @@ class PPC102_Coms(object):
             Gets Positional Value of an axis of a stage
                 -can only read positions while in closed loop
             channel: (int) 1 0r 2
-            Returns: value within its range 0 --> 32768
+            Returns: -10.0 mRad -> 10.0 mRad 
+            NOTE:Contoller return 0 --> 32768 and converted is converted
+                    to the angular range
             **MGMSG_PZ_REQ_OUTPUTPOS**(47 06 Chan_Ident 00 d s)**
         '''
         # Check if socket is open
@@ -1123,7 +1133,12 @@ class PPC102_Coms(object):
             high_byte = int(pos[9], 16)
             position = (high_byte << 8) | low_byte
 
-            return position
+            #Convert for user readability
+            if position > 32767:
+                position =  32767 - position
+            mRad_pos = (position / 32767) * 20 - 10
+
+            return mRad_pos
         except Exception as e:
             if self.logger is not None:
                 self.logger.error(f"Error: {e}")
@@ -1141,8 +1156,10 @@ class PPC102_Coms(object):
                 by the Chan Ident parameter, and returns a value (in microns) in the 
                 Travel parameter. 
             channel: (int) 1 0r 2
-            Returns: travel of a single acuator in microns
-                  or None if there was an error reading the value
+            Returns: travel of a single acuator in microns(Linear Travel) not 
+                        Angular travel
+                        (ThorLabs Support states: 10nm of linear travel equates
+                        to about 20 mrad of angular movement in the mount)
             **MGMSG_PZ_REQ_MAXTRAVEL**(50 06 Chan_Ident 00 d s)**
         '''
         # Check if socket is open
@@ -1178,8 +1195,7 @@ class PPC102_Coms(object):
                 print(f"Error: {e}")
             return None
 
-    def _get_status_bits(self, channel: int = 1):
-        # TODO:: finish
+    def get_status_bits(self, channel: int = 1):
         '''
             Returns a number of status flags pertaining to the operation of the 
                 piezo controller channel specified in the Chan Ident parameter.  
@@ -1191,7 +1207,7 @@ class PPC102_Coms(object):
             Returns: Status Bytes 4 hex values
             **MGMSG_PZ_REQ_PZSTATUSBITS**(5B 06 Chan_Ident 00 d s)**
             
-            NOTE:: Implementation of flag bit library and comparison still needed.
+            NOTE::Bit status comes from pg.204 of thor labs APT Coms documentation
 
         '''
         # Check if socket is open
@@ -1216,17 +1232,16 @@ class PPC102_Coms(object):
 
             # Collect status bytes 8 through 11 (LSB to MSB)
             status_bytes = bytes(int(b, 16) for b in status[8:12])
-            code = int.from_bytes(status_bytes, byteorder='little')
-            fin = status_bytes[::-1]
-            print(fin)
-            # Optionally interpret the flags
-            flags = self.interpret_bit_flags(status_bytes)
+            
+            #deliver to interpret bytes function
+            results = self._interpret_bit_flags(status_bytes)
+            
             if self.logger is not None:
-                self.logger.info("Status Flags:", flags)
+                self.logger.info("Status Flags:", results)
             else:
-                print("Status Flags:", flags)
+                print("Status Flags:", results)
 
-            return code
+            return results
         except Exception as e:
             if self.logger is not None:
                 self.logger.error(f"Error: {e}")
@@ -1271,18 +1286,22 @@ class PPC102_Coms(object):
 
             voltage = int.from_bytes(volt_bytes, byteorder='little')
             position = int.from_bytes(pos_bytes, byteorder='little')
+            #Convert for user readability
+            if position > 32767:
+                position =  32767 - position
+            mRad_pos = (position / 32767) * 20 - 10
+            flags = self._interpret_bit_flags(stat_bytes)
             #flags = self.interpret_bit_flags(stat_bytes)
 
             if self.logger is not None:
                 self.logger.info(f"Voltage: {voltage}")
-                self.logger.info(f"Position: {position}")
+                self.logger.info(f"Position: {mRad_pos}")
             else:
                 print(f"Voltage: {voltage}")
-                print(f"Position: {position}")
-            #TODO:: Figue out status flag
-            #self.logger.info("Status Flags:", flags)
+                print(f"Position: {mRad_pos}")
+                print(f"Status bytes: {flags}")
 
-            return voltage, position#, stat_bytes
+            return voltage, mRad_pos, flags
         except Exception as e:
             if self.logger is not None:
                 self.logger.error(f"Error: {e}")
