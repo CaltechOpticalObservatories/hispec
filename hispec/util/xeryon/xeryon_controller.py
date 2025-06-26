@@ -9,13 +9,17 @@ import hispec.util.helper.logger_utils as logger_utils
 class XeryonController:
     def __init__(self, COM_port=None, baudrate=115200, quiet=True, settings_filename=SETTINGS_FILENAME):
         """
-            :param COM_port: Specify the COM port used
+            :param COM_port: Specify the COM port used.
             :type COM_port: string
-            :param baudrate: Specify the baudrate
+            :param baudrate: Specify the baudrate.
             :type baudrate: int
-            :return: Return a Xeryon object.
+            :param quiet: If True, suppresses logger output to stdout.
+            :type quiet: bool
+            :param settings_filename: Path to the settings file to use for this controller instance.
+            :type settings_filename: str
+            :return: A XeryonController object.
 
-            Main Xeryon Drive Class, initialize with the COM port and baudrate for communication with the driver.
+            Main Xeryon Drive Class, onitialize with the COM port, baudrate, and a settings file for communication with the driver.
         """
         logfile = __name__.rsplit(".", 1)[-1] + ".log"
         self.logger = logger_utils.setup_logger(__name__, log_file=logfile, quiet=quiet)
