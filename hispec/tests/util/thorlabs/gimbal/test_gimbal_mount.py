@@ -15,7 +15,7 @@ class Test_GimbalMount(unittest.TestCase):
                                     -Checks Error Handling
         '''
         # Checks "getter" function: gets state of enable
-        self.dev = PPC102_Coms(IP='192.168.29.100', port = 10013)
+        self.dev = PPC102_Coms(IP='192.168.29.100', port = 10013,log = False)
         self.dev.open()
         ret = self.dev.get_enable(channel = 1)
         assert ret == DATA_CODES.CHAN_ENABLED or ret == DATA_CODES.CHAN_DISABLED
@@ -47,7 +47,7 @@ class Test_GimbalMount(unittest.TestCase):
         time.sleep(.25)
     
     def test_loop(self):
-        self.dev = PPC102_Coms(IP='192.168.29.100', port = 10013)
+        self.dev = PPC102_Coms(IP='192.168.29.100', port = 10013,log = False)
         time.sleep(.2)
         self.dev.open()
         time.sleep(.25)
@@ -89,7 +89,7 @@ class Test_GimbalMount(unittest.TestCase):
 
     def test_max_voltages(self):
         #Max Voltage
-        self.dev = PPC102_Coms(IP='192.168.29.100', port = 10013)
+        self.dev = PPC102_Coms(IP='192.168.29.100', port = 10013,log = False)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:
@@ -115,28 +115,28 @@ class Test_GimbalMount(unittest.TestCase):
     
     def test_positions(self):
         #CLOSED LOOP CONTROL
-        self.dev = PPC102_Coms(IP='192.168.29.100', port = 10013)
+        self.dev = PPC102_Coms(IP='192.168.29.100', port = 10013,log = False)
         time.sleep(.25)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:
             self.dev.set_loop(channel=ch,loop=2)
-            self.dev.set_position(channel=ch,pos=100)
+            self.dev.set_position(channel=ch,pos=0.0)
             res = self.dev.get_position(channel=ch)
-            assert 90 < res < 110
-            self.dev.set_position(channel=ch,pos=1000)
+            assert -0.1 < res < 0.1
+            self.dev.set_position(channel=ch,pos=5.0)
             res = self.dev.get_position(channel=ch)
-            assert 990 < res < 1010
-            self.dev.set_position(channel=ch,pos=31000)
+            assert 4.9 < res < 5.1
+            self.dev.set_position(channel=ch,pos=-5.0)
             res = self.dev.get_position(channel=ch)
-            assert 30995 < res < 31005
+            assert -5.1 < res < -4.9
             self.dev.set_loop(channel=ch,loop=1)
-            self.assertFalse(self.dev.set_position(channel=ch, pos=2000))
-            self.assertFalse(self.dev.set_position(channel=ch,pos=100))
+            self.assertFalse(self.dev.set_position(channel=ch, pos=15))
+            self.assertFalse(self.dev.set_position(channel=ch,pos=-51))
             self.assertFalse(self.dev.get_position(channel=ch))
             assert(self.dev.set_output_volts(channel=ch, volts=0))
         self.assertFalse(self.dev.set_position(channel=-1, pos=2000))
-        self.assertFalse(self.dev.set_position(channel=3,pos=100))
+        self.assertFalse(self.dev.set_position(channel=3,pos=-20))
         self.assertFalse(self.dev.get_position(channel=0))
         self.dev.close()
         time.sleep(.25)
@@ -144,7 +144,7 @@ class Test_GimbalMount(unittest.TestCase):
 
     def test_output_voltage(self):
         #OPEN LOOP CONTROL
-        self.dev = PPC102_Coms(IP='192.168.29.100', port = 10013)
+        self.dev = PPC102_Coms(IP='192.168.29.100', port = 10013,log = False)
         self.dev.open()
         for ch in [1,2]:
             self.dev.set_loop(channel=ch,loop=2)
