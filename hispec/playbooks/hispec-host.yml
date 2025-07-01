@@ -1,0 +1,75 @@
+---
+- name: Setup Hispec host machine on Ubuntu 24.04 
+  hosts: all
+  become: yes
+
+  vars:
+    python_version: "3.12"
+    user_name: "hsdev"
+
+  tasks:
+
+    - name: Ensure apt cache is updated
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required system packages
+      apt:
+        name:
+          - software-properties-common
+          - build-essential
+          - libffi-dev
+          - libssl-dev
+          - zlib1g-dev
+          - libbz2-dev
+          - libreadline-dev
+          - libsqlite3-dev
+          - wget
+          - curl
+          - llvm
+          - libncursesw5-dev
+          - xz-utils
+          - tk-dev
+          - libxml2-dev
+          - libxmlsec1-dev
+          - liblzma-dev
+          - git
+          - python3-pip
+        state: present
+
+    - name: Install Python {{ python_version }} using deadsnakes PPA
+      apt:
+        name: python{{ python_version }}
+        state: present
+
+    - name: Install pip for Python {{ python_version }}
+      shell: |
+        curl -sS https://bootstrap.pypa.io/get-pip.py | python{{ python_version }}
+      args:
+        creates: /usr/local/bin/pip3.12
+
+    - name: Install Python packages with pip
+      pip:
+        name:
+          - pipython
+          - matplotlib
+          - numpy
+        executable: pip3.12
+
+    - name: Create user "{{ user_name }}"
+      user:
+        name: "{{ user_name }}"
+        groups: dialout
+        append: yes
+        shell: /bin/bash
+        state: present
+
+    - name: Ensure home directory for "{{ user_name }}" exists
+      file:
+        path: "/home/{{ user_name }}"
+        state: directory
+        owner: "{{ user_name }}"
+        group: "{{ user_name }}"
+        mode: '0755'
+
