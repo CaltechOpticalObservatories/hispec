@@ -212,7 +212,6 @@ class PPC102_Coms(object):
         """
             Helper function to interpret bits
                 All bit interpretation comes from pg.204 of APT Coms Doc
-            NOTE:: interpreting bit flags still being implemented
         """
         if len(byte_data) != 4:
             raise ValueError("Expected exactly 4 bytes")
@@ -652,6 +651,8 @@ class PPC102_Coms(object):
             **MGMSG_HW_REQ_INFO**(05 00 00 00 d s)**
 
             NOTE:: Response Data Packet Not parsed yet
+            - This function is used to get the hardware information from the 
+                controller, such as firmware version, serial number, etc
 
         '''
         raise NotImplementedError(" MGMSG_HW_REQ_INFO Correctly send and " \
@@ -1347,7 +1348,7 @@ class PPC102_Coms(object):
                                             d_const(x2bytes) dfc_const(x2bytes)
                                             derivFilter(x2bytes))**
 
-            NOTE:: Not tested
+            TODO:: tests
         '''
         raise NotImplementedError("MGMSG_PZ_SET_PPC_PIDCONSTS: Implemented but " \
                                                                     "not tested")
@@ -1497,7 +1498,7 @@ class PPC102_Coms(object):
             Returns: true or false based on successful com send
             **MGMSG_PZ_SET_PPC_NOTCHPARAMS**(93 06 10 00 d s (16 byte data packet))**
 
-            NOTE:: not tested
+            TODO:: Requires testing
         '''
         # Check for connection
         if not self.sock:
@@ -1635,7 +1636,7 @@ class PPC102_Coms(object):
             Returns: true or false based on successful com send
             **MGMSG_PZ_SET_PPC_IOSETTINGS**(96 06 0E 00 d s (14 byte data packet))**
 
-            NOTE:: Not Tested
+            TODO:: Requires Testing
         '''
         raise NotImplementedError("MGMSG_PPC_IOSETTINGS: Has been implemented but not tested yet")
         if not self.sock:
@@ -1747,7 +1748,7 @@ class PPC102_Coms(object):
             Returns: true or false based on successful com send
             **MGMSG_PZ_SET_PPC_NOTCHPARAMS**(96 06 0E 00 d s (14 byte data packet))**
 
-            Note:: Not implemented
+            TODO:: implement
 
         '''
         raise NotImplementedError("MGMSG_PZ_SET_PPC_NOTCHPARAMS: Has not been implemented yet")

@@ -3,6 +3,7 @@
 #                       -Elijah Anakalea-Buckley
 
 import libximc.highlevel as ximc
+from hispec.util.helper import logger_utils
 
 
 
@@ -20,11 +21,21 @@ class SMC(object):
             parameters: IP string, port integer, logging bool
             - full device capabilities will be under "self.device.<functions()>"
         '''
-        #Check for valid inputs
-
         #Start Logger
+        if log:
+            if logfile is None:
+                logfile = __name__.rsplit(".", 1)[-1] + ".log"
+            self.logger = logger_utils.setup_logger(__name__, log_file=logfile)
+            if quiet:
+                self.logger.setLevel(logging.INFO)
+        else:
+            self.logger = None
 
         #Inicialize variables and objects
+        # get coms
+        self.IP = IP
+        self.port = port
+        self.dev_open = False
 
 
     def open(self):
@@ -36,11 +47,43 @@ class SMC(object):
                       command_read_settings(),  get_device_information()
         '''
         #Check if already open
+        if self.dev_open:
+            #log that device is already open
+            if self.logger:
+                self.logger.info("Device already open, skipping open command.")
+            #return true if already open
+            return True
         
         #try to open
+        try:
+            #open device
+            self.device_open()
+            #get serial number
+            self.serial_number = self.axis.get_serial_number()
+            #get power settings
+            self.power_setting = self.axis.get_power_setting()
+            #get command read settings
+            self.command_read_setting = self.axis.command_read_settings()
+            #get device information
+            self.device_information = self.axis.get_device_information()
+
+            if self.logger:#Log that device is open
+                self.logger.info("Device opened successfully.")
+                self.logger.info("Serial number: %s", self.serial_number)
+                self.logger.info("Power setting: %s", self.power_setting)
+                self.logger.info("Command read settings: %s", self.command_read_setting)
+                #Log device information
+                self.logger.info("Device information: %s", self.device_information)
+
             #return true if successful
-        #catch error
-            #log error and return false
+            return True
+        except Exception as e:
+            #log error
+            if self.logger:
+                self.logger.error("Error opening device: %s", str(e))
+            #return false if unsuccessful
+            self.dev_open = False
+            return False
 
     def close(self):
         '''
@@ -48,13 +91,28 @@ class SMC(object):
             return: Bool for successful or unsuccessful termination
             libximc:: close_device(), get_position()
         '''
-        #Check if device is open
+        #Check if already open
+        if not self.dev_open:
+            #log that de is closed
+            if self.logger:
+                self.logger.info("Device already closed, skipping close command.")
+            return True
 
         #Try to close
-            #double check that connection is terminated
+        try:
+            self.axis.close_device()
+            self.dev_open = False
+            if self.logger:
+                self.logger.info("Device closed successfully.")
             #return true if succesful
+            return True
+        except Exception as e:
         #catch error
             #log error and return false
+            if self.logger:
+                self.logger.error("Error closing device: %s", str(e))
+            self.dev_open = True
+            return False
 
     def reference(self):
         '''
@@ -63,7 +121,12 @@ class SMC(object):
             return: bool on successful ref
             libximc::
         '''
-        #Check if device is open
+        #Check if connection not open
+        if not self.dev_open:
+            #log closed connection
+            if self.logger:
+                self.logger.error("Device not open, cannot reference stage.")
+            return False
 
         #try reference
             #get current position
@@ -84,7 +147,12 @@ class SMC(object):
             return: bool on successful home
             libximc:: command_homezero()
         '''
-        #Check if device is open
+        #Check if connection not open
+        if not self.dev_open:
+            #log closed connection
+            if self.logger:
+                self.logger.error("Device not open, cannot home stage.")
+            return False
 
         #Try to home to zero or parked position
             #return true if succesful
@@ -100,7 +168,12 @@ class SMC(object):
             return: bool on successful or unsuccessful absolute move
             libximc:: command_move()
         '''
-        #Check if device is open
+        #Check if connection not open
+        if not self.dev_open:
+            #log closed connection
+            if self.logger:
+                self.logger.error("Device not open, cannot move stage.")
+            return False
 
         #Try move absolute
             #check limits/valid inputs
@@ -119,7 +192,12 @@ class SMC(object):
             return: bool on successful or unsuccessful relative move
             libximc:: command_movr()
         '''
-        #Check if device is open
+        #Check if connection not open
+        if not self.dev_open:
+            #log closed connection
+            if self.logger:
+                self.logger.error("Device not open, cannot move stage.")
+            return False
 
         #Try move relative
             #check limits/valid inputs
@@ -135,7 +213,12 @@ class SMC(object):
             return: position in stage specific units
             libximc::
         '''
-        #Check if device is open
+        #Check if connection not open
+        if not self.dev_open:
+            #log closed connection
+            if self.logger:
+                self.logger.error("Device not open, cannot get position.")
+            return False
 
         #Try get_position
             #return aspects of the position object
@@ -149,7 +232,12 @@ class SMC(object):
             return: status string and variables nessesary
             libximc:: get_status()
         '''
-        #Check if device is open
+        #Check if connection not open
+        if not self.dev_open:
+            #log closed connection
+            if self.logger:
+                self.logger.error("Device not open, cannot get status.")
+            return False
 
         #Try status function    
             #parse results
@@ -164,7 +252,12 @@ class SMC(object):
             return: status of the stage(log and/or print hald command called)
             libximc::
         '''
-        #Check if device is open
+        #Check if connection not open
+        if not self.dev_open:
+            #log closed connection
+            if self.logger:
+                self.logger.error("Device not open, cannot halt stage.")
+            return False
 
         #Try imidiate stop of stage
             #return true if succesful
