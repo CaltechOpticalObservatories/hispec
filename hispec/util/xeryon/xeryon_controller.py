@@ -7,7 +7,8 @@ import hispec.util.helper.logger_utils as logger_utils
 
 
 class XeryonController:
-    def __init__(self, COM_port=None, baudrate=115200, quiet=True, settings_filename=SETTINGS_FILENAME):
+    def __init__(self, COM_port=None, baudrate=115200, quiet=True, settings_filename=SETTINGS_FILENAME,
+                 connection_type='serial', tcp_host=None, tcp_port=None):
         """
             :param COM_port: Specify the COM port used.
             :type COM_port: string
@@ -25,7 +26,9 @@ class XeryonController:
         self.logger = logger_utils.setup_logger(__name__, log_file=logfile, quiet=quiet)
 
         self.comm = Communication(
-            self, COM_port, baudrate, self.logger)  # Startup communication
+            self, COM_port, baudrate, self.logger,
+            connection_type=connection_type, tcp_host=tcp_host, tcp_port=tcp_port
+        )  # Startup communication
         self.axis_list = []
         self.axis_letter_list = []
         self.master_settings = {}
