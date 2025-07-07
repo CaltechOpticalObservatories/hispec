@@ -96,7 +96,7 @@ Option 1: Build from Source
    sudo make -j $(nproc)
    sudo make altinstall  # Installs as python3.9
 
-Option 2: Use Deadsnakes PPA (if available for 24.04)
+Option 2: Use Deadsnakes PPA 
 -----------------------------------------------------
 
 .. code-block:: bash
@@ -132,6 +132,39 @@ Create and activate a virtual environment:
    python3.9 -m venv ~/env
    source ~/env/bin/activate
    pip install numpy matplotlib pipython
+
+Directory Structure
+===================
+
+The following directory structure is recommended:
+
+::
+
+   /home/hsdev/
+   ├── external/   # Third-party development-only software (not instrument delivery)
+   └── svn/        # SVN working copy for KROOT
+
+Create the directories:
+
+.. code-block:: bash
+
+   mkdir -p /home/hsdev/external
+   mkdir -p /home/hsdev/svn
+   chown -R hsdev:hsdev /home/hsdev/external /home/hsdev/svn
+
+External Development Libraries
+==============================
+
+For third-party libraries, build and install them under ``/home/hsdev/external``:
+
+.. code-block:: bash
+
+   cd /home/hsdev/external
+   wget http://example.com/3rdparty.tar.gz
+   tar -xzvf 3rdparty.tar.gz
+   cd 3rdparty
+   ./configure --prefix=/home/hsdev/external/3rdparty
+   make && make install
 
 Done!
 =====
