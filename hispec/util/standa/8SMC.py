@@ -13,9 +13,11 @@ class SMC(object):
         All functions from lib.ximc library is incorperated and this library
         is meant to simplify commands for general use.
         - using the more recently developed libximc.highlevel API
+        - step_size:float = 0.0025 Conversion Coefficient, Example  for
+            converting steps to mm used in API, adjust as needed
     '''
 
-    def __init__(self, ip: str, port: int, log: bool = True):
+    def __init__(self, ip: str, port: int, step_size:float = 0.0025, log: bool = True):
         '''
             Inicializes the device
             parameters: ip string, port integer, logging bool
@@ -35,7 +37,7 @@ class SMC(object):
         # get coms
         self.ip = ip
         self.port = port
-        self.step_size_coeff = 0.0025  # Example conversion coefficient, adjust as needed(mm)
+        self.step_size_coeff = step_size  # Example conversion coefficient, adjust as needed(mm)
         self.dev_open = False
         self.axis = ximc.Axis(self.ip, self.port)
 
@@ -61,7 +63,7 @@ class SMC(object):
             self.device_open()
             #get and save engine settings
             self.engine_settings = self.axis.get_engine_settings()
-            #Set calb for user units
+            #Set calb for user units TODO:: Check if this is correct(SPECIFICALLY THE MICROSTEP MODE)
             self.axis.set_calb(self.step_size_coeff, self.axis.engine_settings.MicrosetpMode)
             #Set limits TODO: Check if this is correct when having the device
             self.limits = self.engine_settings.Limits
@@ -130,7 +132,7 @@ class SMC(object):
 
         #Try to get info
         try:
-        #get serial number
+            #get serial number
             self.serial_number = self.axis.get_serial_number()
             #get power settings
             self.power_setting = self.axis.get_power_setting()
