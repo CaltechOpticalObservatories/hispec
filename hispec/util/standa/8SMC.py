@@ -15,10 +15,10 @@ class SMC(object):
         - using the more recently developed libximc.highlevel API
     '''
 
-    def __init__(self, IP: str, port: int, log: bool = True):
+    def __init__(self, ip: str, port: int, log: bool = True):
         '''
             Inicializes the device
-            parameters: IP string, port integer, logging bool
+            parameters: ip string, port integer, logging bool
             - full device capabilities will be under "self.device.<functions()>"
         '''
         #Start Logger
@@ -33,11 +33,11 @@ class SMC(object):
 
         #Inicialize variables and objects
         # get coms
-        self.IP = IP
+        self.ip = ip
         self.port = port
         self.step_size_coeff = 0.0025  # Example conversion coefficient, adjust as needed(mm)
         self.dev_open = False
-        self.axis = ximc.Axis(self.IP, self.port)
+        self.axis = ximc.Axis(self.ip, self.port)
 
     def open(self):
         '''
@@ -59,14 +59,6 @@ class SMC(object):
         try:
             #open device
             self.device_open()
-            #get serial number
-            self.serial_number = self.axis.get_serial_number()
-            #get power settings
-            self.power_setting = self.axis.get_power_setting()
-            #get command read settings
-            self.command_read_setting = self.axis.command_read_settings()
-            #get device information
-            self.device_information = self.axis.get_device_information()
             #get and save engine settings
             self.engine_settings = self.axis.get_engine_settings()
             #Set calb for user units
@@ -78,13 +70,9 @@ class SMC(object):
 
             if self.logger:#Log that device is open
                 self.logger.info("Device opened successfully.")
-                self.logger.info("Serial number: %s", self.serial_number)
-                self.logger.info("Power setting: %s", self.power_setting)
-                self.logger.info("Command read settings: %s", self.command_read_setting)
-                #Log device information
-                self.logger.info("Device information: %s", self.device_information)
 
             #return true if successful
+            self.dev_open = True
             return True
         except Exception as e:
             #log error
@@ -122,6 +110,48 @@ class SMC(object):
                 self.logger.error("Error closing device: %s", str(e))
             self.dev_open = True
             return False
+        
+    def get_info(self):
+        '''
+            Gets information about the device, such as serial number, power setting,
+            command read settings, and device information.
+            return: dict with device information
+            libximc:: get_serial_number(), get_power_setting(), command_read_settings(),
+                      get_device_information()
+        '''
+        #Check if connection not open
+        if not self.dev_open:
+            #log closed connection
+            if self.logger:
+                self.logger.error("Device not open, cannot get info.")
+            return None
+
+        #Try to get info
+        try:
+        #get serial number
+            self.serial_number = self.axis.get_serial_number()
+            #get power settings
+            self.power_setting = self.axis.get_power_setting()
+            #get command read settings
+            self.command_read_setting = self.axis.command_read_settings()
+            #get device information
+            self.device_information = self.axis.get_device_information()
+
+            if self.logger:#Log that device is open
+                self.logger.info("Device opened successfully.")
+                self.logger.info("Serial number: %s", self.serial_number)
+                self.logger.info("Power setting: %s", self.power_setting)
+                self.logger.info("Command read settings: %s", self.command_read_setting)
+                #Log device information
+                self.logger.info("Device information: %s", self.device_information)
+
+            #return true if successful
+            return True
+        except Exception as e:
+            #log error and return None
+            if self.logger:
+                self.logger.error("Error getting device information: %s", str(e))
+            return None
 
     def reference(self):
         '''
