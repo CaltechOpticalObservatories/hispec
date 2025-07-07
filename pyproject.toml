@@ -19,5 +19,6 @@ requires-python = ">=3.7"
 dependencies = [
     "keyring",
     "pipython",
-    "pyserial"
+    "pyserial",
+    "libximc"
 ]
