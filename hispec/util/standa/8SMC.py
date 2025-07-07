@@ -114,7 +114,9 @@ class SMC(object):
     def get_info(self):
         '''
             Gets information about the device, such as serial number, power setting,
-            command read settings, and device information.
+            command read settings, and device information. That information is stored
+            in local variables for later use.
+            - This function is called after opening the device to gather information
             return: dict with device information
             libximc:: get_serial_number(), get_power_setting(), command_read_settings(),
                       get_device_information()
@@ -124,7 +126,7 @@ class SMC(object):
             #log closed connection
             if self.logger:
                 self.logger.error("Device not open, cannot get info.")
-            return None
+            return False
 
         #Try to get info
         try:
@@ -151,7 +153,7 @@ class SMC(object):
             #log error and return None
             if self.logger:
                 self.logger.error("Error getting device information: %s", str(e))
-            return None
+            return False
 
     def reference(self):
         '''
