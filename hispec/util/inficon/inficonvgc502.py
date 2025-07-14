@@ -78,6 +78,62 @@ class InficonVGC502:
                 self.logger.error(f"Unknown acknowledgment: {acknowledgment}")
             raise UnknownResponse(f"Unknown response: {acknowledgment}")
 
+    async def set_pressure_unit(self, unit: int):
+        """
+        Set the pressure unit.
+
+        unit:
+            0 –> mbar/bar
+            1 –> Torr
+            2 –> Pascal
+            3 –> Micron
+            4 –> hPascal (default)
+            5 –> Volt
+        """
+        if unit not in range(0, 6):
+            raise ValueError(f"Invalid unit: {unit}. Must be between 0 and 5.")
+
+        command = f'UNI,{unit}\r\n'.encode('ascii')
+        if self.logger:
+            self.logger.debug(f"Sending command to set unit: {command}")
+        self.writer.write(command)
+        await self.writer.drain()
+
+        response = await self.reader.readuntil(b'\r\n')
+        response = response.strip()
+        if self.logger:
+            self.logger.debug(f"Response to set unit: {response}")
+
+        if response == b'\x06':
+            if self.logger:
+                self.logger.info(f"Successfully set pressure unit to {unit}")
+            return True
+        else:
+            if self.logger:
+                self.logger.error(f"Failed to set unit, response: {response}")
+            raise UnknownResponse(f"Unexpected response: {response}")
+
+    async def get_pressure_unit(self):
+        """
+        Get the current pressure unit.
+        """
+        command = b'UNI\r\n'
+        if self.logger:
+            self.logger.debug(f"Sending command to get unit: {command}")
+        self.writer.write(command)
+        await self.writer.drain()
+
+        if self.logger:
+            self.logger.debug("Sending ENQ for unit query")
+        self.writer.write(b'\x05')
+        await self.writer.drain()
+
+        response = await self.reader.readuntil(b'\r\n')
+        unit = response.strip().decode('ascii')
+        if self.logger:
+            self.logger.info(f"Current pressure unit: {unit}")
+        return int(unit)
+
 
 class WrongCommandError(Exception):
     pass
