@@ -31,11 +31,10 @@ ptc10/
 ### Basic Usage
 
 ```python
-from hispec.util PTC10, PTC10Connection
+from hispec.util import PTC10
 
 # Ethernet example
-conn = PTC10Connection(method='ethernet', host='192.168.29.150', tcp_port=23)
-ptc = PTC10(conn)
+ptc = PTC10.connect(method="ethernet", host="192.168.29.150", tcp_port=23)
 
 # Identify controller
 print("Device ID:", ptc.identify())
@@ -49,27 +48,18 @@ print("All values:", ptc.get_all_values())
 # Channel name to value map
 print("Named outputs:", ptc.get_named_output_dict())
 
-conn.close()
+ptc.close()
 ```
 
 ## API Reference
 
-### `PTC10Connection`
-
-```python
-PTC10Connection(
-    method='serial' or 'ethernet',
-    port='/dev/ttyUSB0',       # for serial
-    host='192.168.29.150',     # for ethernet
-    tcp_port=23                # for ethernet, optional
-)
-```
-
-Handles low-level I/O with the controller. Use `'serial'` for RS-232 and `'ethernet'` for TCP/IP.
-
----
-
 ### `PTC10`
+
+#### `connect() -> PTC10`
+Creates and returns a connected PTC10 instance.
+
+#### `close()`
+Closes the connection to the controller
 
 #### `identify() -> str`
 Returns the device identification string.

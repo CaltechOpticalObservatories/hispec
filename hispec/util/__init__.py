@@ -6,8 +6,8 @@ from .newport import smc100pp
 from .inficon.inficonvgc502 import InficonVGC502
 from .thorlabs import fw102c
 from .lakeshore import lakeshore
-from .srs import PTC10, PTC10Connection
+from .srs import PTC10
 
 __all__ = ["SunpowerCryocooler", "PIControllerBase",
            "smc100pp", "XeryonController", "XeryonStage", "InficonVGC502", "fw102c",
-           "lakeshore", "PTC10", "PTC10Connection"]
+           "lakeshore", "PTC10"]
