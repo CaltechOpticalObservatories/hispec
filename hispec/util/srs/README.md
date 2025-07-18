@@ -18,7 +18,7 @@ A low level library for communicating with the **Stanford Research Systems PTC10
 
 ## Getting Started
 
-### 📁 Project Structure
+### Project Structure
 
 ```
 ptc10/
@@ -28,11 +28,10 @@ ptc10/
 └── README.md
 ```
 
-### 🔧 Basic Usage
+### Basic Usage
 
 ```python
-from ptc10_connection import PTC10Connection
-from ptc10_controller import PTC10
+from hispec.util PTC10, PTC10Connection
 
 # Ethernet example
 conn = PTC10Connection(method='ethernet', host='192.168.29.150', tcp_port=23)
