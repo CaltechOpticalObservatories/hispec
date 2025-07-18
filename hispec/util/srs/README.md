@@ -61,7 +61,7 @@ PTC10Connection(
     method='serial' or 'ethernet',
     port='/dev/ttyUSB0',       # for serial
     host='192.168.29.150',     # for ethernet
-    tcp_port=23                # optional, default depends on method
+    tcp_port=23                # for ethernet, optional
 )
 ```
 
