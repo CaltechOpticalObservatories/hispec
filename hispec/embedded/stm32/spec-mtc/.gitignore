@@ -1,0 +1,8 @@
+# Rust project files
+debug/
+target/
+**/*.rs.bk
+**/mutants.out*/
+
+# VS Code settings
+.vscode/
