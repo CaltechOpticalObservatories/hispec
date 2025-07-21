@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from hispec.util.srs.ptc10_connection import PTC10Connection
 from hispec.util.srs.ptc10 import PTC10
 
+
 class TestPTC10(unittest.TestCase):
     def setUp(self):
         # Create a mock connection
@@ -42,6 +43,7 @@ class TestPTC10(unittest.TestCase):
         result = self.ptc.get_named_output_dict()
         expected = {"Out1": 1.0, "Out2": 2.0, "3A": 3.0, "3B": 4.0}
         self.assertEqual(result, expected)
+
 
 if __name__ == "__main__":
     unittest.main()
