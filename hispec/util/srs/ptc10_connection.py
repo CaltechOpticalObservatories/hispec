@@ -24,14 +24,17 @@ class PTC10Connection:
             ValueError: If an unsupported method is specified.
         """
         self.method = method
-        if method == 'serial':
-            self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
-        elif method == 'ethernet':
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.settimeout(timeout)
-            self.sock.connect((host, tcp_port))
-        else:
-            raise ValueError("Unsupported method: choose 'serial' or 'ethernet'")
+        try:
+            if method == 'serial':
+                self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
+            elif method == 'ethernet':
+                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.sock.settimeout(timeout)
+                self.sock.connect((host, tcp_port))
+            else:
+                raise ValueError("Unsupported method: choose 'serial' or 'ethernet'")
+        except Exception as e:
+            raise ConnectionError(f"Failed to initialize connection: {e}")
 
     def write(self, msg: str):
         """
@@ -40,10 +43,13 @@ class PTC10Connection:
         Args:
             msg (str): The message to send (e.g., '3A?').
         """
-        if self.method == 'serial':
-            self.ser.write((msg + '\n').encode())
-        else:
-            self.sock.sendall((msg + '\n').encode())
+        try:
+            if self.method == 'serial':
+                self.ser.write((msg + '\n').encode())
+            else:
+                self.sock.sendall((msg + '\n').encode())
+        except Exception as e:
+            raise IOError(f"Failed to write message: {e}")
 
     def read(self) -> str:
         """
@@ -52,10 +58,13 @@ class PTC10Connection:
         Returns:
             str: The received message, stripped of trailing newline.
         """
-        if self.method == 'serial':
-            return self.ser.readline().decode().strip()
-        else:
-            return self.sock.recv(4096).decode().strip()
+        try:
+            if self.method == 'serial':
+                return self.ser.readline().decode().strip()
+            else:
+                return self.sock.recv(4096).decode().strip()
+        except Exception as e:
+            raise IOError(f"Failed to read message: {e}")
 
     def query(self, msg: str) -> str:
         """
@@ -74,7 +83,10 @@ class PTC10Connection:
         """
         Close the connection to the controller.
         """
-        if self.method == 'serial':
-            self.ser.close()
-        else:
-            self.sock.close()
+        try:
+            if self.method == 'serial':
+                self.ser.close()
+            else:
+                self.sock.close()
+        except Exception as e:
+            raise IOError(f"Failed to close connection: {e}")
