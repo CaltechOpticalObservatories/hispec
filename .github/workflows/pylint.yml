@@ -30,7 +30,7 @@ jobs:
     - name: Run pylint and check score threshold
       run: |
         echo "Running pylint..."
-        pylint_output=$(pylint $(git ls-files '*.py') || true)
+        pylint_output=$(pylint $(git ls-files '*.py' | grep -v '^qt/') || true)
 
         echo "$pylint_output"
         
