@@ -85,6 +85,7 @@ class StageController:
     """
     Controller class for Newport SMC100PP Stage Controller.
     """
+    # pylint: disable=too-many-instance-attributes
 
     controller_commands = ["OR",    # Execute HOME search
                            "PA",    # Absolute move
@@ -150,7 +151,7 @@ class StageController:
     last_error = ""
 
     def __init__(self, num_stages=2, move_rate=5.0, log=True,
-                 logfile=None, quiet=False):
+                 logfile=None):
 
         """
         Class to handle communications with the stage controller and any faults
@@ -159,7 +160,8 @@ class StageController:
         :param move_rate: Float, move rate in degrees per second
         :param log: Boolean, whether to log to file or not
         :param logfile: Filename for log
-        :param quiet: Boolean, set to True to suppress DEBUG level messages
+
+        NOTE: default is INFO level logging, use set_verbose to increase verbosity.
         """
 
         # thread lock
@@ -180,26 +182,27 @@ class StageController:
         self.current_limits = [(0., 0.)] * (num_stages + 1)
 
         # set up logging
+        self.verbose = False
         if log:
             if logfile is None:
                 logfile = __name__.rsplit(".", 1)[-1] + ".log"
             self.logger = logger_utils.setup_logger(__name__, log_file=logfile)
-            if quiet:
-                self.logger.setLevel(logging.INFO)
+            self.logger.setLevel(logging.INFO)
         else:
             self.logger = None
 
-    def set_quiet(self, quiet=True):
-        """ Set quiet flag
+    def set_verbose(self, verbose=True):
+        """ Set verbose mode.
 
-        :param quiet: Boolean, set to True to suppress DEBUG level messages,
-                        False to enable DEBUG level messages
+        :param verbose: Boolean, set to True to enable DEBUG level messages,
+                        False to disable DEBUG level messages
         """
-
-        if quiet:
-            self.logger.setLevel(logging.INFO)
-        else:
-            self.logger.setLevel(logging.DEBUG)
+        self.verbose = verbose
+        if self.logger:
+            if self.verbose:
+                self.logger.setLevel(logging.DEBUG)
+            else:
+                self.logger.setLevel(logging.INFO)
 
     def connect(self, ip=None, port=None):
         """ Connect to stage controller.
