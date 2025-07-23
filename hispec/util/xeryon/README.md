@@ -3,7 +3,7 @@
 This module provides a Python interface to communicate with and control Xeryon precision stages. It supports serial communication, axis movement, settings management, and safe handling of errors and edge cases.
 
 ## Features
-- Serial communication with Xeryon controllers
+- Serial or TCP/IP communication with Xeryon controllers
 - Multi-axis system support
 - Configurable stage settings from a file
 - Blocking/non-blocking movement
@@ -41,6 +41,7 @@ xeryon/
 
 
 ### Example Usage
+#### Serial Connection
 ```python
 from xeryon.controller import XeryonController
 from xeryon.stage import Stage
@@ -53,6 +54,26 @@ controller.start()
 # Move axis
 x_axis = controller.getAxis("X")
 x_axis.setDPOS(1000)  # Move to position 1000 in current units
+
+controller.stop()
+```
+#### TCP/IP Connection
+```python
+from xeryon.controller import XeryonController
+from xeryon.stage import Stage
+
+# Initialize controller via TCP/IP (e.g., through a terminal server)
+controller = XeryonController(
+    connection_type="tcp",
+    tcp_host="192.168.1.100",
+    tcp_port=12345
+)
+controller.add_axis(Stage.XLS_312, "X")
+controller.start()
+
+# Move axis
+x_axis = controller.get_axis("X")
+x_axis.set_DPOS(1000)
 
 controller.stop()
 ```
