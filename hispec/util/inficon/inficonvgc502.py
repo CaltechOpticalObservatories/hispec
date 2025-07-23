@@ -1,10 +1,25 @@
+"""
+Interface for Inficon VGC502 pressure gauge using TCP/IP.
+"""
+
 import asyncio
 import sys
-import hispec.util.helper.logger_utils as logger_utils
+from hispec.util.helper import logger_utils
 
 
 class InficonVGC502:
-    def __init__(self, address, port, timeout=1, log=True, quiet=False):
+    def __init__(self, address: str, port: int, *,
+                timeout: int = 1, log: bool = True, quiet: bool = False) -> None:
+        """
+        Initialize the InficonVGC502 interface.
+
+        Args:
+            address (str): IP address of the device.
+            port (int): TCP port to connect to.
+            timeout (int, optional): Connection timeout. Defaults to 1.
+            log (bool, optional): Enable logging. Defaults to True.
+            quiet (bool, optional): Quiet mode for logger. Defaults to False.
+        """
         self.address = address
         self.port = int(port)
         self.timeout = timeout
@@ -23,10 +38,10 @@ class InficonVGC502:
         try:
             self.reader, self.writer = await asyncio.open_connection(self.address, self.port)
             if self.logger:
-                self.logger.info(f"Connected to {self.address}:{self.port}")
+                self.logger.info("Connected to %s:%s", self.address, self.port)
         except ConnectionRefusedError as err:
             if self.logger:
-                self.logger.error(f"Connection refused: {err}")
+                self.logger.error("Connection refused: %s", err)
             raise DeviceConnectionError(f"Could not connect to {self.address}:{self.port}") from err
         return self
 
@@ -38,9 +53,18 @@ class InficonVGC502:
                 self.logger.info("Connection closed")
 
     async def read_pressure(self, gauge=1):
+        """
+        Read pressure from specified gauge.
+
+        Args:
+            gauge (int): Gauge number to query.
+
+        Returns:
+            float: Pressure value or sys.float_info.max on failure.
+        """
         command = f'PR{gauge}\r\n'.encode('ascii')
         if self.logger:
-            self.logger.debug(f"Sending command: {command}")
+            self.logger.debug("Sending command: %s", command)
         self.writer.write(command)
         await self.writer.drain()
 
@@ -48,7 +72,7 @@ class InficonVGC502:
             acknowledgment = await self.reader.readuntil(b'\r\n')
             acknowledgment = acknowledgment.strip()
             if self.logger:
-                self.logger.debug(f"Acknowledgment received: {acknowledgment}")
+                self.logger.debug("Acknowledgment received: %s", acknowledgment)
         except asyncio.TimeoutError:
             if self.logger:
                 self.logger.warning("Timeout waiting for acknowledgment")
@@ -63,20 +87,21 @@ class InficonVGC502:
                 response = await self.reader.readuntil(b'\r\n')
                 response_str = response.strip().decode('ascii')
                 if self.logger:
-                    self.logger.debug(f"Pressure response: {response_str}")
+                    self.logger.debug("Pressure response: %s", response_str)
                 return float(response_str.split(',')[1])
             except (IndexError, ValueError) as e:
                 if self.logger:
-                    self.logger.error(f"Failed to parse response: {e}")
+                    self.logger.error("Failed to parse response: %s", e)
                 return sys.float_info.max
-        elif acknowledgment == b'\x15':
+
+        if acknowledgment == b'\x15':
             if self.logger:
                 self.logger.error("Received NAK: Wrong command")
             raise WrongCommandError("Wrong command sent.")
-        else:
-            if self.logger:
-                self.logger.error(f"Unknown acknowledgment: {acknowledgment}")
-            raise UnknownResponse(f"Unknown response: {acknowledgment}")
+
+        if self.logger:
+            self.logger.error("Unknown acknowledgment: %s", acknowledgment)
+        raise UnknownResponse(f"Unknown response: {acknowledgment}")
 
     async def set_pressure_unit(self, unit: int):
         """
@@ -95,23 +120,23 @@ class InficonVGC502:
 
         command = f'UNI,{unit}\r\n'.encode('ascii')
         if self.logger:
-            self.logger.debug(f"Sending command to set unit: {command}")
+            self.logger.debug("Sending command to set unit: %s", command)
         self.writer.write(command)
         await self.writer.drain()
 
         response = await self.reader.readuntil(b'\r\n')
         response = response.strip()
         if self.logger:
-            self.logger.debug(f"Response to set unit: {response}")
+            self.logger.debug("Response to set unit: %s", response)
 
         if response == b'\x06':
             if self.logger:
-                self.logger.info(f"Successfully set pressure unit to {unit}")
+                self.logger.info("Successfully set pressure unit to %s", unit)
             return True
-        else:
-            if self.logger:
-                self.logger.error(f"Failed to set unit, response: {response}")
-            raise UnknownResponse(f"Unexpected response: {response}")
+
+        if self.logger:
+            self.logger.error("Failed to set unit, response: %s", response)
+        raise UnknownResponse(f"Unexpected response: {response}")
 
     async def get_pressure_unit(self):
         """
@@ -119,7 +144,7 @@ class InficonVGC502:
         """
         command = b'UNI\r\n'
         if self.logger:
-            self.logger.debug(f"Sending command to get unit: {command}")
+            self.logger.debug("Sending command to get unit: %s", command)
         self.writer.write(command)
         await self.writer.drain()
 
@@ -131,17 +156,17 @@ class InficonVGC502:
         response = await self.reader.readuntil(b'\r\n')
         unit = response.strip().decode('ascii')
         if self.logger:
-            self.logger.info(f"Current pressure unit: {unit}")
+            self.logger.info("Current pressure unit: %s", unit)
         return int(unit)
 
 
 class WrongCommandError(Exception):
-    pass
+    """Raised when an invalid command is sent to the device."""
 
 
 class UnknownResponse(Exception):
-    pass
+    """Raised when the device returns an unknown response."""
 
 
 class DeviceConnectionError(Exception):
-    pass
+    """Raised when the device cannot be reached or connected."""
