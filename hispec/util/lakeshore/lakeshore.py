@@ -14,6 +14,7 @@ class LakeshoreController:
     """ Handle all correspondence with the ethernet interface of the
         Lakeshore 224/336 controller.
     """
+    # pylint: disable=too-many-instance-attributes
 
     connected = False
     status = None
@@ -31,8 +32,17 @@ class LakeshoreController:
     htr_display = {'1': 'current', '2': 'power'}
     htr_errors = {'0': 'no error', '1': 'heater open load', '2': 'heater short'}
 
-    def __init__(self, log=True, logfile=None, quiet=False, opt3062=False,
+    def __init__(self, log=True, logfile=None, opt3062=False,
                  model336=True):
+        """Initialize the controller instance.
+
+        :param: log: Boolean, whether to log or not.
+        :param: logfile: Filename for log.
+        :param: opt3062: Boolean, set to True if optional 3062 board installed.
+        :param: model336: Boolean, set to False if model is 224.
+
+        NOTE: default is INFO level logging, use set_verbose to increase verbosity.
+        """
 
         self.lock = threading.Lock()
         self.socket = None
@@ -41,12 +51,13 @@ class LakeshoreController:
         self.model336 = model336
 
         # set up logging
+        self.verbose = False
         if log:
             if logfile is None:
                 logfile = __name__.rsplit(".", 1)[-1] + ".log"
             self.logger = logger_utils.setup_logger(__name__, log_file=logfile)
-            if quiet:
-                self.logger.setLevel(logging.INFO)
+            # start out with verbose False
+            self.logger.setLevel(logging.INFO)
         else:
             self.logger = None
 
@@ -176,6 +187,16 @@ class LakeshoreController:
         if current != 'locked' or status == 'unlocked':
             self.status = status
 
+    def set_verbose(self, verbose=True):
+        """ Set verbose mode.
+        :param verbose: Boolean - defaults to True.
+        """
+        self.verbose = verbose
+        if self.logger:
+            if self.verbose:
+                self.logger.setLevel(logging.DEBUG)
+            else:
+                self.logger.setLevel(logging.INFO)
 
     def initialize(self, celsius=True):
         """ Initialize the lakeshore status. """
@@ -184,7 +205,7 @@ class LakeshoreController:
 
         if self.model336:
 
-            for htr in self.outputs.keys():
+            for htr in self.outputs:
                 htr_settings = self.get_heater_settings(htr)
                 if htr_settings is None:
                     if self.logger:
@@ -239,9 +260,10 @@ class LakeshoreController:
         """ Wrapper to send/receive with error checking and retries.
 
         :param command: String, command to issue.
-        :param params: String, parameters to issue.
+        :param params: String, the parameters to issue.
 
         """
+        # pylint: disable=too-many-branches
 
         if not self.connected:
             self.set_status('connecting')
@@ -343,7 +365,7 @@ class LakeshoreController:
         """ Get heater settings.
 
         :param output: String, output number of the sensor (1 or 2).
-        returns resistance, max current, max user current, display.
+        Returns resistance, max current, max user current, display.
         """
         retval = None
         if self.model336:
