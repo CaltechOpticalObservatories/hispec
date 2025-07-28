@@ -1,7 +1,38 @@
 import asyncio
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import sys
+
+@dataclass
+class EDS0065DATA:
+    rom_id: str = None
+    health: int = None
+    channel: int = None
+    raw_data: str = None
+    relative_humidity: float = None
+    temperature: float = None
+    humidity: float = None
+    dew_point: float = None
+    humidex: float = None
+    heat_index: float = None
+    version: float = None
+    
+@dataclass
+class EDS0068DATA:
+    rom_id: str = None
+    health: int = None
+    channel: int = None
+    raw_data: str = None
+    relative_humidity: float = None
+    temperature: float = None
+    humidity: float = None
+    dew_point: float = None
+    humidex: float = None
+    heat_index: float = None
+    pressure_mb: float = None
+    pressure_hg: float = None
+    illuminance: int = None
+    version: float = None
 
 @dataclass
 class ONEWIREDATA:
@@ -22,6 +53,8 @@ class ONEWIREDATA:
     hostname: str = None
     mac_address: str = None
     datetime: str = None
+    eds0065_data: list[EDS0065DATA] = field(default_factory=list)
+    eds0068_data: list[EDS0068DATA] = field(default_factory=list)
 
 class ONEWIRE:
     def __init__(self, address, timeout=1):
@@ -133,7 +166,75 @@ class ONEWIRE:
             self.ow_data.mac_address = str(element.text)
         elif element.tag == "DateTime":
             self.ow_data.datetime = str(element.text)
-
+        elif element.tag == "owd_EDS0065":
+            self.__sensor_data_handler(element, sensor_type="EDS0065")
+        elif element.tag == "owd_EDS0068":
+            self.__sensor_data_handler(element, sensor_type="EDS0068")
+            
+    def __sensor_data_handler(self, element, sensor_type):
+        if sensor_type == "EDS0065":
+            eds0065_data = EDS0065DATA()
+            for sensor in element:
+                # print(sensor.tag, sensor.attrib, sensor.text)
+                if sensor.tag == "ROMId":
+                    eds0065_data.rom_id = str(sensor.text)
+                elif sensor.tag == "Health":
+                    eds0065_data.health = int(sensor.text)
+                elif sensor.tag == "Channel":
+                    eds0065_data.channel = int(sensor.text)
+                elif sensor.tag == "RawData":
+                    eds0065_data.raw_data = str(sensor.text)
+                elif sensor.tag == "PrimaryValue":
+                    data = sensor.text.split(" ")[0]
+                    eds0065_data.relative_humidity = float(data)
+                elif sensor.tag == "Temperature":
+                    eds0065_data.temperature = float(sensor.text)
+                elif sensor.tag == "Humidity":
+                    eds0065_data.humidity = float(sensor.text)
+                elif sensor.tag == "DewPoint":
+                    eds0065_data.dew_point = float(sensor.text)
+                elif sensor.tag == "Humidex":
+                    eds0065_data.humidex = float(sensor.text)
+                elif sensor.tag == "HeatIndex":
+                    eds0065_data.heat_index = float(sensor.text)
+                elif sensor.tag == "Version":
+                    eds0065_data.version = float(sensor.text)
+                    
+            self.ow_data.eds0065_data.append(eds0065_data)
+        elif sensor_type == "EDS0068":
+            eds0068_data = EDS0068DATA()
+            for sensor in element:
+                # print(sensor.tag, sensor.attrib, sensor.text)
+                if sensor.tag == "ROMId":
+                    eds0068_data.rom_id = str(sensor.text)
+                elif sensor.tag == "Health":
+                    eds0068_data.health = int(sensor.text)
+                elif sensor.tag == "Channel":
+                    eds0068_data.channel = int(sensor.text)
+                elif sensor.tag == "RawData":
+                    eds0068_data.raw_data = str(sensor.text)
+                elif sensor.tag == "PrimaryValue":
+                    data = sensor.text.split(" ")[0]
+                    eds0068_data.relative_humidity = float(data)
+                elif sensor.tag == "Temperature":
+                    eds0068_data.temperature = float(sensor.text)
+                elif sensor.tag == "Humidity":
+                    eds0068_data.humidity = float(sensor.text)
+                elif sensor.tag == "DewPoint":
+                    eds0068_data.dew_point = float(sensor.text)
+                elif sensor.tag == "Humidex":
+                    eds0068_data.humidex = float(sensor.text)
+                elif sensor.tag == "HeatIndex":
+                    eds0068_data.heat_index = float(sensor.text)
+                elif sensor.tag == "BarometricPressureMb":
+                    eds0068_data.pressure_mb = float(sensor.text)
+                elif sensor.tag == "BarometricPressureHg":
+                    eds0068_data.pressure_hg = float(sensor.text)
+                elif sensor.tag == "Light":
+                    eds0068_data.illuminance = int(sensor.text)
+                elif sensor.tag == "Version":
+                    eds0068_data.version = float(sensor.text)
+            self.ow_data.eds0068_data.append(eds0068_data)
 
 class HttpResponseError(Exception):
     pass
@@ -141,11 +242,13 @@ class HttpResponseError(Exception):
 class DeviceConnectionError(Exception):
     pass
 
-async def test_onewire(ow_address):
+async def test_onewire(ow_address) -> ONEWIREDATA:
     async with ONEWIRE(ow_address) as ow:
         await ow.get_xml_data()
-        print(ow.ow_data)
+        
+    return ow.ow_data
         
 if __name__ == "__main__":
     OW_ADDRESS = ""
-    asyncio.run(test_onewire(OW_ADDRESS))
+    ow_data = asyncio.run(test_onewire(OW_ADDRESS))
+    print(ow_data)
