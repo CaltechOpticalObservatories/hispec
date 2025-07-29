@@ -1,3 +1,12 @@
+# pylint: skip-file
+"""
+Utility functions for time measurement and formatted position string generation.
+
+This module includes:
+- `get_actual_time()`: Returns the current time in milliseconds.
+- `get_dpos_epos_string(dpos, epos, unit)`: Returns a formatted string
+    of dpos and epos values with units.
+"""
 import time
 
 

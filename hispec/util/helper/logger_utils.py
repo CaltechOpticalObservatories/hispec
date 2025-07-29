@@ -1,8 +1,11 @@
+"""Set up logging helper module."""
 import logging
 import sys
 
 
-def setup_logger(name: str, log_file: str = None, level=logging.DEBUG, quiet: bool = False) -> logging.Logger:
+def setup_logger(name: str, log_file: str = None, level=logging.DEBUG,
+                 quiet: bool = False) -> logging.Logger:
+    """Setup logger with given name."""
     logger = logging.getLogger(name)
     logger.setLevel(level)
 

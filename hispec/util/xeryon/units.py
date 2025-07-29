@@ -1,3 +1,9 @@
+# pylint: skip-file
+"""
+Defines the Units enum for standardized unit representation and improved code readability.
+
+Each unit has a unique ID and string name. Includes a method to match a unit from a string.
+"""
 from enum import Enum
 
 
