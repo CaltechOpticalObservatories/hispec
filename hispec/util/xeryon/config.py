@@ -1,6 +1,7 @@
+# pylint: skip-file
 # Configuration constants for the Xeryon controller library
 
-SETTINGS_FILENAME = "../../xeryon_settings_default.txt"
+SETTINGS_FILENAME = "util/config/xeryon_default_settings.txt"
 LIBRARY_VERSION = "v1.64"
 
 # DEBUG MODE

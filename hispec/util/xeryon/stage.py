@@ -1,3 +1,4 @@
+# pylint: skip-file
 from enum import Enum
 import math
 from .config import AMPLITUDE_MULTIPLIER, PHASE_MULTIPLIER
