@@ -1,13 +1,35 @@
+"""
+Defines the XeryonController class, the main interface for communicating with
+Xeryon motion controllers.
+
+Includes setup of communication, management of connected axes, settings handling,
+and motion control utilities.
+"""
 import time
 import serial
+import os
+import hispec.util.helper.logger_utils as logger_utils
 from .communication import Communication
 from .axis import Axis
 from .config import AUTO_SEND_SETTINGS, SETTINGS_FILENAME
-import hispec.util.helper.logger_utils as logger_utils
 
 
 class XeryonController:
-    def __init__(self, COM_port=None, baudrate=115200, quiet=True, settings_filename=SETTINGS_FILENAME,
+    """
+    Main controller class for Xeryon motion systems.
+
+    Handles communication setup, axis registration, system initialization, and command execution.
+    Supports both serial and TCP communication, single or multi-axis setups,
+    and persistent settings.
+
+    Typical usage:
+        controller = XeryonController(COM_port="COM3")
+        controller.add_axis(stage="linear", axis_letter="X")
+        controller.start()
+    """
+    # pylint: disable=too-many-arguments
+    def __init__(self, COM_port=None, baudrate=115200, quiet=True,
+                 settings_filename=SETTINGS_FILENAME,
                  connection_type='serial', tcp_host=None, tcp_port=None):
         """
             :param COM_port: Specify the COM port used.
@@ -20,7 +42,8 @@ class XeryonController:
             :type settings_filename: str
             :return: A XeryonController object.
 
-            Main Xeryon Drive Class, onitialize with the COM port, baudrate, and a settings file for communication with the driver.
+            Main Xeryon Drive Class, onitialize with the COM port, baudrate, and a settings file
+            for communication with the driver.
         """
         logfile = __name__.rsplit(".", 1)[-1] + ".log"
         self.logger = logger_utils.setup_logger(__name__, log_file=logfile, quiet=quiet)
@@ -40,24 +63,27 @@ class XeryonController:
         """
         return len(self.get_all_axis()) <= 1
 
-    def start(self, external_communication_thread=False, doReset=True):
+    def start(self, external_communication_thread=False, do_reset=True):
         """
         :return: Nothing.
         This functions NEEDS to be ran before any commands are executed.
-        This function starts the serial communication and configures the settings with the controller.
+        This function starts the serial communication and configures the settings
+        with the controller.
 
 
-        NOTE: (KPIC MOD) we added the doReset flag so that we can disconnect and reconnect to the stage
-              without doing a reset. This allows us to reconnect without having to re-reference the stage.
+        NOTE: (KPIC MOD) we added the do_reset flag so that we can disconnect and reconnect
+              to the stage without doing a reset. This allows us to reconnect without having
+              to re-reference the stage.
         """
         if len(self.get_all_axis()) <= 0:
             raise Exception(
-                "Cannot start the system without stages. The stages don't have to be connnected, only initialized in the software.")
+                "Cannot start the system without stages. The stages don't have to be connnected, "
+                "only initialized in the software.")
 
         comm = self.get_communication().start(
             external_communication_thread)  # Start communication
 
-        if doReset:
+        if do_reset:
             for axis in self.get_all_axis():
                 axis.reset()
             time.sleep(0.2)
@@ -77,13 +103,15 @@ class XeryonController:
 
         if external_communication_thread:
             return comm
+        return None
 
     def stop(self, is_print_end=True):
         """
         :return: None
         This function sends STOP to the controller and closes the communication.
 
-        NOTE: (KPIC MOD) we added the is_print_end flag to avoid unnecessary prints that may confuse users
+        NOTE: (KPIC MOD) we added the is_print_end flag to avoid unnecessary prints that
+        may confuse users
         """
         for axis in self.get_all_axis():  # Send STOP to each axis.
             axis.send_command("ZERO=0")
@@ -128,11 +156,10 @@ class XeryonController:
         :type stage: Stage
         :return: Returns an Axis object
         """
-        newAxis = Axis(self, axis_letter,
-                       stage, self.logger)
-        self.axis_list.append(newAxis)  # Add axis to axis list.
+        new_axis = Axis(self, axis_letter, stage, self.logger)
+        self.axis_list.append(new_axis)  # Add axis to axis list.
         self.axis_letter_list.append(axis_letter)
-        return newAxis
+        return new_axis
 
     # End User Commands
     def get_communication(self):
@@ -154,7 +181,8 @@ class XeryonController:
 
     def read_settings(self, settings_file: str = None):
         """
-        :param settings_file: Optional path to a settings file. If not provided, uses self.settings_filename.
+        :param settings_file: Optional path to a settings file. If not provided,
+        uses self.settings_filename.
         :return: None
         This function reads the settings.txt file and processes each line.
         It first determines for what axis the setting is, then it reads the setting and saves it.
@@ -196,25 +224,28 @@ class XeryonController:
                         # Update settings for specified axis.
                         axis.set_setting(tag, value, True, doNotSendThrough=True)
 
-        except FileNotFoundError as e:
+        except FileNotFoundError as ex:
+            print("Trying to open:", os.path.abspath(filepath))
             self.logger.info("No settings_default.txt found.")
             # self.stop()  # Make sure the thread also stops.
             # raise Exception(
-            # "ERROR: settings_default.txt file not found. Place it in the same folder as Xeryon.py. \n "
-            # "The settings_default.txt is delivered in the same folder as the Windows Interface. \n " + str(e))
-        except Exception as e:
-            raise e
+            # "ERROR: settings_default.txt file not found. Place it in the same folder
+            # as Xeryon.py. \n "
+            # "The settings_default.txt is delivered in the same folder as the
+            # Windows Interface. \n " + str(e))
+        except Exception as ex:
+            raise ex
 
-    def set_master_setting(self, tag, value, fromSettingsFile=False):
+    def set_master_setting(self, tag, value, from_settings_file=False):
         """
             In multi-axis systems, commands without an axis specified are for the master.
             This function adds a setting (tag, value) to the list of settings for the master.
         """
         self.master_settings.update({tag: value})
-        if not fromSettingsFile:
+        if not from_settings_file:
             self.comm.send_command(str(tag)+"="+str(value))
         if "COM" in tag:
-            self.set_COM_port(str(value))
+            self.set_com_port(str(value))
 
     def send_master_settings(self, axis=False):
         """
@@ -239,19 +270,22 @@ class XeryonController:
             self.comm.send_command(
                 str(self.get_all_axis()[0].get_letter()) + ":SAVE=0")
 
-    def set_COM_port(self, com_port):
+    def set_com_port(self, com_port):
+        """
+        :param com_port: Specify the COM port used.
+        """
         self.get_communication().set_COM_port(com_port)
 
-    def find_COM_port(self):
+    def find_com_port(self):
         """
         This function loops through every available COM-port.
         It check's if it contains any signature of Xeryon.
         :return:
         """
-        self.logger.info("Automatically searching for COM-Port. If you want to speed things up you should manually provide it inside the controller object.")
+        self.logger.info("Automatically searching for COM-Port. If you want to speed things up "
+                         "you should manually provide it inside the controller object.")
         ports = list(serial.tools.list_ports.comports())
-        com_port = None
         for port in ports:
             if "04D8" in str(port.hwid):
-                self.set_COM_port(str(port.device))
+                self.set_com_port(str(port.device))
                 break

@@ -1,46 +1,33 @@
+"""Unit tests for the Axis class in the hispec.util.xeryon.axis module."""
 import unittest
 from unittest.mock import MagicMock
+from dataclasses import dataclass
+# pylint: disable=no-name-in-module,import-error
 from hispec.util.xeryon.axis import Axis
+from .test_xeryon_controller import MockStage
+from .test_xeryon_communication import MockLogger
 
 
-class MockStage:
-    isLineair = True
-    encoderResolutionCommand = "XLS1=312"
-    encoderResolution = 312.5
-    speedMultiplier = 1000
-    amplitudeMultiplier = 1456.0
-    phaseMultiplier = 182
-
-
+@dataclass
 class MockXeryonController:
+    """A mock Xeryon controller for testing purposes."""
+
+    # pylint: disable=no-self-use
     def is_single_axis_system(self):
+        """Return True to indicate this is a single-axis system."""
         return True
 
+    # pylint: disable=no-self-use
     def get_communication(self):
+        """Return a mock communication object."""
         return MagicMock(send_command=MagicMock())
 
-class MockLogger:
-    def __init__(self):
-        self.messages = []
-
-    def info(self, msg, *args, **kwargs):
-        self.messages.append(('info', msg))
-
-    def debug(self, msg, *args, **kwargs):
-        self.messages.append(('debug', msg))
-
-    def warning(self, msg, *args, **kwargs):
-        self.messages.append(('warning', msg))
-
-    def error(self, msg, *args, **kwargs):
-        self.messages.append(('error', msg))
-
-    def critical(self, msg, *args, **kwargs):
-        self.messages.append(('critical', msg))
 
 class TestAxis(unittest.TestCase):
+    """Unit tests for the Axis class."""
 
     def setUp(self):
+        """Set up a mock stage and xeryon controller for testing."""
         self.stage = MockStage()
         self.xeryon = MockXeryonController()
         self.axis = Axis(self.xeryon, "X", self.stage, MockLogger())

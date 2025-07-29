@@ -1,3 +1,4 @@
+# pylint: skip-file
 import time
 import math
 from .units import Units
