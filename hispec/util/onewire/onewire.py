@@ -1,11 +1,14 @@
 import asyncio
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 import sys
+
+from hispec.util.helper import logger_utils
 
 @dataclass
 class EDS0065DATA:
     rom_id: str = None
+    device_type: str = None
     health: int = None
     channel: int = None
     raw_data: str = None
@@ -20,6 +23,7 @@ class EDS0065DATA:
 @dataclass
 class EDS0068DATA:
     rom_id: str = None
+    device_type: str = None
     health: int = None
     channel: int = None
     raw_data: str = None
@@ -55,9 +59,30 @@ class ONEWIREDATA:
     datetime: str = None
     eds0065_data: list[EDS0065DATA] = field(default_factory=list)
     eds0068_data: list[EDS0068DATA] = field(default_factory=list)
+    
+    def read_sensors(self):
+        sensors = []
+        for sensor in self.eds0065_data:
+            sensors.append(asdict(sensor))
+        for sensor in self.eds0068_data:
+            sensors.append(asdict(sensor))
+        
+        return sensors
+    
+    def read_temperature(self):
+        temperatures = []
+        for temp in self.eds0065_data:
+            if temp.temperature is not None:
+                temperatures.append(temp.temperature)
+        
+        for temp in self.eds0068_data:
+            if temp.temperature is not None:
+                temperatures.append(temp.temperature)
+                
+        return temperatures
 
 class ONEWIRE:
-    def __init__(self, address, timeout=1):
+    def __init__(self, address, timeout=1, log=True, quiet=False):
         self.address = address
         self.http_port = 80
         self.udp_port = 30303
@@ -66,14 +91,22 @@ class ONEWIRE:
         
         self.ow_data = ONEWIREDATA()
         
+        # Initialize logger
+        self.logger = logger_utils.setup_logger(
+            __name__, "ONEWIRE.log", quiet=quiet
+        ) if log else None
+        
+        if self.logger:
+            self.logger.info("Logger initialized for ONEWIRE")
+        
     async def __aenter__(self):
         try:
             self.reader, self.writer = await asyncio.open_connection(self.address, self.http_port)
-            # if self.logger:
-            #     self.logger.info(f"Connected to {self.address}:{self.port}")
+            if self.logger:
+                self.logger.info(f"Connected to {self.address}:{self.http_port}")
         except ConnectionRefusedError as err:
-            # if self.logger:
-            #     self.logger.error(f"Connection refused: {err}")
+            if self.logger:
+                self.logger.error(f"Connection refused: {err}")
             raise DeviceConnectionError("Could not connect to {}".format(self.address)) from err
         return self
     
@@ -81,8 +114,8 @@ class ONEWIRE:
         if self.writer:
             self.writer.close()
             await self.writer.wait_closed()
-            # if self.logger:
-            #     self.logger.info("Connection closed")
+            if self.logger:
+                self.logger.info("Connection closed")
 
     async def get_xml_data(self):
         query = ("GET /details.xml HTTP/1.1\r\n\r\n")
@@ -123,7 +156,9 @@ class ONEWIRE:
         for elem in root.iter():
             tag_elements = elem.tag.split("}")
             elem.tag = tag_elements[1]
-            
+        
+        if self.logger:
+            self.logger.debug(f"XML data received: {ET.tostring(root, encoding='unicode')}")
         # ET.dump(root)
         # for elem in root.iter():
         #     print(elem.tag, elem.attrib, elem.text)
@@ -175,9 +210,10 @@ class ONEWIRE:
         if sensor_type == "EDS0065":
             eds0065_data = EDS0065DATA()
             for sensor in element:
-                # print(sensor.tag, sensor.attrib, sensor.text)
                 if sensor.tag == "ROMId":
                     eds0065_data.rom_id = str(sensor.text)
+                elif sensor.tag == "Name":
+                    eds0065_data.device_type = str(sensor.text)
                 elif sensor.tag == "Health":
                     eds0065_data.health = int(sensor.text)
                 elif sensor.tag == "Channel":
@@ -207,6 +243,8 @@ class ONEWIRE:
                 # print(sensor.tag, sensor.attrib, sensor.text)
                 if sensor.tag == "ROMId":
                     eds0068_data.rom_id = str(sensor.text)
+                elif sensor.tag == "Name":
+                    eds0068_data.device_type = str(sensor.text)
                 elif sensor.tag == "Health":
                     eds0068_data.health = int(sensor.text)
                 elif sensor.tag == "Channel":
@@ -243,7 +281,7 @@ class DeviceConnectionError(Exception):
     pass
 
 async def test_onewire(ow_address) -> ONEWIREDATA:
-    async with ONEWIRE(ow_address) as ow:
+    async with ONEWIRE(ow_address, quiet=True) as ow:
         await ow.get_xml_data()
         
     return ow.ow_data
@@ -251,4 +289,5 @@ async def test_onewire(ow_address) -> ONEWIREDATA:
 if __name__ == "__main__":
     OW_ADDRESS = ""
     ow_data = asyncio.run(test_onewire(OW_ADDRESS))
-    print(ow_data)
+    sensors = ow_data.read_sensors()
+    print(sensors)
