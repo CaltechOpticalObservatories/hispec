@@ -1,11 +1,18 @@
+"""
+PTC10 Controller Interface
+"""
 from typing import List, Dict, Optional
 import hispec.util.helper.logger_utils as logger_utils
-from .ptc10_connection import PTC10Connection
-
+from .ptc10_connection import PTC10Connection, PTC10Config
 
 
 class PTC10:
-    def __init__(self, conn: PTC10Connection, logfile: Optional[str] = None, quiet: bool = False):
+    """
+    Interface for controlling the PTC10 controller.
+    """
+    def __init__(
+            self, conn: PTC10Connection, logfile: Optional[str] = None, quiet: bool = False
+    ):
         """
         Initialize the PTC10 controller interface.
 
@@ -20,15 +27,18 @@ class PTC10:
         self.logger.debug("PTC10 initialized with connection: %s", conn)
 
     @classmethod
-    def connect(cls,
-                method: str = "serial",
-                port: Optional[str] = None,
-                baudrate: int = 9600,
-                host: Optional[str] = None,
-                tcp_port: int = 23,
-                timeout: float = 1.0,
-                logfile: Optional[str] = None,
-                quiet: bool = False                ) -> "PTC10":
+    # pylint: disable=too-many-arguments
+    def connect(
+            cls,
+            method: str = "serial",
+            port: Optional[str] = None,
+            baudrate: int = 9600,
+            host: Optional[str] = None,
+            tcp_port: int = 23,
+            timeout: float = 1.0,
+            logfile: Optional[str] = None,
+            quiet: bool = False,
+    ) -> "PTC10":
         """
         Create a new PTC10 instance with an internal connection setup.
 
@@ -47,14 +57,15 @@ class PTC10:
         """
         logger = logger_utils.setup_logger(__name__, log_file=logfile, quiet=quiet)
         logger.info("Connecting to PTC10 using method: %s", method)
-        conn = PTC10Connection(
+        config = PTC10Config(
             method=method,
             port=port,
             baudrate=baudrate,
             host=host,
             tcp_port=tcp_port,
-            timeout=timeout
+            timeout=timeout,
         )
+        conn = PTC10Connection(config=config)
         logger.debug("Connection established: %s", conn)
         return cls(conn, logfile=logfile, quiet=quiet)
 
@@ -92,7 +103,9 @@ class PTC10:
             self.logger.info("Channel %s value: %f", channel, value)
             return value
         except ValueError:
-            self.logger.error("Invalid float returned for channel %s: %s", channel, response)
+            self.logger.error(
+                "Invalid float returned for channel %s: %s", channel, response
+            )
             return float("nan")
 
     def get_all_values(self) -> List[float]:
@@ -103,7 +116,9 @@ class PTC10:
             List[float]: List of float values, with NaN where applicable.
         """
         response = self.conn.query("getOutput?")
-        values = [float(val) if val != "NaN" else float("nan") for val in response.split(",")]
+        values = [
+            float(val) if val != "NaN" else float("nan") for val in response.split(",")
+        ]
         self.logger.info("Output values: %s", values)
         return values
 

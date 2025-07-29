@@ -1,40 +1,49 @@
-import serial
+"""
+PTC10Connection - Low-level communication interface for the PTC10 Temperature Controller
+"""
 import socket
+from dataclasses import dataclass
+import serial
+
+
+@dataclass
+class PTC10Config:
+    """Configuration for the PTC10Connection."""
+    method: str = "serial"
+    port: str = None
+    baudrate: int = 9600
+    host: str = None
+    tcp_port: int = 23
+    timeout: float = 1.0
 
 
 class PTC10Connection:
     """
-    A low-level communication interface for the Stanford Research Systems PTC10 Temperature Controller.
+    A low-level communication interface for the Stanford Research Systems
+    PTC10 Temperature Controller.
     Supports communication over serial (RS-232) or Ethernet (TCP).
     """
 
-    def __init__(self, method='serial', port=None, baudrate=9600, host=None, tcp_port=23, timeout=1.0):
+    def __init__(
+            self,
+            config: PTC10Config,
+    ):
         """
-        Initialize the connection to the PTC10 controller.
-
-        Args:
-            method (str): Communication method: 'serial' or 'ethernet'.
-            port (str): Serial port path (e.g. '/dev/ttyUSB0') for serial connection.
-            baudrate (int): Baud rate for serial communication. Default is 9600.
-            host (str): IP address of the controller for Ethernet communication.
-            tcp_port (int): TCP port number for Ethernet (default is 23).
-            timeout (float): Timeout in seconds for communication operations.
-
-        Raises:
-            ValueError: If an unsupported method is specified.
+        Initialize the PTC10Connection with the given configuration.
         """
-        self.method = method
+        self.method = config.method
         try:
-            if method == 'serial':
-                self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
-            elif method == 'ethernet':
+            if config.method == "serial":
+                self.ser = serial.Serial(config.port, baudrate=config.baudrate,
+                                         timeout=config.timeout)
+            elif config.method == "ethernet":
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.sock.settimeout(timeout)
-                self.sock.connect((host, tcp_port))
+                self.sock.settimeout(config.timeout)
+                self.sock.connect((config.host, config.tcp_port))
             else:
                 raise ValueError("Unsupported method: choose 'serial' or 'ethernet'")
-        except Exception as e:
-            raise ConnectionError(f"Failed to initialize connection: {e}")
+        except Exception as ex:
+            raise ConnectionError(f"Failed to initialize connection: {ex}")
 
     def write(self, msg: str):
         """
@@ -44,12 +53,12 @@ class PTC10Connection:
             msg (str): The message to send (e.g., '3A?').
         """
         try:
-            if self.method == 'serial':
-                self.ser.write((msg + '\n').encode())
+            if self.method == "serial":
+                self.ser.write((msg + "\n").encode())
             else:
-                self.sock.sendall((msg + '\n').encode())
-        except Exception as e:
-            raise IOError(f"Failed to write message: {e}")
+                self.sock.sendall((msg + "\n").encode())
+        except Exception as ex:
+            raise IOError(f"Failed to write message: {ex}")
 
     def read(self) -> str:
         """
@@ -59,12 +68,12 @@ class PTC10Connection:
             str: The received message, stripped of trailing newline.
         """
         try:
-            if self.method == 'serial':
+            if self.method == "serial":
                 return self.ser.readline().decode().strip()
-            else:
-                return self.sock.recv(4096).decode().strip()
-        except Exception as e:
-            raise IOError(f"Failed to read message: {e}")
+
+            return self.sock.recv(4096).decode().strip()
+        except Exception as ex:
+            raise IOError(f"Failed to read message: {ex}")
 
     def query(self, msg: str) -> str:
         """
@@ -84,9 +93,9 @@ class PTC10Connection:
         Close the connection to the controller.
         """
         try:
-            if self.method == 'serial':
+            if self.method == "serial":
                 self.ser.close()
             else:
                 self.sock.close()
-        except Exception as e:
-            raise IOError(f"Failed to close connection: {e}")
+        except Exception as ex:
+            raise IOError(f"Failed to close connection: {ex}")
