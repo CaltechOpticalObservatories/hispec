@@ -117,7 +117,7 @@ class ONEWIRE:
             if self.logger:
                 self.logger.info("Connection closed")
 
-    async def get_xml_data(self):
+    async def get_data(self):
         query = ("GET /details.xml HTTP/1.1\r\n\r\n")
         self.writer.write(query.encode("ascii"))
         self.writer.drain
@@ -138,8 +138,6 @@ class ONEWIRE:
         
         xml_data = await self.reader.readuntil(b'</Devices-Detail-Response>\r\n')
         self.__xml_data_handler(xml_data)
-
-        return xml_data
     
     def __http_response_handler(self, response):
         response = response.decode("ascii")
@@ -282,7 +280,7 @@ class DeviceConnectionError(Exception):
 
 async def test_onewire(ow_address) -> ONEWIREDATA:
     async with ONEWIRE(ow_address, quiet=True) as ow:
-        await ow.get_xml_data()
+        await ow.get_data()
         
     return ow.ow_data
         
