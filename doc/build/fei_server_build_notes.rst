@@ -153,7 +153,97 @@ Download Needed Drivers (and software if needed)
 **Physik Instrumente**
 
 **SPI Driver lib4222**
-- [Dan install note]
+1. Extract the archive:
+
+   .. code-block:: bash
+
+      tar xfvz libft4222-1.4.4.232.tgz
+
+   This unpacks the archive, creating the following directory structure:
+
+   - build-x86_32
+   - build-x86_64
+   - build-arm-v6-hf
+   - build-arm-v7-hf
+   - build-arm-v7-sf
+   - build-arm-v7-hf-uclibc
+   - build-arm-v8
+   - libft4222-linux-1.4.4.221 for mips (based on libftd2xx v1.4.27)
+   - examples
+   - libft4222.h
+   - ftd2xx.h
+   - WinTypes.h
+   - install4222.sh
+
+2. Install the library:
+
+   .. code-block:: bash
+
+      sudo ./install4222.sh
+
+   This installs the dynamic library. It copies `libft4222.so.1.4.4.232` and headers to
+   `/usr/local/lib` and `/usr/local/include` respectively. It also creates a 
+   version-independent symbolic link, `libft4222.so`.
+
+3. Detailed Build Instructions:
+
+   i. Change to the examples directory:
+
+   .. code-block:: bash
+
+      cd examples
+
+   ii. Build an executable:
+
+   For **dynamic library**:
+
+   .. code-block:: bash
+
+      sudo cc get-version.c -lft4222 -Wl,-rpath,/usr/local/lib
+
+   For **static library**:
+
+   .. code-block:: bash
+
+      sudo cc -static get-version.c -lft4222 -Wl,-rpath,/usr/local/lib -ldl -lpthread -lrt -lstdc++
+
+   If your `ld` version is too old, static build may fail. To resolve:
+
+   .. code-block:: bash
+
+      sudo apt-get update
+      sudo apt-get install binutils-2.26
+      export PATH="/usr/lib/binutils-2.26/bin:$PATH"
+
+   iii. Run the executable:
+
+   .. code-block:: bash
+
+      sudo ./a.out
+
+   You should see output similar to:
+
+   .. code-block:: text
+
+      Chip version: 42220400, LibFT4222 version: 010404E8
+
+   If you see:
+
+   - **"No devices connected"** or **"No FT4222H detected"**:
+     
+     - There may be no FT4222H connected. Run `lsusb` and check for something like:
+
+       .. code-block:: text
+
+          Bus 001 Device 005: ID 0403:601c Future Technology Devices International, Ltd
+
+     - Or your program lacks USB access. Use `sudo`, `su`, or run as root.
+
+   - **ABI mismatch error (libft4222.so):** Try upgrading `glibc` to version 2.10 or newer.
+
+   - **SPI Mode Note:** If enabling SPI master mode, the SS pin **must be tied high**.
+
+
 - Permanent dialout access for user across machine (requires logout/login):
 
   .. code-block:: bash

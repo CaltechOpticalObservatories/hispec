@@ -167,17 +167,5 @@ class Test_GimbalMount(unittest.TestCase):
         time.sleep(.25)
         return
 
-    def test_isupper(self):
-        self.assertTrue('FOO'.isupper())
-        self.assertFalse('Foo'.isupper())
-
-    def test_split(self):
-        s = 'hello world'
-        self.assertEqual(s.split(), ['hello', 'world'])
-        # check that s.split fails when the separator is not a string
-        #TODO:: implement these backward checks to make sure they raise the right errors
-        with self.assertRaises(TypeError):
-            s.split(2)
-
 if __name__ == '__main__':
     unittest.main()
