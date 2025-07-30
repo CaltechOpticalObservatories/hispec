@@ -71,15 +71,29 @@ class ONEWIREDATA:
     
     def read_temperature(self):
         temperatures = []
-        for temp in self.eds0065_data:
-            if temp.temperature is not None:
-                temperatures.append(temp.temperature)
-        
-        for temp in self.eds0068_data:
-            if temp.temperature is not None:
-                temperatures.append(temp.temperature)
+        for sensor in self.eds0065_data:
+            if sensor.temperature is not None:
+                temperature = {"rom_id": sensor.rom_id, "temperature": sensor.temperature}
+                temperatures.append(temperature)
+        for sensor in self.eds0068_data:
+            if sensor.temperature is not None:
+                temperature = {"rom_id": sensor.rom_id, "temperature": sensor.temperature}
+                temperatures.append(temperature)
                 
         return temperatures
+    
+    def read_humidity(self):
+        humidities = []
+        for sensor in self.eds0065_data:
+            if sensor.humidity is not None:
+                humidity = {"rom_id": sensor.rom_id, "humidity": sensor.humidity}
+                humidities.append(humidity)
+        for sensor in self.eds0068_data:
+            if sensor.humidity is not None:
+                humidity = {"rom_id": sensor.rom_id, "humidity": sensor.humidity}
+                humidities.append(humidity)
+                
+        return humidities
 
 class ONEWIRE:
     def __init__(self, address, timeout=1, log=True, quiet=False):
