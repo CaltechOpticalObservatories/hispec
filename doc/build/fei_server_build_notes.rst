@@ -256,6 +256,30 @@ Download Needed Drivers (and software if needed)
 
       newgrp dialout
 
+CameraD Installation
+----------------------
+   .. code-block:: bash
+
+    cd ~
+    git clone https://github.com/CaltechOpticalObservatories/camera-interface.git
+    cd camera-interface
+    cd build
+    rm -rf ./*  # Clean any previous contents
+    cmake ..
+    make
+
+PI Driver Installation
+----------------------
+    .. code-block:: bash
+
+    cd libpi_pi_gcs2_x86_64
+    sudo ./INSTALL
+
+    cd ..
+    cd pi_terminal_x86_64
+    sudo ./INSTALL
+
+
 OS Optimization Notes (07/09/2025)
 ----------------------------------
 
