@@ -13,3 +13,6 @@
 [submodule "hispec/util/gammavac"]
 	path = hispec/util/gammavac
 	url = git@github.com:COO-Utilities/gammavac.git
+[submodule "hispec/util/newport"]
+	path = hispec/util/newport
+	url = git@github.com:COO-Utilities/newport.git
