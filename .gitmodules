@@ -16,3 +16,9 @@
 [submodule "hispec/util/newport"]
 	path = hispec/util/newport
 	url = git@github.com:COO-Utilities/newport.git
+[submodule "hispec/util/standa"]
+	path = hispec/util/standa
+	url = git@github.com:COO-Utilities/standa.git
+[submodule "hispec/util/thorlabs"]
+	path = hispec/util/thorlabs
+	url = git@github.com:COO-Utilities/thorlabs.git
