@@ -4,3 +4,9 @@
 [submodule "etc/camera-interface"]
 	path = etc/camera-interface
 	url = https://github.com/CaltechOpticalObservatories/camera-interface 
+[submodule "hispec/util/thorlabs"]
+	path = hispec/util/thorlabs
+	url = git@github.com:COO-Utilities/thorlabs.git
+[submodule "hispec/util/standa"]
+	path = hispec/util/standa
+	url = git@github.com:COO-Utilities/standa.git
