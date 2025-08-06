@@ -16,3 +16,6 @@
 [submodule "hispec/util/newport"]
 	path = hispec/util/newport
 	url = git@github.com:COO-Utilities/newport.git
+[submodule "hispec/util/sunpower"]
+	path = hispec/util/sunpower
+	url = https://github.com/COO-Utilities/sunpower
