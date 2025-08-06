@@ -16,3 +16,6 @@
 [submodule "hispec/util/newport"]
 	path = hispec/util/newport
 	url = git@github.com:COO-Utilities/newport.git
+[submodule "hispec/util/onewire"]
+	path = hispec/util/onewire
+	url = git@github.com:COO-Utilities/onewire.git
