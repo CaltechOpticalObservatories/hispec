@@ -4,3 +4,15 @@
 [submodule "etc/camera-interface"]
 	path = etc/camera-interface
 	url = https://github.com/CaltechOpticalObservatories/camera-interface 
+[submodule "hispec/util/lakeshore"]
+	path = hispec/util/lakeshore
+	url = git@github.com:COO-Utilities/lakeshore.git
+[submodule "hispec/util/inficon"]
+	path = hispec/util/inficon
+	url = git@github.com:COO-Utilities/inficon.git
+[submodule "hispec/util/gammavac"]
+	path = hispec/util/gammavac
+	url = git@github.com:COO-Utilities/gammavac.git
+[submodule "hispec/util/newport"]
+	path = hispec/util/newport
+	url = git@github.com:COO-Utilities/newport.git

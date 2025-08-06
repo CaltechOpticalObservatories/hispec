@@ -1,40 +1,76 @@
+# pylint: skip-file
 import time
 import serial
 import threading
+import socket
 
 
 class Communication:
-    def __init__(self, xeryon_object, com_port, baud, logger):
+    """
+    Manages serial or TCP/IP communication with a Xeryon device.
+
+    Supports automatic COM port detection, background data processing,
+    and queuing commands for asynchronous communication.
+    """
+
+    def __init__(self, xeryon_object, com_port, baud, logger,
+                 connection_type='serial', tcp_host=None, tcp_port=None):
+        """
+        Initializes the Communication object.
+
+        :param xeryon_object: Object that manages Xeryon device and axes.
+        :param com_port: COM port to use (for serial communication).
+        :param baud: Baud rate for serial communication.
+        :param logger: Logger instance for error and status messages.
+        :param connection_type: 'serial' or 'tcp' (default is 'serial').
+        :param tcp_host: Hostname or IP address for TCP connection.
+        :param tcp_port: Port number for TCP connection.
+        """
         self.xeryon_object = xeryon_object
         self.COM_port = com_port
         self.baud = baud
         self.readyToSend = []
         self.thread = None
         self.ser = None
+        self.sock = None
+        self.sio = None
         self.stop_thread = False
         self.logger = logger
+        self.connection_type = connection_type
+        self.tcp_host = tcp_host
+        self.tcp_port = tcp_port
 
     def start(self, external_communication_thread=False):
         """
-        :return: None
-        This starts the serial communication on the specified COM port and baudrate in a seperate thread.
+        Starts communication with the device and optionally launches a background thread.
+
+        :param external_communication_thread: If True, returns the internal data handler
+                                              instead of starting a background thread.
+        :return: None or a callable for external data handling.
+        :raises Exception: If required connection parameters are missing or invalid.
         """
-        if self.COM_port is None:
-            self.xeryon_object.find_COM_port()
-        if self.COM_port is None:  # No com port found
-            raise Exception(
-                "No COM_port could automatically be found. You should provide it manually.")
+        if self.connection_type == 'serial':
+            if self.COM_port is None:
+                self.xeryon_object.find_COM_port()
+            if self.COM_port is None:
+                raise Exception("No COM port found. Please provide one manually.")
+            self.ser = serial.Serial(self.COM_port, self.baud, timeout=1, xonxoff=True)
+            self.ser.flush()
+            time.sleep(0.1)
+            self.ser.flushInput()
+            self.ser.flushOutput()
+            time.sleep(0.1)
 
-        self.ser = serial.Serial(
-            self.COM_port, self.baud, timeout=1, xonxoff=True)
-        self.ser.flush()
-        # NOTE: (KPIC MOD) added flushInput() and flushOutput() per Xeryon's suggestion
-        time.sleep(0.1)
-        self.ser.flushInput()
-        self.ser.flushOutput()
-        time.sleep(0.1)
+        elif self.connection_type == 'tcp':
+            if not self.tcp_host or not self.tcp_port:
+                raise Exception("TCP host and port must be specified.")
+            self.sock = socket.create_connection((self.tcp_host, self.tcp_port), timeout=2)
+            self.sio = self.sock.makefile('rwb', buffering=0)
 
-        if external_communication_thread is False:
+        else:
+            raise Exception(f"Unknown connection_type: {self.connection_type}")
+
+        if not external_communication_thread:
             self.thread = threading.Thread(target=self.__process_data)
             self.thread.daemon = True
             self.thread.start()
@@ -43,76 +79,86 @@ class Communication:
 
     def send_command(self, command):
         """
-        :param command: The command that needs to be send.
-        :return: None
-        This function adds the command to the readyToSend list.
+        Queues a command to be sent to the device.
+
+        :param command: Command string to send.
         """
         self.readyToSend.append(command)
-        # self.ser.write(str.encode(command.rstrip("\n\r") + "\n"))
 
     def set_COM_port(self, com_port):
+        """
+        Sets the COM port manually.
+
+        :param com_port: New COM port string.
+        """
         self.COM_port = com_port
 
     def __process_data(self, external_while_loop=False):
         """
+        Handles sending commands and reading responses in a loop.
+
+        :param external_while_loop: If True, run a single iteration and return (for external loops).
         :return: None
-        This function is ran in a seperate thread.
-        It continously listens for:
-        1. If there is data to send
-            Than it just writes the command.
-            It strips all the new lines from the command and adds it's own.
-        2. If there is data to read
-            It reads the data line per line and checks if it contains "=".
-            It determines the correct axis and passes that data to that axis class.
-        3. Thread stop command.
         """
-
-        while not self.stop_thread:  # Infinte looe
-            # data_to_send = list(self.readyToSend)  # Make a copy of this list
-            # self.readyToSend = []  # Immediately remove the list
-
-            # SEND 10 LINES, then go further to reading.
-            data_to_send = list(self.readyToSend[0:10])
+        while not self.stop_thread:
+            data_to_send = self.readyToSend[:10]
             self.readyToSend = self.readyToSend[10:]
 
-            for command in data_to_send:  # Send commands.
+            # Send commands
+            for command in data_to_send:
                 try:
-                    self.ser.write(str.encode(command.rstrip("\n\r") + "\n"))
+                    msg = (command.rstrip("\n\r") + "\n").encode()
+                    if self.connection_type == 'serial':
+                        self.ser.write(msg)
+                    elif self.connection_type == 'tcp':
+                        self.sio.write(msg)
+                        self.sio.flush()
                 except Exception as e:
                     self.logger.info(f"Write error: {e}", error=True)
                     continue
 
-            max_to_read = 10
+            # Read responses
             try:
-                while self.ser.in_waiting > 0 and max_to_read > 0:  # While there is data to read
-                    reading = self.ser.readline().decode()  # Read a single line
+                for _ in range(10):
+                    if self.connection_type == 'serial':
+                        if self.ser.in_waiting == 0:
+                            break
+                        reading = self.ser.readline().decode()
+                    elif self.connection_type == 'tcp':
+                        self.sock.settimeout(0.1)
+                        reading = self.sio.readline().decode()
+                        if not reading:
+                            break
+                    else:
+                        break
 
-                    if "=" in reading:  # Line contains a command.
-
-                        if len(reading.split(":")) == 2:  # check if an axis is specified
-                            axis = self.xeryon_object.get_axis(
-                                reading.split(":")[0])
-                            reading = reading.split(":")[1]
-                            if axis is None:
-                                axis = self.xeryon_object.axis_list[0]
-                            axis.receive_data(reading)
-
+                    if "=" in reading:
+                        if ":" in reading:
+                            key, value = reading.split(":", 1)
+                            axis = self.xeryon_object.get_axis(key) or self.xeryon_object.axis_list[0]
+                            axis.receive_data(value)
                         else:
-                            # It's a single axis system
                             axis = self.xeryon_object.axis_list[0]
                             axis.receive_data(reading)
 
-                    max_to_read -= 1
             except Exception as e:
                 self.logger.info(f"Read error: {e}", error=True)
 
-            if external_while_loop is True:
-                return None
+            if external_while_loop:
+                return
 
             # NOTE: (KPIC MOD) we added a delay here so that we don't use as much CPU power on this loop
             time.sleep(0.01)
 
     def close_communication(self):
+        """
+        Closes the communication channel and stops the background thread.
+        """
         self.stop_thread = True
         time.sleep(0.1)
-        self.ser.close()
+
+        if self.connection_type == 'serial' and self.ser:
+            self.ser.close()
+        elif self.connection_type == 'tcp' and self.sock:
+            self.sio.close()
+            self.sock.close()

@@ -14,7 +14,7 @@ class FilterWheelController:
     """ Handle all correspondence with the serial interface of the
         Thorlabs FW102C filter wheel.
     """
-
+    # pylint: disable=too-many-instance-attributes
 
     connected = False
     status = None
@@ -210,6 +210,8 @@ class FilterWheelController:
         :param command: String, command to issue.
 
         """
+        # pylint: disable=too-many-statements
+        # pylint: disable=too-many-branches
 
         if not self.connected:
             self.set_status('connecting')

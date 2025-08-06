@@ -1,0 +1,50 @@
+name: Pylint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pylint
+
+    - name: Run pylint and check score threshold
+      run: |
+        echo "Running pylint..."
+        pylint_output=$(pylint $(git ls-files '*.py' | grep -v '^qt/') || true)
+
+        echo "$pylint_output"
+        
+        score=$(echo "$pylint_output" | grep 'Your code has been rated at' | awk '{print $7}' | cut -d'/' -f1)
+
+        echo "Pylint score: $score"
+
+        threshold=7.0
+        awk -v s="$score" -v t="$threshold" 'BEGIN {
+          if (s+0 < t+0) {
+            print "Pylint score below threshold"
+            exit 1
+          } else {
+            print "Pylint score acceptable"
+            exit 0
+          }
+        }'
