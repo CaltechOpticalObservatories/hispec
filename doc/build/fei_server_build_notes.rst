@@ -50,7 +50,8 @@ Update package list and install the essential build tools:
         libboost-all-dev \
         libopencv-dev \
         libccfits-dev \
-        libcfitsio-dev
+        libcfitsio-dev \
+        net-tools
 
 Disable unnecessary services
 
@@ -83,6 +84,7 @@ These packages are needed for KROOT environments:
         libpam-dev \
         pandoc groff rst2pdf \
         python3-dev python3-docutils \
+        python3.12-venv \
         python3-ephem \
         pyqt5-dev-tools \
         make m4 autoconf \
@@ -143,14 +145,36 @@ Create and activate a virtual environment:
 
 .. code-block:: bash
 
-    python3.12 -m venv ~/env
-    source ~/env/bin/activate
+    # Inside /home/hsdev
+    python3.12 -m venv fei-venv
+    source ~/fei-venv/bin/activate
     pip install numpy matplotlib pipython
 
 Download Needed Drivers (and software if needed)
 ------------------------------------------------
 
 **Physik Instrumente**
+Go to the PI website, fill out the form and download the latest driver package for your OS. For Linux, you can find it here: https://www.physikinstrumente.com/en/products/software-suite
+    i. Unpack the downloaded archive
+    ii. In a terminal window, navigate to the unpacked directory
+    iii. Run the installation script:
+
+    .. code-block:: bash
+
+        cd <path_to_unpacked_PI_driver> #hsdev@hsdev:~/Downloads/PI-Software-Suite-C-990.CD1/Linux/PI_Application_Software-1.22.0.2-INSTALL/PI_Application_Software
+        sudo ./INSTALL
+
+    iv. Follow the on-screen instructions to complete the installation. 
+    v. Specific answers to questions during installation:
+       - **Do you agree to the General Software License Agreement? [yn]:**: y
+       - **{shows full License Agreement}**: q
+       - **Install the PI ${PI_PRODUCT_NAME} high level GCS library? [ynq]:**: y
+       - **To enable the access rights to a user group now press 'y'**: y
+       - **Enable the access rights to a user group now? [ynq]::**: y
+       - **{shows full License Agreement}**: n
+       - **Install ${PIPython} now? [ynq]:**: n
+       - **Install ${PI Terminal} now? [ynq]:**: y
+       - **Please enter the name of the user group for which you would like to enable the access rights to the ${PI_PRODUCT_NAME}. Enter empty string to abort:**: dialout
 
 **SPI Driver lib4222**
 1. Extract the archive:
@@ -267,17 +291,6 @@ CameraD Installation
     rm -rf ./*  # Clean any previous contents
     cmake ..
     make
-
-PI Driver Installation
-----------------------
-    .. code-block:: bash
-
-    cd libpi_pi_gcs2_x86_64
-    sudo ./INSTALL
-
-    cd ..
-    cd pi_terminal_x86_64
-    sudo ./INSTALL
 
 
 OS Optimization Notes (07/09/2025)
