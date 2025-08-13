@@ -17,7 +17,20 @@ Create a development user ``hsdev``:
 
     sudo adduser hsdev
     sudo usermod -aG sudo hsdev
-    sudo usermod -aG dialout hsdev  # Add serial access group
+
+- Permanent dialout access for user across machine (requires logout/login):
+
+  .. code-block:: bash
+
+      # Add serial access group
+      sudo usermod -a -G dialout hsdev
+      # or "sudo usermod -aG dialout hsdev" 
+
+- Instant change in group for current terminal session:
+
+  .. code-block:: bash
+
+      newgrp dialout
 
 System Package Installation
 ---------------------------
@@ -268,18 +281,6 @@ Go to the PI website, fill out the form and download the latest driver package f
 
    - **SPI Mode Note:** If enabling SPI master mode, the SS pin **must be tied high**.
 
-
-- Permanent dialout access for user across machine (requires logout/login):
-
-  .. code-block:: bash
-
-      sudo usermod -a -G dialout hsdev
-
-- Instant change in group for current terminal session:
-
-  .. code-block:: bash
-
-      newgrp dialout
 
 **CameraD Installation**
    .. code-block:: bash
