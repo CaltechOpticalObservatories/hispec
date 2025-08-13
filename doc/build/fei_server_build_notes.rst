@@ -51,7 +51,8 @@ Update package list and install the essential build tools:
         libopencv-dev \
         libccfits-dev \
         libcfitsio-dev \
-        net-tools
+        net-tools \
+        htop
 
 Disable unnecessary services
 
@@ -93,7 +94,7 @@ These packages are needed for KROOT environments:
         lib32c-dev \
         libcfitsio-dev \
         snmp \
-        flex flex-doc bison bison-doc
+        flex flex-doc bison bison-doc 
 
 Python 3.12 Installation
 ------------------------
@@ -150,7 +151,7 @@ Create and activate a virtual environment:
     source ~/fei-venv/bin/activate
     pip install numpy matplotlib pipython
 
-Download Needed Drivers (and software if needed)
+Download Needed Drivers (and Software)
 ------------------------------------------------
 
 **Physik Instrumente**
@@ -280,8 +281,7 @@ Go to the PI website, fill out the form and download the latest driver package f
 
       newgrp dialout
 
-CameraD Installation
-----------------------
+**CameraD Installation**
    .. code-block:: bash
 
     cd ~
@@ -292,6 +292,59 @@ CameraD Installation
     cmake ..
     make
 
+**Archon GUI Installation**
+1. **Download** the Archon GUI source code from the STA website and extract the zip file:
+
+   http://www.sta-inc.net/archon/
+
+   Direct link for the source code (currently):
+
+   http://www.sta-inc.net/archongui
+
+2. **Install Qt5**:
+
+   .. code-block:: bash
+
+      sudo apt install qt5-qmake qtbase5-dev qtbase5-dev-tools qtchooser
+
+3. **Install Qt5 SVG libraries**:
+
+   .. code-block:: bash
+
+      sudo apt install libqt5svg5*
+
+4. **Navigate to the extracted Archon GUI source code**:
+
+   .. code-block:: bash
+
+      cd ~/<apps,downloads,documents,etc.>/archongui
+
+5. **Prepare the Qt project for building**:
+
+   .. code-block:: bash
+
+      qmake archongui.pro
+
+6. **Build the binary**:
+
+   .. code-block:: bash
+
+      make
+
+7. **Run the GUI**:
+
+   .. code-block:: bash
+      # from inside the archongui directory
+      ./release/archongui
+
+
+**Troubleshooting**
+
+- If Ubuntu doesn’t find Qt5 or if you previously had Qt4 installed, run:
+
+  .. code-block:: bash
+
+     sudo apt install qt5-default
 
 OS Optimization Notes (07/09/2025)
 ----------------------------------
