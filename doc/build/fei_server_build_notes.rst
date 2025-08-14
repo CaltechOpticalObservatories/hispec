@@ -293,51 +293,8 @@ Go to the PI website, fill out the form and download the latest driver package f
     cmake ..
     make
 
-**Archon GUI Installation**
-1. **Download** the Archon GUI source code from the STA website and extract the zip file:
-
-   http://www.sta-inc.net/archon/
-
-   Direct link for the source code (currently):
-
-   http://www.sta-inc.net/archongui
-
-2. **Install Qt5**:
-
-   .. code-block:: bash
-
-      sudo apt install qt5-qmake qtbase5-dev qtbase5-dev-tools qtchooser
-
-3. **Install Qt5 SVG libraries**:
-
-   .. code-block:: bash
-
-      sudo apt install libqt5svg5*
-
-4. **Navigate to the extracted Archon GUI source code**:
-
-   .. code-block:: bash
-
-      cd ~/<apps,downloads,documents,etc.>/archongui
-
-5. **Prepare the Qt project for building**:
-
-   .. code-block:: bash
-
-      qmake archongui.pro
-
-6. **Build the binary**:
-
-   .. code-block:: bash
-
-      make
-
-7. **Run the GUI**:
-
-   .. code-block:: bash
-      # from inside the archongui directory
-      ./release/archongui
-
+**Archon GUI Installation**  
+LINK to Archon GUI Installation instructions: :doc:`archongui`
 
 **Troubleshooting**
 
