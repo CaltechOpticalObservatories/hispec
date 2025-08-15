@@ -17,7 +17,20 @@ Create a development user ``hsdev``:
 
     sudo adduser hsdev
     sudo usermod -aG sudo hsdev
-    sudo usermod -aG dialout hsdev  # Add serial access group
+
+- Permanent dialout access for user across machine (requires logout/login):
+
+  .. code-block:: bash
+
+      # Add serial access group
+      sudo usermod -a -G dialout hsdev
+      # or "sudo usermod -aG dialout hsdev" 
+
+- Instant change in group for current terminal session:
+
+  .. code-block:: bash
+
+      newgrp dialout
 
 System Package Installation
 ---------------------------
@@ -51,7 +64,8 @@ Update package list and install the essential build tools:
         libopencv-dev \
         libccfits-dev \
         libcfitsio-dev \
-        net-tools
+        net-tools \
+        htop
 
 Disable unnecessary services
 
@@ -93,7 +107,7 @@ These packages are needed for KROOT environments:
         lib32c-dev \
         libcfitsio-dev \
         snmp \
-        flex flex-doc bison bison-doc
+        flex flex-doc bison bison-doc 
 
 Python 3.12 Installation
 ------------------------
@@ -150,7 +164,7 @@ Create and activate a virtual environment:
     source ~/fei-venv/bin/activate
     pip install numpy matplotlib pipython
 
-Download Needed Drivers (and software if needed)
+Download Needed Drivers (and Software)
 ------------------------------------------------
 
 **Physik Instrumente**
@@ -268,20 +282,7 @@ Go to the PI website, fill out the form and download the latest driver package f
    - **SPI Mode Note:** If enabling SPI master mode, the SS pin **must be tied high**.
 
 
-- Permanent dialout access for user across machine (requires logout/login):
-
-  .. code-block:: bash
-
-      sudo usermod -a -G dialout hsdev
-
-- Instant change in group for current terminal session:
-
-  .. code-block:: bash
-
-      newgrp dialout
-
-CameraD Installation
-----------------------
+**CameraD Installation**
    .. code-block:: bash
 
     cd ~
@@ -292,6 +293,16 @@ CameraD Installation
     cmake ..
     make
 
+**Archon GUI Installation**  
+LINK to Archon GUI Installation instructions: :doc:`archongui`
+
+**Troubleshooting**
+
+- If Ubuntu doesn’t find Qt5 or if you previously had Qt4 installed, run:
+
+  .. code-block:: bash
+
+     sudo apt install qt5-default
 
 OS Optimization Notes (07/09/2025)
 ----------------------------------
