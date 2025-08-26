@@ -64,6 +64,8 @@ Update package list and install the essential build tools:
         libopencv-dev \
         libccfits-dev \
         libcfitsio-dev \
+	cmake \
+        libzmq3-dev \
         net-tools \
         htop
 
