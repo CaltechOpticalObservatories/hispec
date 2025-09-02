@@ -9,22 +9,50 @@ System Requirements
 - Python: 3.12 (required)
 
 User Setup
-----------
+==========
 
-Create a development user ``hsdev``:
+Create a development user ``hsdev`` and facility user ``hispecfei``:
 
 .. code-block:: bash
 
-    sudo adduser hsdev
-    sudo usermod -aG sudo hsdev
+   sudo adduser hsdev
+   sudo adduser hispecfei
+   sudo usermod -aG sudo hsdev
+   sudo usermod -aG sudo hispecfei
+   sudo usermod -aG dialout hsdev  # Add serial access group
+   sudo usermod -aG dialout hispecfei
+   # requires logout/login to apply changes using usermod
 
-- Permanent dialout access for user across machine (requires logout/login):
+Group and Account Setup
+========================
 
-  .. code-block:: bash
+Create required groups for HISPEC development:
 
-      # Add serial access group
-      sudo usermod -a -G dialout hsdev
-      # or "sudo usermod -aG dialout hsdev" 
+.. code-block:: bash
+
+   sudo groupadd hispec
+   sudo groupadd instr
+
+Add development user ``hsdev`` to these groups:
+
+.. code-block:: bash
+
+   sudo usermod -aG hispec hsdev
+   sudo usermod -aG instr hsdev
+
+Create standard HISPEC accounts (if not already provisioned):
+
+.. code-block:: bash
+
+   sudo adduser hispec
+   sudo adduser hispecbld
+   sudo adduser hispeceng
+   sudo adduser hispecrun
+
+   # Batch create numbered accounts hispec1 through hispec9
+   for i in $(seq 1 9); do
+       sudo adduser hispec$i
+   done
 
 - Instant change in group for current terminal session:
 
@@ -64,7 +92,7 @@ Update package list and install the essential build tools:
         libopencv-dev \
         libccfits-dev \
         libcfitsio-dev \
-	cmake \
+	    cmake \
         libzmq3-dev \
         net-tools \
         htop
@@ -295,8 +323,24 @@ Go to the PI website, fill out the form and download the latest driver package f
     cmake ..
     make
 
-**Archon GUI Installation**  
+**Archon + GUI Installation**  
 LINK to Archon GUI Installation instructions: :doc:`archongui`
+
+ - Configure Archon
+    1. Open Ubuntu settings
+    2. Click ‘Network’
+    3. Look for “Ethernet enp202s0f0np0” and click the gaer icon (network options)
+    4. Go to the IPV4 tab
+    5. Change the IPV4 Method to ‘Manual’
+    6. Set the address to 10.0.0.10, net mask to 255.255.255.0 and the gateway to 10.0.0.1
+    7. Hit the ‘Apply’ button
+    8. add ‘10.0.0.2 archon’ to ‘/etc/hosts’ file
+ - NOTE: Archon needs to be plugged into the right fiber port - the port should be labeled archon at the correct port.
+ - Test Archon connection
+    1. Open a terminal and run:
+    .. code-block:: bash
+         ping archon
+    2. You should see replies from the archon
 
 **Troubleshooting**
 
