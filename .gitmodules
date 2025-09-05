@@ -28,3 +28,6 @@
 [submodule "hispec/util/onewire"]
 	path = hispec/util/onewire
 	url = git@github.com:COO-Utilities/onewire.git
+[submodule "hispec/util/xeryon"]
+	path = hispec/util/xeryon
+	url = git@github.com:COO-Utilities/xeryon.git
