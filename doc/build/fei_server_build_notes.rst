@@ -9,20 +9,61 @@ System Requirements
 - Python: 3.12 (required)
 
 
-User Setup
-==========
+User and Hostname Setup
+=======================
 
 Create a development user ``hsdev`` and facility user ``hispecfei``:
 
 .. code-block:: bash
 
+   # Create users
    sudo adduser hsdev
    sudo adduser hispecfei
+
+   # Add users to sudo group
    sudo usermod -aG sudo hsdev
    sudo usermod -aG sudo hispecfei
-   sudo usermod -aG dialout hsdev  # Add serial access group
+
+   # Add serial access group
+   sudo usermod -aG dialout hsdev
    sudo usermod -aG dialout hispecfei
-   # requires logout/login to apply changes using usermod
+
+   # Set new hostname
+   sudo hostnamectl set-hostname hispecfei
+   sudo vim /etc/hosts
+
+In ``/etc/hosts`` (opened with ``vim``), change the line:
+
+.. code-block:: text
+
+   127.0.1.1   old-hostname
+
+to:
+
+.. code-block:: text
+
+   127.0.1.1   hispecfei
+
+Save and exit with ``:wq``.
+
+Verify hostname:
+
+.. code-block:: bash
+
+   hostnamectl
+
+Expected output (example):
+
+.. code-block:: text
+
+   Static hostname: hispecfei
+
+Notes
+-----
+
+- On reboot, the hostname will be set properly.  
+- Changes with ``usermod`` require logout/login to take effect.  
+
 
 
 Group and Account Setup
