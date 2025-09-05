@@ -63,7 +63,7 @@ class XeryonController:
         """
         return len(self.get_all_axis()) <= 1
 
-    def start(self, external_communication_thread=False, do_reset=True):
+    def start(self, external_communication_thread=False, do_reset=True, auto_send_settings=AUTO_SEND_SETTINGS):
         """
         :return: Nothing.
         This functions NEEDS to be ran before any commands are executed.
@@ -89,7 +89,7 @@ class XeryonController:
             time.sleep(0.2)
 
         self.read_settings()  # Read settings file
-        if AUTO_SEND_SETTINGS:
+        if auto_send_settings:
             self.send_master_settings()
             for axis in self.get_all_axis():  # Loop trough each axis:
                 axis.send_settings()  # Send the settings
