@@ -24,7 +24,7 @@
 	url = git@github.com:COO-Utilities/thorlabs.git
 [submodule "hispec/util/sunpower"]
 	path = hispec/util/sunpower
-	url = https://github.com/COO-Utilities/sunpower.git
+	url = git@github.com:COO-Utilities/sunpower.git
 [submodule "hispec/util/onewire"]
 	path = hispec/util/onewire
 	url = git@github.com:COO-Utilities/onewire.git
