@@ -1,9 +1,9 @@
 [submodule "etc/PIPython"]
 	path = etc/PIPython
-	url = https://github.com/PI-PhysikInstrumente/PIPython
+	url = git@github.com:PI-PhysikInstrumente/PIPython.git
 [submodule "etc/camera-interface"]
 	path = etc/camera-interface
-	url = https://github.com/CaltechOpticalObservatories/camera-interface 
+	url = git@github.com:CaltechOpticalObservatories/camera-interface.git 
 [submodule "hispec/util/lakeshore"]
 	path = hispec/util/lakeshore
 	url = git@github.com:COO-Utilities/lakeshore.git
@@ -24,7 +24,7 @@
 	url = git@github.com:COO-Utilities/thorlabs.git
 [submodule "hispec/util/sunpower"]
 	path = hispec/util/sunpower
-	url = https://github.com/COO-Utilities/sunpower
+	url = git@github.com:COO-Utilities/sunpower.git
 [submodule "hispec/util/onewire"]
 	path = hispec/util/onewire
 	url = git@github.com:COO-Utilities/onewire.git
