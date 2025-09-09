@@ -1,34 +1,34 @@
 [submodule "etc/PIPython"]
 	path = etc/PIPython
-	url = git@github.com:PI-PhysikInstrumente/PIPython.git
+	url = https://github.com/PI-PhysikInstrumente/PIPython
 [submodule "etc/camera-interface"]
 	path = etc/camera-interface
-	url = git@github.com:CaltechOpticalObservatories/camera-interface.git 
+	url = https://github.com/CaltechOpticalObservatories/camera-interface 
 [submodule "hispec/util/lakeshore"]
 	path = hispec/util/lakeshore
-	url = git@github.com:COO-Utilities/lakeshore.git
+	url = https://github.com/COO-Utilities/lakeshore
 [submodule "hispec/util/inficon"]
 	path = hispec/util/inficon
-	url = git@github.com:COO-Utilities/inficon.git
+	url = https://github.com/COO-Utilities/inficon
 [submodule "hispec/util/gammavac"]
 	path = hispec/util/gammavac
-	url = git@github.com:COO-Utilities/gammavac.git
+	url = https://github.com/COO-Utilities/gammavac
 [submodule "hispec/util/newport"]
 	path = hispec/util/newport
-	url = git@github.com:COO-Utilities/newport.git
+	url = https://github.com/COO-Utilities/newport
 [submodule "hispec/util/standa"]
 	path = hispec/util/standa
-	url = git@github.com:COO-Utilities/standa.git
+	url = https://github.com/COO-Utilities/standa
 [submodule "hispec/util/thorlabs"]
 	path = hispec/util/thorlabs
-	url = git@github.com:COO-Utilities/thorlabs.git
+	url = https://github.com/COO-Utilities/thorlabs
 [submodule "hispec/util/sunpower"]
 	path = hispec/util/sunpower
-	url = git@github.com:COO-Utilities/sunpower.git
+	url = https://github.com/COO-Utilities/sunpower
 [submodule "hispec/util/onewire"]
 	path = hispec/util/onewire
-	url = git@github.com:COO-Utilities/onewire.git
+	url = https://github.com/COO-Utilities/onewire
 [submodule "hispec/util/xeryon"]
-        path = hispec/util/xeryon
-        url = git@github.com:COO-Utilities/xeryon
+	path = hispec/util/xeryon
+	url = https://github.com/COO-Utilities/xeryon
 
