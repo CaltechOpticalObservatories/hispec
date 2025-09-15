@@ -210,6 +210,24 @@ If you need to install Python, build from source:
    sudo make altinstall  # Installs as python3.12
 
 
+Virtual Environment
+-----------------------------
+
+Create and activate a virtual environment:
+
+.. code-block:: bash
+
+   python3.12 -m venv fei-venv
+   source ~/fei-venv/bin/activate
+   pip install numpy matplotlib pipython
+
+Make the virtual environment activation automatic on login by adding to ``~/.bashrc``:
+.. code-block:: bash
+
+   echo "source home/hsdev/fei_venv/bin/activate" >> ~/.bashrc
+   source ~/.bashrc  # To apply changes immediately
+
+
 Python Package Installation
 ---------------------------
 
@@ -226,19 +244,6 @@ Verify installation:
 
    python3.12 --version
    pip3.12 list
-
-
-Optional: Virtual Environment
------------------------------
-
-Create and activate a virtual environment:
-
-.. code-block:: bash
-
-   # Inside /home/hsdev
-   python3.12 -m venv fei-venv
-   source ~/fei-venv/bin/activate
-   pip install numpy matplotlib pipython
 
 
 Download Needed Drivers (and Software)
