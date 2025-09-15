@@ -31,4 +31,5 @@
 [submodule "hispec/util/xeryon"]
 	path = hispec/util/xeryon
 	url = https://github.com/COO-Utilities/xeryon
+	branch = main
 
