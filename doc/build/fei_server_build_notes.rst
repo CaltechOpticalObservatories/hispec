@@ -222,6 +222,7 @@ Create and activate a virtual environment:
    pip install numpy matplotlib pipython
 
 Make the virtual environment activation automatic on login by adding to ``~/.bashrc``:
+
 .. code-block:: bash
 
    echo "source home/hsdev/fei_venv/bin/activate" >> ~/.bashrc
