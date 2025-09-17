@@ -34,3 +34,6 @@
 [submodule "hispec/util/pi"]
 	path = hispec/util/pi
 	url = https://github.com/COO-Utilities/pi
+[submodule "hispec/util/srs"]
+	path = hispec/util/srs
+	url = https://github.com/COO-Utilities/srs
