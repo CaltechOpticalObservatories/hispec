@@ -181,6 +181,28 @@ For third-party libraries, build and install them under ``/home/hsdev/external``
    ./configure --prefix=/home/hsdev/external/3rdparty
    make && make install
 
+Update Hosts File
+=================
+
+The private network for HISPEC is ``192.168.29.x``.
+Edit the ``/etc/hosts`` file and add the following entries:
+
+.. code-block:: bash
+
+  192.168.29.102  feieaton1
+  192.168.29.105  feieaton2
+  192.168.29.106  feieaton3
+  192.168.29.104  feilakeshore
+  192.168.29.100  feilantronix
+  192.168.29.101  switch
+  192.168.29.120  feiinficon
+  192.168.29.125  blueinficon
+  192.168.29.150  blueettemp
+  192.168.29.151  blueeaton1
+  192.168.29.152  blueeaton2
+  192.168.29.153  bluelantronix
+  192.168.29.154  hs1wireblue
+
 Disable Unnecessary Services
 ============================
 
