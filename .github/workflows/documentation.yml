@@ -18,12 +18,13 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
@@ -31,16 +32,19 @@ jobs:
           pip install sphinx myst-parser sphinx-rtd-theme
 
       - name: Build Sphinx HTML
-        run: sphinx-build -b html docs/source docs/build/html
+        run: |
+          python -m sphinx -b html docs/source docs/_site
+          touch docs/_site/.nojekyll
 
-      # Prevent Jekyll from ignoring _static/, _sources/, etc.
-      - name: Add .nojekyll
-        run: touch docs/build/html/.nojekyll
+      - name: Debug: list published files
+        run: |
+          echo "=== Published files ==="
+          find docs/_site -maxdepth 2 -type f | sort
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/build/html
+          path: docs/_site
 
   deploy:
     needs: build
