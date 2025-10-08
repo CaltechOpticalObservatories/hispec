@@ -8,20 +8,30 @@ permissions:
 jobs:
   docs:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Install dependencies
         run: |
-          pip install sphinx sphinx_rtd_theme myst_parser
-      - name: Sphinx build
-        run: |
-          sphinx-build doc _build
+          python -m pip install -U pip
+          pip install sphinx myst-parser sphinx-rtd-theme
+          # If you use autodoc or import your own code, also:
+          # pip install -e .
+
+      - name: Build HTML documentation
+        run: sphinx-build -b html docs/source docs/build/html
+
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          publish_branch: gh-pages
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: _build/
+          publish_branch: gh-pages
+          publish_dir: docs/build/html
           force_orphan: true
+
