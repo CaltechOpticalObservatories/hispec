@@ -37,3 +37,6 @@
 [submodule "hispec/util/srs"]
 	path = hispec/util/srs
 	url = https://github.com/COO-Utilities/srs
+[submodule "hispec/util/ozoptics"]
+	path = hispec/util/ozoptics
+	url = https://github.com/COO-Utilities/ozoptics
