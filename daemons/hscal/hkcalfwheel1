@@ -1,0 +1,120 @@
+#!/usr/bin/python3
+
+import time
+from typing import Dict, Any
+from libby.daemon import LibbyDaemon
+from util.thorlabs import fw102c
+import configparser
+
+def info(_p: Dict[str, Any]):
+    return {"ok": True, "info": "peer-C", "time": time.time()}
+
+def math_add(p: Dict[str, Any]):
+    a, b = p.get("a"), p.get("b")
+    if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
+        return {"ok": False, "error": "need numeric a and b"}
+    return {"ok": True, "sum": a + b}
+
+def connect(controller: FilterWheelController):
+    #handles connection
+    try:
+        controller.connect()
+    except exception as e:
+        return {"Connect": "Failed"}
+    return {"Connect": "Success"}
+
+def disconnect(controller: FilterWheelController):
+    #handles disconnection
+    try:
+        controller.disconnect()
+    except exception as e:
+        return {"Disconnect": "Failed"}
+    return {"Disconnect": "Success"}
+
+def initialize(controller: FilterWheelController):
+    #handles initialization
+    try:
+        controller.initialize()
+    except exception as e:
+        return {"Initialize": "Failed"}
+    return {"Initialize": "Success"}
+
+def status(controller: FilterWheelController):
+    #handles status
+    return {"Status": controller.status()}
+
+def get_position(controller: FilterWheelController):
+    #gets current position
+    return {"Position": controller.get_position()}
+
+def set_position(controller: FilterWheelController, position: int):
+    #sets current position
+    try:
+        controller.move(position)
+    except exception as e:
+        return {"Move": "Failed"}
+    return {"Move": "Success"}
+
+
+class hkcalfwheel1(LibbyDaemon):
+    peer_id = "hkcalfwheel1"
+    bind = "tcp://*:5557"
+    address_book = {
+        "hkcalfwheel2": "tcp://192.168.29.:5555",
+        "": "tcp://127.0.0.1:5556",
+    }
+    discovery_enabled = True
+    discovery_interval_s = 2.0
+
+    services = {
+        "connect":      connect,
+        "disconnect":   disconnect,
+        "initialize":   inicialize,
+        "status":       status,
+        "get.position": get_position,
+        "set.position": set_position
+    }
+
+    def on_start(self, libby):
+        # Proxy service needing live libby handle
+        def echo_proxy(_p: Dict[str, Any]):
+            res = libby.rpc("peer-B", "perf.echo", {"t0": time.time()}, ttl_ms=6000)
+            return {"ok": True, "forwarded_to": "peer-B", "result": res}
+
+        self.add_service("perf.echo.proxy", echo_proxy)
+
+        print("[hkcalfwheel1] math.add(2,5) ->",
+              libby.rpc(self.peer_id, "math.add", {"a": 2, "b": 5}, ttl_ms=2000))
+
+        libby.publish("alerts.status", {"source": "peer-C", "ok": True})
+
+    def on_start(self, libby):
+        #on start set up the daemon from config and initialize device
+        with open('hscal.config', 'r') as config:
+            self.ip = config["Device Control"]["hkcalfwheel1_ip"]
+            self.port = config["Device Control"]["hkcalfwheel1_port"]
+        self.dev = FilterWheelController()
+        self.dev.set_connection(ip = self.ip, port = self.port)
+        try:
+            self.dev.connect()
+            self.dev.inicialize() 
+            #publish to libby
+            libby.publish("hkcalfwheel", {"Daemon Startup": "Success"})
+        except exception as e:
+            #publish failure
+            libby.publish("hkcalfwheel", {"Daemon Startup": "Failed", "Connection Error": f"{e}"})
+    
+    def on_stop(self, libby):
+        #Disconnect and let user know
+        try:
+            self.dev.disconnect()
+            libby.publish("hkcalfwheel", {"Daemon Shutdown": "Success"})
+        except exception as e:
+            libby.publish("hkcalfwheel", {"Daemon Startup": "Failed", "Error":f"{e}"})
+
+    def on_req():
+        #set up pipe to functions that execute controls
+
+
+if __name__ == "__main__":
+    hkcalfwheel1().serve()
