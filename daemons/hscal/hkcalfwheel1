@@ -3,17 +3,8 @@
 import time
 from typing import Dict, Any
 from libby.daemon import LibbyDaemon
-from util.thorlabs import fw102c
+from hispec.util.thorlabs.fw102c import FilterWheelController
 import configparser
-
-def info(_p: Dict[str, Any]):
-    return {"ok": True, "info": "peer-C", "time": time.time()}
-
-def math_add(p: Dict[str, Any]):
-    a, b = p.get("a"), p.get("b")
-    if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
-        return {"ok": False, "error": "need numeric a and b"}
-    return {"ok": True, "sum": a + b}
 
 def connect(controller: FilterWheelController):
     #handles connection
@@ -58,10 +49,10 @@ def set_position(controller: FilterWheelController, position: int):
 
 class hkcalfwheel1(LibbyDaemon):
     peer_id = "hkcalfwheel1"
-    bind = "tcp://*:5557"
+    bind = "tcp://*:5555"
     address_book = {
-        "hkcalfwheel2": "tcp://192.168.29.:5555",
-        "": "tcp://127.0.0.1:5556",
+        #"hkcalfwheel2": "tcp://192.168.29.:5555",
+        "pi_1_daemon": "tcp://131.215.200.218:5560"
     }
     discovery_enabled = True
     discovery_interval_s = 2.0
@@ -112,8 +103,27 @@ class hkcalfwheel1(LibbyDaemon):
         except exception as e:
             libby.publish("hkcalfwheel", {"Daemon Startup": "Failed", "Error":f"{e}"})
 
-    def on_req():
+    def on_req(key: str, payload: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
         #set up pipe to functions that execute controls
+        pos = int(payload.get("position")) if "position" in payload else None
+        try:
+            match key:
+                case "connect":
+                    return {"connect":connect(self.dev),"t0": t0, "t1": time.time(), "from": ctx["source"]}
+                case "disconnect":
+                    return {"disconnect":disconnect(self.dev), "t0": t0, "t1": time.time(), "from": ctx["source"]}
+                case "initialize":
+                    return {"initialize":initialize(self.dev), "t0": t0, "t1": time.time(), "from": ctx["source"]}
+                case "status":
+                    return {"status":status(self.dev), "t0": t0, "t1": time.time(), "from": ctx["source"]}
+                case "get.position":
+                    return {"get_position":get_position(self.dev, ), "t0": t0, "t1": time.time(), "from": ctx["source"]}
+                case "set.position":
+                    return {"set_position":set_position(self.dev, pos), "t0": t0, "t1": time.time(), "from": ctx["source"]}
+                case _:
+                    return {"ok": False, "error": f"unknown key {key}"}
+        except exception as e:
+            return {"ok": False,"t0": t0, "t1": time.time(), "error": f"Exception {e} during handling of key {key}"}
 
 
 if __name__ == "__main__":
