@@ -81,7 +81,7 @@ class CalYJRack(LibbyDaemon):
                 case "disconnect":
                     return {"disconnect":disconnect(self.dev)}
                 case "initialize":
-                    return {"initialize":get_data(self.dev)}
+                    return {"initialize":get_data(self.dev, self.host, self.port)}
                 case _:
                     return {"ok": False, "error": f"unknown key {key}"}
         except Exception as e:
