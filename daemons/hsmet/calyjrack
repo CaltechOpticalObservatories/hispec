@@ -2,17 +2,15 @@
 """
     calyjrack.py - Daemon class for calyjrack
 """
-
-import time
 from typing import Dict, Any
 import configparser
 from libby.daemon import LibbyDaemon
 from hispec.util.onewire.onewire import ONEWIRE
 
-def connect(controller: ONEWIRE):
+def connect(controller: ONEWIRE, host:str, port:int):
     """handles connection"""
     try:
-        controller.connect()
+        controller.connect(host, port)
     except Exception as e:
         return {"Connect": f"Failed: {e}"}
     return {"Connect": "Success"}
@@ -25,17 +23,17 @@ def disconnect(controller: ONEWIRE):
         return {"Disconnect": f"Failed: {e}"}
     return {"Disconnect": "Success"}
 
-def get_data(controller: ONEWIRE):
+def get_data(controller: ONEWIRE, host:str, port:int):
     """handles getting data"""
-    return {"Status": controller.get_data()}
+    controller.connect(host, port)
+    return {"sensor_data": controller.get_data()}
 
 class CalYJRack(LibbyDaemon):
     """ Daemon class for yjcalrack """
     peer_id = "calyjrack"
-    bind = "tcp://hs1wireblue:80"
+    bind = "tcp://*:5555"
     address_book = {
-        "calyjrack_onewire": "tcp://hs1wireblue:80",
-        #"calyjrack2": "tcp://192.168.29.:5555",
+        #"calyjrack": "tcp://192.168.29.:5555",
         "pi_1_daemon": "tcp://131.215.200.218:5560"
     }
     dev = None
@@ -50,27 +48,12 @@ class CalYJRack(LibbyDaemon):
         "get_data": get_data
     }
 
-    """
-    def on_start(self, libby):
-        # Proxy service needing live libby handle
-        def echo_proxy(_p: Dict[str, Any]):
-            res = libby.rpc("peer-B", "perf.echo", {"t0": time.time()}, ttl_ms=6000)
-            return {"ok": True, "forwarded_to": "peer-B", "result": res}
-
-        self.add_service("perf.echo.proxy", echo_proxy)
-
-        print("[calyjrack] math.add(2,5) ->",
-              libby.rpc(self.peer_id, "math.add", {"a": 2, "b": 5}, ttl_ms=2000))
-
-        libby.publish("alerts.status", {"source": "peer-C", "ok": True})
-    """
-
     def on_start(self, libby):
         """on start set up the daemon from config and initialize device"""
         cfg = configparser.ConfigParser()
         cfg.read("hsmet.conf")
         self.host = cfg.get("Device Control", "calyjrack_host")
-        self.port = cfg.get("Device Control", "calyjrack_port")
+        self.port = int(cfg.get("Device Control", "calyjrack_port"))
         self.dev = ONEWIRE()
         try:
             self.dev.connect(self.host, self.port)
@@ -94,19 +77,15 @@ class CalYJRack(LibbyDaemon):
         try:
             match key:
                 case "connect":
-                    return {"connect":connect(self.dev),
-                            "t0": t0, "t1": time.time(), "from": ctx["source"]}
+                    return {"connect":connect(self.dev, self.host, self.port)}
                 case "disconnect":
-                    return {"disconnect":disconnect(self.dev),
-                            "t0": t0, "t1": time.time(), "from": ctx["source"]}
+                    return {"disconnect":disconnect(self.dev)}
                 case "initialize":
-                    return {"initialize":get_data(self.dev),
-                            "t0": t0, "t1": time.time(), "from": ctx["source"]}
+                    return {"initialize":get_data(self.dev)}
                 case _:
                     return {"ok": False, "error": f"unknown key {key}"}
         except Exception as e:
             return {"ok": False,
-                    "t0": t0, "t1": time.time(),
                     "error": f"Exception {e} during handling of key {key}"}
 
 
