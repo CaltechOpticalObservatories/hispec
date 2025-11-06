@@ -13,9 +13,6 @@
 [submodule "hispec/util/gammavac"]
 	path = hispec/util/gammavac
 	url = https://github.com/COO-Utilities/gammavac
-[submodule "hispec/util/newport"]
-	path = hispec/util/newport
-	url = https://github.com/COO-Utilities/newport
 [submodule "hispec/util/standa"]
 	path = hispec/util/standa
 	url = https://github.com/COO-Utilities/standa
