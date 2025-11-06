@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""
+    atcpress - Daemon class for atcpress
+"""
+from typing import Dict, Any
+import configparser
+from libby.daemon import LibbyDaemon
+from hispec.util.inficon.inficonvgc502 import InficonVGC502
+
+def connect(controller: InficonVGC502, host:str, port:int):
+    """handles connection"""
+    try:
+        controller.connect(host, port)
+    except Exception as e:
+        return {"Connect": f"Failed: {e}"}
+    return {"Connect": "Success"}
+
+def disconnect(controller: InficonVGC502):
+    """handles disconnection"""
+    try:
+        controller.disconnect()
+    except Exception as e:
+        return {"Disconnect": f"Failed: {e}"}
+    return {"Disconnect": "Success"}
+
+def get_data(controller: InficonVGC502, item:str) -> Dict[str, Any]:
+    """handles getting data"""
+
+    controller_data = controller.get_atomic_value(item)
+    return {"sensor_data": controller_data}
+
+class AtcPress(LibbyDaemon):
+    """ Daemon class for atcpress """
+    peer_id = "atcpress"
+    bind = "tcp://*:5555"
+    address_book = {
+        #"atcpress": "tcp://192.168.29.:5555",
+        "pi_1_daemon": "tcp://131.215.200.218:5560"
+    }
+    dev = None
+    host = None
+    port = None
+    discovery_enabled = True
+    discovery_interval_s = 2.0
+
+    services = {
+        "connect":      connect,
+        "disconnect":   disconnect,
+        "get_data": get_data
+    }
+
+    def on_start(self, libby):
+        """on start set up the daemon from config and initialize device"""
+        cfg = configparser.ConfigParser()
+        cfg.read("hsmet.conf")
+        self.host = cfg.get("Device Control", "atcpress_host")
+        self.port = int(cfg.get("Device Control", "atcpress_port"))
+        self.dev = InficonVGC502()
+        try:
+            self.dev.connect(self.host, self.port)
+            #publish to libby
+            libby.publish("atcpress", {"Daemon Startup": "Success"})
+        except Exception as e:
+            #publish failure
+            libby.publish("atcpress", {"Daemon Startup": "Failed", "Connection Error": f"{e}"})
+
+    def on_stop(self, libby):
+        """Disconnect and let user know"""
+        try:
+            self.dev.disconnect()
+            libby.publish("atcpress", {"Daemon Shutdown": "Success"})
+        except Exception as e:
+            libby.publish("atcpress", {"Daemon Shutdown": "Failed", "Error":f"{e}"})
+
+    def on_req(self, key: str, payload: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
+        """ set up pipe to functions that execute controls """
+
+        try:
+            match key:
+                case "connect":
+                    return {"connect":connect(self.dev, self.host, self.port)}
+                case "disconnect":
+                    return {"disconnect":disconnect(self.dev)}
+                case "get_data":
+                    return {"get_data":get_data(self.dev, payload["item"])}
+                case _:
+                    return {"ok": False, "error": f"unknown key {key}"}
+        except Exception as e:
+            return {"ok": False,
+                    "error": f"Exception {e} during handling of key {key}"}
+
+
+if __name__ == "__main__":
+    atcpress = AtcPress()
+    atcpress.serve()
