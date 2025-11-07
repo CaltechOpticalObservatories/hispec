@@ -98,9 +98,9 @@ class AtcPress(LibbyDaemon):
                             "from": ctx["source"]}
                 case "disconnect":
                     return {"disconnect":disconnect(self.dev), "from": ctx["source"]}
-                case "get_data":
+                case "get.data":
                     return {"get_data":get_data(self.dev, item), "from": ctx["source"]}
-                case "set_units":
+                case "set.units":
                     return {"set_units": set_units(self.dev, unit_code), "from": ctx["source"]}
                 case _:
                     return {"ok": False, "error": f"unknown key {key}"}
