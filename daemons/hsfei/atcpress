@@ -9,18 +9,16 @@ from hispec.util.inficon.inficonvgc502 import InficonVGC502
 
 def connect(controller: InficonVGC502, host:str, port:int):
     """handles connection"""
-    try:
-        controller.connect(host, port)
-    except Exception as e:
-        return {"Connect": f"Failed: {e}"}
-    return {"Connect": "Success"}
+    controller.connect(host, port)
+    if controller.is_connected():
+        return {"Connect": "Success"}
+    return {"Connect": "Failed"}
 
 def disconnect(controller: InficonVGC502):
     """handles disconnection"""
-    try:
-        controller.disconnect()
-    except Exception as e:
-        return {"Disconnect": f"Failed: {e}"}
+    controller.disconnect()
+    if controller.is_connected():
+        return {"Disconnect": "Failed"}
     return {"Disconnect": "Success"}
 
 def get_data(controller: InficonVGC502, item:str) -> Dict[str, Any]:
@@ -28,6 +26,13 @@ def get_data(controller: InficonVGC502, item:str) -> Dict[str, Any]:
 
     controller_data = controller.get_atomic_value(item)
     return {"sensor_data": controller_data}
+
+def set_units(controller: InficonVGC502, unit_code:int =1) -> Dict[str, Any]:
+    """handles setting units"""
+    if controller.set_pressure_unit(unit_code):
+        return {"units": controller.get_pressure_unit()}
+    return {"error": "Units not set"}
+
 
 class AtcPress(LibbyDaemon):
     """ Daemon class for atcpress """
@@ -46,8 +51,19 @@ class AtcPress(LibbyDaemon):
     services = {
         "connect":      connect,
         "disconnect":   disconnect,
-        "get_data": get_data
+        "get.data":     get_data,
+        "set.units":    set_units
     }
+
+    def _must(self, name:str):
+        """ checks if the given name exists """
+        if "bind" in name:
+            return self.bind
+        if "address_book" in name:
+            return self.address_book
+        if "peer_id" in name:
+            return self.peer_id
+        return None
 
     def on_start(self, libby):
         """on start set up the daemon from config and initialize device"""
@@ -56,33 +72,36 @@ class AtcPress(LibbyDaemon):
         self.host = cfg.get("Device Control", "atcpress_host")
         self.port = int(cfg.get("Device Control", "atcpress_port"))
         self.dev = InficonVGC502()
-        try:
-            self.dev.connect(self.host, self.port)
+        self.dev.connect(self.host, self.port)
+        if self.dev.is_connected():
             #publish to libby
             libby.publish("atcpress", {"Daemon Startup": "Success"})
-        except Exception as e:
-            #publish failure
-            libby.publish("atcpress", {"Daemon Startup": "Failed", "Connection Error": f"{e}"})
+        else:
+            libby.publish("atcpress", {"Daemon Startup": "Failed"})
 
     def on_stop(self, libby):
         """Disconnect and let user know"""
-        try:
-            self.dev.disconnect()
+        self.dev.disconnect()
+        if self.dev.is_connected():
+            libby.publish("atcpress", {"Daemon Shutdown": "Failed"})
+        else:
             libby.publish("atcpress", {"Daemon Shutdown": "Success"})
-        except Exception as e:
-            libby.publish("atcpress", {"Daemon Shutdown": "Failed", "Error":f"{e}"})
 
     def on_req(self, key: str, payload: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
         """ set up pipe to functions that execute controls """
-
+        item = payload.get("item") if "item" in payload else None
+        unit_code = payload.get("unit_code") if "unit_code" in payload else None
         try:
             match key:
                 case "connect":
-                    return {"connect":connect(self.dev, self.host, self.port)}
+                    return {"connect":connect(self.dev, self.host, self.port),
+                            "from": ctx["source"]}
                 case "disconnect":
-                    return {"disconnect":disconnect(self.dev)}
+                    return {"disconnect":disconnect(self.dev), "from": ctx["source"]}
                 case "get_data":
-                    return {"get_data":get_data(self.dev, payload["item"])}
+                    return {"get_data":get_data(self.dev, item), "from": ctx["source"]}
+                case "set_units":
+                    return {"set_units": set_units(self.dev, unit_code), "from": ctx["source"]}
                 case _:
                     return {"ok": False, "error": f"unknown key {key}"}
         except Exception as e:
