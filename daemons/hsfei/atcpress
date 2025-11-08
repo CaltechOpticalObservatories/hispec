@@ -2,6 +2,7 @@
 """
     atcpress - Daemon class for atcpress
 """
+import sys
 from typing import Dict, Any
 import configparser
 from libby.daemon import LibbyDaemon
@@ -12,26 +13,32 @@ def connect(controller: InficonVGC502, host:str, port:int):
     controller.connect(host, port)
     if controller.is_connected():
         return {"Connect": "Success"}
-    return {"Connect": "Failed"}
+    return {"error": "Connect Failed"}
 
 def disconnect(controller: InficonVGC502):
     """handles disconnection"""
     controller.disconnect()
     if controller.is_connected():
-        return {"Disconnect": "Failed"}
+        return {"error": "Disconnect failed"}
     return {"Disconnect": "Success"}
 
 def get_data(controller: InficonVGC502, item:str) -> Dict[str, Any]:
     """handles getting data"""
 
     controller_data = controller.get_atomic_value(item)
+    if controller_data == sys.float_info.max:
+        return {"error": "Data not acquired"}
     return {"sensor_data": controller_data}
 
-def set_units(controller: InficonVGC502, unit_code:int =1) -> Dict[str, Any]:
-    """handles setting units"""
+def set_pressure_unit(controller: InficonVGC502, unit_code:int =1) -> Dict[str, Any]:
+    """handles setting pressure unit
+
+    :param controller: InficonVGC502 object
+    :param unit_code: 0 - mbar, 1 - Torr, 2 - Pascal, 3 - Micron, 4 - hPascal, 5 - Volt
+    """
     if controller.set_pressure_unit(unit_code):
-        return {"units": controller.get_pressure_unit()}
-    return {"error": "Units not set"}
+        return {"Punit": controller.get_pressure_unit()}
+    return {"error": "Pressure unit not set"}
 
 
 class AtcPress(LibbyDaemon):
@@ -52,7 +59,7 @@ class AtcPress(LibbyDaemon):
         "connect":      connect,
         "disconnect":   disconnect,
         "get.data":     get_data,
-        "set.units":    set_units
+        "set.units":    set_pressure_unit
     }
 
     def _must(self, name:str):
@@ -101,7 +108,8 @@ class AtcPress(LibbyDaemon):
                 case "get.data":
                     return {"get_data":get_data(self.dev, item), "from": ctx["source"]}
                 case "set.units":
-                    return {"set_units": set_units(self.dev, unit_code), "from": ctx["source"]}
+                    return {"set_units": set_pressure_unit(self.dev, unit_code),
+                            "from": ctx["source"]}
                 case _:
                     return {"ok": False, "error": f"unknown key {key}"}
         except Exception as e:
