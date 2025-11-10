@@ -47,7 +47,7 @@ class AtcPress(LibbyDaemon):
     bind = "tcp://*:5555"
     address_book = {
         #"atcpress": "tcp://192.168.29.:5555",
-        "pi_1_daemon": "tcp://131.215.200.218:5560"
+        "peer-A": "tcp://127.0.0.1:5556"
     }
     dev = None
     host = None
