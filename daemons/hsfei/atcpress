@@ -75,7 +75,7 @@ class AtcPress(LibbyDaemon):
     def on_start(self, libby):
         """on start set up the daemon from config and initialize device"""
         cfg = configparser.ConfigParser()
-        cfg.read("hsmet.conf")
+        cfg.read("hsfei.conf")
         self.host = cfg.get("Device Control", "atcpress_host")
         self.port = int(cfg.get("Device Control", "atcpress_port"))
         self.dev = InficonVGC502()
