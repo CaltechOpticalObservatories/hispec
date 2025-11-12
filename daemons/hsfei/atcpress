@@ -23,13 +23,6 @@ class AtcPress(LibbyDaemon):
     discovery_enabled = True
     discovery_interval_s = 2.0
 
-    services = {
-        "connect":      self.connect,
-        "disconnect":   self.disconnect,
-        "get.data":     self.get_data,
-        "set.units":    self.set_pressure_unit
-    }
-
     def _must(self, name:str):
         """ checks if the given name exists """
         if "bind" in name:
@@ -47,6 +40,13 @@ class AtcPress(LibbyDaemon):
         self.host = cfg.get("Device Control", "atcpress_host")
         self.port = int(cfg.get("Device Control", "atcpress_port"))
         self.dev = InficonVGC502()
+        self.add_services({
+            "connect":      lambda p: self.connect(),
+            "disconnect":   lambda p: self.disconnect(),
+            "get.data":     lambda p: self.get_data(p.get("item")),
+            "set.units":    lambda p: self.set_pressure_unit(p.get("unit_code"))
+        })
+
         self.dev.connect(self.host, self.port)
         if self.dev.is_connected():
             #publish to libby
@@ -62,14 +62,14 @@ class AtcPress(LibbyDaemon):
         else:
             libby.publish("atcpress", {"Daemon Shutdown": "Success"})
 
-    def connect(self, host: str, port: int):
+    def connect(self) -> Dict[str, Any]:
         """handles connection"""
-        self.dev.connect(host, port)
+        self.dev.connect(self.host, self.port)
         if self.dev.is_connected():
             return {"Connect": "Success"}
         return {"error": "Connect Failed"}
 
-    def disconnect(self):
+    def disconnect(self) -> Dict[str, Any]:
         """handles disconnection"""
         self.dev.disconnect()
         if self.dev.is_connected():
