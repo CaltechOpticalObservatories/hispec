@@ -6,82 +6,6 @@ from libby.daemon import LibbyDaemon
 from hispec.util.thorlabs.ppc102 import PPC102_Coms
 import configparser
 
-def connect(controller: PPC102_Coms):
-    #handles connection
-    try:
-        controller.open()
-    except Exception as e:
-        return {"Connect": "Failed", "Error": f"{e}"}
-    return {"Connect": "Success"}
-
-def disconnect(controller: PPC102_Coms):
-    #handles disconnection
-    try:
-        controller.close()
-    except Exception as e:
-        return {"Disconnect": "Failed", "Error": f"{e}"}
-    return {"Disconnect": "Success"}
-
-def initialize(controller: PPC102_Coms):
-    #handles initialization
-    # for PPC102_Coms, this involves setting the enabled status
-    try:
-        ret = controller.get_enable(channel = 0)
-        if ret[0] == 2 or ret[1] == 2:
-            print("Enabling Stage")
-            dev.set_enable(channel = 0, enable = 1)
-    except Exception as e:
-        return {"Initialize": "Failed", "Error": f"{e}"}
-    return {"Initialize": "Success"}
-
-def status(controller: PPC102_Coms):
-    #handles status
-    return {"Status": controller.get_status_update()}
-
-def close_loops(controller: PPC102_Coms):
-    #closes control loops
-    try:
-        controller.set_loop(channel = 0, loop = 2)
-    except Exception as e:
-        return {"Close Loops": "Failed", "Error": f"{e}"}
-    return {"Close Loops": "Success"}
-
-def open_loops(controller: PPC102_Coms):
-    #opens control loops
-    try:
-        controller.set_loop(channel = 0, loop = 1)
-    except Exception as e:
-        return {"Open Loops": "Failed", "Error": f"{e}"}
-    return {"Open Loops": "Success"}
-
-def get_position(controller: PPC102_Coms, axis: int):
-    #gets current position
-    if axis not in [0, 1]:
-        return {"Error": "Axis must be 0 or 1"}
-    position = controller.get_position(channel = (axis + 1))
-    return {str(axis): str(position)}
-
-def set_position(controller: PPC102_Coms, axis: int, position: int):
-    #sets current position
-    try:
-        if axis not in [0, 1]:
-            return {"Error": "Axis must be 0 or 1"}
-        controller.set_position(channel = (axis + 1), pos = position)
-    except Exception as e:
-        return {"Move": "Failed", "Error": f"{e}"}
-    return {"Move": "Success"}
-    
-def cleanup_gimbal(controller: PPC102_Coms):
-    #clean up stage by setting voltages to 0 and opening loops
-    try:
-        controller.set_enable(channel = 0, enable = 1)
-        controller.set_loop(channel = 0, loop = 1)
-        controller.set_output_volts(channel = 1, volts = 0)
-        controller.set_output_volts(channel = 2, volts = 0)
-    except Exception as e:
-        return {"Cleanup": "Failed", "Error": f"{e}"}
-    return {"Cleanup": "Success"}
-
 class hkpiaagim(LibbyDaemon):
     peer_id = "hkpiaagim"
     bind = "tcp://*:5555"
@@ -92,75 +16,128 @@ class hkpiaagim(LibbyDaemon):
     discovery_enabled = True
     discovery_interval_s = 2.0
 
-    services = {
-        "connect":      connect,
-        "disconnect":   disconnect,
-        "initialize":   initialize,
-        "status":       status,
-        "close.loops":  close_loops,
-        "open.loops":   open_loops,
-        "get.position": get_position,
-        "set.position": set_position,
-        "cleanup":      cleanup_gimbal
-    }
-
     def on_start(self, libby):
         #on start set up the daemon from config and initialize device
         config = configparser.ConfigParser()
         config.read('hsfei.config')
         self.host = config["Device Control"]["hkpiaagim_host"]
-        self.port = config["Device Control"]["hkpiaagim_port"]
+        self.port = int(config["Device Control"]["hkpiaagim_port"])
         #with open('hsfei.ini', 'r') as config:
         #    self.host = config["Device Control"]["hkpiaagim_host"]
         #    self.port = config["Device Control"]["hkpiaagim_port"]
         self.dev = PPC102_Coms(ip = self.host, port = self.port)
+        self.add_services({
+            "connect":      lambda p: self.connect(),
+            "disconnect":   lambda p: self.disconnect(),
+            "initialize":   lambda p: self.initialize(),
+            "status":       lambda p: self.status(),
+            "close.loops":  lambda p: self.close_loops(),
+            "open.loops":   lambda p: self.open_loops(),
+            "get.position": lambda p: self.get_position(),
+            "set.position": lambda p: self.set_position(p.axis, p.position),
+            "cleanup":      lambda p: self.cleanup_gimbal() 
+        })
+        print(self.host)
+        print(self.port)
+
         try:
-            connect(self.dev)
-            initialize(self.dev)
+            print(self.connect())
+            print("Connected to HK PIAA-GIM")
+            self.initialize()
+            print("Initialized HK PIAA-GIM")
             #publish to libby
             libby.publish("hkpiaagim", {"Daemon Startup": "Success"})
         except Exception as e:
             #publish failure
             libby.publish("hkpiaagim", {"Daemon Startup": "Failed", "Connection Error": f"{e}"})
+            
     
     def on_stop(self, libby):
         #Disconnect and let user know
         try:
-            disconnect(self.dev)
+            self.disconnect()
             libby.publish("hkpiaagim", {"Daemon Shutdown": "Success"})
         except Exception as e:
             libby.publish("hkpiaagim", {"Daemon Startup": "Failed", "Error":f"{e}"})
 
-    def on_req(self, key: str, payload: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
-        #set up pipe to functions that execute controls
-        pos = int(payload.get("position")) if "position" in payload else None
-        axis = int(payload.get("axis")) if "axis" in payload else None
-        t0 = time.time()
-        try:
-            match key:
-                case "connect":
-                    return {"connect":connect(self.dev),"t0": t0, "t1": time.time(), "from": ctx["source"]}
-                case "disconnect":
-                    return {"disconnect":disconnect(self.dev), "t0": t0, "t1": time.time(), "from": ctx["source"]}
-                case "initialize":
-                    return {"initialize":initialize(self.dev), "t0": t0, "t1": time.time(), "from": ctx["source"]}
-                case "status":
-                    return {"status":status(self.dev), "t0": t0, "t1": time.time(), "from": ctx["source"]}
-                case "close.loops":
-                    return {"close_loops":close_loops(self.dev), "t0": t0, "t1": time.time(), "from": ctx["source"]}
-                case "open.loops":
-                    return {"open_loops":open_loops(self.dev), "t0": t0, "t1": time.time(), "from": ctx["source"]}
-                case "get.position":
-                    return {"get_position": get_position(self.dev, axis), "t0": t0, "t1": time.time(), "from": ctx["source"]}
-                case "set.position":
-                    return {"set_position":set_position(self.dev, axis, pos), "t0": t0, "t1": time.time(), "from": ctx["source"]}
-                case "cleanup":
-                    return {"cleanup":cleanup_gimbal(self.dev), "t0": t0, "t1": time.time(), "from": ctx["source"]}
-                case _:
-                    return {"ok": False, "error": f"unknown key {key}"}
-        except Exception as e:
-            return {"ok": False,"t0": t0, "t1": time.time(), "error": f"Exception {e} during handling of key {key}"}
 
+    def connect(self):
+        #handles connection
+        try:
+            self.dev.open()
+        except Exception as e:
+            return {"Connect": "Failed", "Error": f"{e}"}
+        return {"Connect": "Success"}
+
+    def disconnect(self):
+        #handles disconnection
+        try:
+            self.dev.close()
+        except Exception as e:
+            return {"Disconnect": "Failed", "Error": f"{e}"}
+        return {"Disconnect": "Success"}
+
+    def initialize(self):
+        #handles initialization
+        # for PPC102_Coms, this involves setting the enabled status
+        try:
+            ret = self.dev.get_enable(channel = 0)
+            print("inicialize ran") 
+            print(self.status())
+            if ret[0] == 2 or ret[1] == 2:
+                print("Enabling Stage")
+                dev.set_enable(channel = 0, enable = 1)
+        except Exception as e:
+            return {"Initialize": "Failed", "Error": f"{e}"}
+        return {"Initialize": "Success"}
+
+    def status(self):
+        #handles status
+        return {"Status": self.dev.get_status_update()}
+
+    def close_loops(self):
+        #closes control loops
+        try:
+            self.dev.set_loop(channel = 0, loop = 2)
+        except Exception as e:
+            return {"Close Loops": "Failed", "Error": f"{e}"}
+        return {"Close Loops": "Success"}
+
+    def open_loops(self):
+        #opens control loops
+        try:
+            self.dev.set_loop(channel = 0, loop = 1)
+        except Exception as e:
+            return {"Open Loops": "Failed", "Error": f"{e}"}
+        return {"Open Loops": "Success"}
+
+    def get_position(self, axis: int):
+        #gets current position
+        if axis not in [0, 1]:
+            return {"Error": "Axis must be 0 or 1"}
+        position = self.dev.get_position(channel = (axis + 1))
+        return {str(axis): str(position)}
+
+    def set_position(self, axis: int, position: int):
+        #sets current position
+        try:
+            if axis not in [0, 1]:
+                return {"Error": "Axis must be 0 or 1"}
+            self.dev.set_position(channel = (axis + 1), pos = position)
+        except Exception as e:
+            return {"Move": "Failed", "Error": f"{e}"}
+        return {"Move": "Success"}
+        
+    def cleanup_gimbal(self):
+        #clean up stage by setting voltages to 0 and opening loops
+        try:
+            self.dev.set_enable(channel = 0, enable = 1)
+            self.dev.set_loop(channel = 0, loop = 1)
+            self.dev.set_output_volts(channel = 1, volts = 0)
+            self.dev.set_output_volts(channel = 2, volts = 0)
+        except Exception as e:
+            return {"Cleanup": "Failed", "Error": f"{e}"}
+        return {"Cleanup": "Success"}
 
 if __name__ == "__main__":
     hkpiaagim().serve()
