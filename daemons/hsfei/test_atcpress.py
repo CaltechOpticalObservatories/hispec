@@ -23,6 +23,16 @@ class PeerA(LibbyDaemon):
                         {"item": "pressure1", "t0": time.time()}, ttl_ms=8000)
         print("[PeerA] result:", res)
 
+        print("[PeerA] asking atcpress: get.data temperature")
+        res = libby.rpc("atcpress", "get.data",
+                        {"item": "temperature", "t0": time.time()}, ttl_ms=8000)
+        print("[PeerA] result:", res)
+
+        print("[PeerA] asking atcpress: get.data units")
+        res = libby.rpc("atcpress", "get.data",
+                        {"item": "units", "t0": time.time()}, ttl_ms=8000)
+        print("[PeerA] result:", res)
+
         # publish a status
         libby.publish("alerts.status", {"source": "atcpress", "ok": True})
         print("[PeerA] published alerts.status")
