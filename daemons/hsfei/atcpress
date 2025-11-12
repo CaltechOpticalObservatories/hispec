@@ -82,7 +82,7 @@ class AtcPress(LibbyDaemon):
         controller_data = self.dev.get_atomic_value(item)
         if controller_data == sys.float_info.max:
             return {"error": "Data not acquired"}
-        return {"sensor_data": controller_data}
+        return {item: controller_data}
 
     def set_pressure_unit(self, unit_code: int = 1) -> Dict[str, Any]:
         """handles setting pressure unit
