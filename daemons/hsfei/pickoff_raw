@@ -3,7 +3,7 @@
 HSFEI Pickoff Mirror Raw Position Daemon
 
 This daemon provides control and monitoring of the FEI pickoff mirror
-raw position using the LibbyDaemon framework.
+raw position.
 """
 
 import argparse
