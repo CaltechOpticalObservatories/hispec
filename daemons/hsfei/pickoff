@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 """
-HSFEI Pickoff Mirror Raw Position Daemon
+HSFEI Pickoff MirrorDaemon
 
-This daemon provides control and monitoring of the FEI pickoff mirror
-raw position.
+This daemon provides control and monitoring of the FEI pickoff mirrorusing Libby.
 """
 
 import argparse
 import logging
 import sys
-import os
 from typing import Dict, Any
 
 from libby.daemon import LibbyDaemon
 from hispec.util.pi import PIControllerBase
 
 
-class PickoffRawDaemon(LibbyDaemon):
-    """Daemon for controlling the FEI pickoff mirror raw position."""
+class HsfeiPickoffDaemon(LibbyDaemon):
+    """Daemon for controlling the FEI pickoff mirror position."""
 
-    peer_id = "hsfei-pickoff-raw"
+    peer_id = "hsfei.pickoff"
     transport = "zmq"
     bind = "tcp://*:5560"
     address_book = {}
@@ -27,7 +25,7 @@ class PickoffRawDaemon(LibbyDaemon):
     discovery_interval_s = 5.0
 
     def __init__(self, ip_address='192.168.29.100', tcp_port=10001, axis='1'):
-        """Initialize the pickoff raw daemon.
+        """Initialize the pickoff daemon.
 
         Args:
             ip_address: IP address of the PI controller (default: 192.168.29.100)
@@ -74,7 +72,7 @@ class PickoffRawDaemon(LibbyDaemon):
 
     def on_start(self, libby):
         """Called when daemon starts - initialize hardware."""
-        self.logger.info("Starting pickoff raw daemon")
+        self.logger.info("Starting pickoff daemon")
 
         # Initialize hardware connection
         if self.ip_address is None or self.tcp_port is None:
@@ -303,7 +301,7 @@ class PickoffRawDaemon(LibbyDaemon):
             
     def on_stop(self, _libby):
         """Cleanup when daemon shuts down."""
-        self.logger.info("Shutting down pickoff raw daemon")
+        self.logger.info("Shutting down pickoff daemon")
 
         # Disconnect from PI C-663 controller
         if self.state['connected'] and self.controller:
@@ -319,7 +317,7 @@ class PickoffRawDaemon(LibbyDaemon):
 def main():
     """Main entry point for the daemon."""
     parser = argparse.ArgumentParser(
-        description='HSFEI Pickoff Mirror Raw Daemon (PI C-663 Stepper)'
+        description='HSFEI Pickoff Mirror Daemon (PI C-663 Stepper)'
     )
     parser.add_argument(
         '-i', '--ip',
@@ -357,14 +355,14 @@ def main():
     logger.addHandler(console_handler)
 
     # File handler
-    file_handler = logging.FileHandler('pickoff_raw_daemon.log')
+    file_handler = logging.FileHandler('hsfei_pickoff_daemon.log')
     file_handler.setLevel(log_level)
     file_handler.setFormatter(logging.Formatter(log_format))
     logger.addHandler(file_handler)
 
     # Create and run daemon
     try:
-        daemon = PickoffRawDaemon(
+        daemon = HsfeiPickoffDaemon(
             ip_address=args.ip,
             tcp_port=args.tcp_port,
             axis=args.axis,
