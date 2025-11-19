@@ -1,0 +1,149 @@
+#!/usr/bin/python3
+
+import argparse
+import logging
+import sys
+import configparser
+from typing import Dict, Any
+from libby.daemon import LibbyDaemon
+from hispec.util.thorlabs.fw102c import FilterWheelController
+
+class atcfwheel(LibbyDaemon):
+    peer_id = "atcfwheel"
+    transport = "rabbitmq"
+    #address_book = {
+    #    "pi_1_daemon": "tcp://131.215.200.218:5560"
+    #}
+    discovery_enabled = False
+    discovery_interval_s = 5.0
+    rabbitmq_url = "amqp://localhost"  # RabbitMQ on hispec
+    daemon_desc = "ATC FWheel"
+
+    # pub/sub topics
+    topics = {}
+
+    def __init__(self):
+        """Initialize the pickoff daemon.
+
+        Args: come from the hsfei configuration file
+        """
+        #on start set up the daemon from config and initialize device
+        config = configparser.ConfigParser()
+        config.read('hsfei.config')
+        self.host = config["Device Control"]["atcfwheel_host"]
+        self.port = int(config["Device Control"]["atcfwheel_port"])
+
+        self.dev = FilterWheelController()
+        self.dev.set_connection(ip = self.host, port = self.port)
+
+        # Daemon state
+        self.state = {
+            'connected': False,
+            'error': '',
+        }
+
+        # Setup logging
+        self.logger = logging.getLogger(self.peer_id)
+
+        # Call parent __init__ first
+        super().__init__()
+
+    def on_start(self, libby):
+        # Add services
+        self.logger.info(f"Starting {self.daemon_desc} Daemon")
+        self.add_services({
+            "connect":      lambda p: self.connect(),
+            "disconnect":   lambda p: self.disconnect(),
+            "initialize":   lambda p: self.initialize(),
+            "status":       lambda p: self.status(),
+            "get.position": lambda p: self.get_pos(),
+            "set.position": lambda p: self.set_pos(pos = p.get("position"))
+        })
+
+        try:
+            self.connect()
+            self.logger.info(f"Connected to {self.daemon_desc}")
+            self.initialize()
+            self.logger.info(f"Initialized {self.daemon_desc}")
+            #publish to libby
+            libby.publish("atcfwheel", {"Daemon Startup": "Success"})
+        except Exception as e:
+            self.logger.error(f"Error Connecting and Initializing {self.daemon_desc}")
+            #publish failure
+            libby.publish("atcfwheel", {"Daemon Startup": "Failed", "Connection Error": f"{e}"})
+            
+    
+    def on_stop(self, libby):
+        #Disconnect and let user know
+        try:
+            self.disconnect()
+            self.logger.info(f"Disconnected {self.daemon_desc}")
+            libby.publish("atcfwheel", {"Daemon Shutdown": "Success"})
+        except Exception as e:
+            libby.publish("atcfwheel", {"Daemon Startup": "Failed", "Error":f"{e}"})
+            self.logger.error(f"Disconnect {self.daemon_desc}:: Failed ")
+
+
+    def connect(self):
+        #handles connection
+        try:
+            self.dev.connect()
+            self.logger.info(f"Connected {self.daemon_desc}")
+        except Exception as e:
+            self.logger.error(F"Error: {e}")
+            return {"Connect": "Failed", "Error": f"{e}"}
+        return {"Connect": "Success"}
+
+    def disconnect(self):
+        #handles disconnection
+        try:
+            self.dev.disconnect()
+            self.logger.info(f"Disconnected from {self.daemon_desc}")
+        except Exception as e:
+            self.logger.error(F"Error: {e}")
+            return {"Disconnect": "Failed", "Error": f"{e}"}
+        return {"Disconnect": "Success"}
+
+    def initialize(self):
+        #handles initialization
+        # for PPC102_Coms, this involves setting the enabled status
+        try:
+            self.dev.initialize()
+        except Exception as e:
+            self.logger.error(F"Error: {e}")
+            return {"Initialize": "Failed", "Error": f"{e}"}
+        return {"Initialize": "Success"}
+
+    def status(self):
+        #handles status
+        try:
+            status = self.dev.get_status()
+            self.logger.debug(f"status: {status}")
+        except Exception as e:
+            self.logger.error(F"Error: {e}")
+            return {"status": "Failed", "Error": f"{e}"}
+        return {"Status": status}
+
+    def get_pos(self):
+        #gets current position
+        try:
+            position = self.dev.get_pos()
+            self.logger.debug(f"get_pos: {position}")
+        except Exception as e:
+            self.logger.error(F"Error: {e}")
+            return {"get_pos": "Failed", "Error": f"{e}"}
+        return {"Position": str(position)}
+
+    def set_pos(self, pos):
+        #sets current position
+        try:
+            position = int(pos)
+            self.dev.set_pos(pos = position)
+            self.logger.debug(f"set_pos: {position}")
+        except Exception as e:
+            self.logger.error(F"Error: {e}")
+            return {"Move": "Failed", "Error": f"{e}"}
+        return {"Move": "Success"}
+
+if __name__ == "__main__":
+    atcfwheel().serve()
