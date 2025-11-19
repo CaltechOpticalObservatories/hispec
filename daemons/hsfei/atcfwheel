@@ -56,8 +56,8 @@ class atcfwheel(LibbyDaemon):
             "disconnect":   lambda p: self.disconnect(),
             "initialize":   lambda p: self.initialize(),
             "status":       lambda p: self.status(),
-            "get.position": lambda p: self.get_pos(),
-            "set.position": lambda p: self.set_pos(pos = p.get("position"))
+            "position.get": lambda p: self.get_pos(),
+            "position.set": lambda p: self.set_pos(pos = p.get("position"))
         })
 
         try:
@@ -132,7 +132,7 @@ class atcfwheel(LibbyDaemon):
         except Exception as e:
             self.logger.error(F"Error: {e}")
             return {"get_pos": "Failed", "Error": f"{e}"}
-        return {"Position": str(position)}
+        return {"position": str(position)}
 
     def set_pos(self, pos):
         #sets current position
