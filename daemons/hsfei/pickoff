@@ -18,11 +18,13 @@ class HsfeiPickoffDaemon(LibbyDaemon):
     """Daemon for controlling the FEI pickoff mirror position."""
 
     peer_id = "hsfei.pickoff"
-    transport = "zmq"
-    bind = "tcp://*:5560"
-    address_book = {}
-    discovery_enabled = True
+    transport = "rabbitmq"
+    rabbitmq_url = "amqp://localhost"  # RabbitMQ on hispec
+    discovery_enabled = False
     discovery_interval_s = 5.0
+
+    # pub/sub topics
+    topics = {}
 
     def __init__(self, ip_address='192.168.29.100', tcp_port=10001, axis='1'):
         """Initialize the pickoff daemon.
@@ -32,8 +34,6 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             tcp_port: TCP port for the PI controller (default: 10001)
             axis: Axis identifier (default: '1')
         """
-        super().__init__()
-
         # PI controller configuration
         self.ip_address = ip_address
         self.tcp_port = tcp_port
@@ -52,11 +52,19 @@ class HsfeiPickoffDaemon(LibbyDaemon):
         # Setup logging
         self.logger = logging.getLogger(self.peer_id)
 
-        # Define RPC services
-        self.services = {
+        # Call parent __init__ first
+        super().__init__()
+
+    def on_start(self, libby):
+        """Called when daemon starts - initialize hardware."""
+        self.logger.info("Starting pickoff daemon")
+
+        # Register RPC services using add_services()
+        services = {
             # Status queries
             "status.get": self._service_get_status,
             "position.get": self._service_get_position,
+            "target.get": self._service_get_target,
             "limits.get": self._service_get_limits,
             "idn.get": self._service_get_idn,
 
@@ -67,12 +75,8 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             "servo.set": self._service_set_servo,
         }
 
-    # pub/sub topics
-    topics = {}
-
-    def on_start(self, libby):
-        """Called when daemon starts - initialize hardware."""
-        self.logger.info("Starting pickoff daemon")
+        self.add_services(services)
+        self.logger.info(f"Registered {len(services)} RPC services using add_services()")
 
         # Initialize hardware connection
         if self.ip_address is None or self.tcp_port is None:
@@ -107,9 +111,19 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             limit_max = self.controller.get_limit_max(self.device_key, self.axis)
             idn = self.controller.get_idn(self.device_key)
 
+            # Get target position
+            target = None
+            try:
+                device = self.controller.devices[self.device_key]
+                target = device.qMOV(self.axis)[self.axis]
+            except Exception:
+                # If qMOV fails, target is unknown
+                pass
+
             status = {
                 'connected': True,
                 'position': position,
+                'target': target,
                 'moving': moving,
                 'servo_on': servo_on,
                 'referenced': referenced,
@@ -134,6 +148,20 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             return {"ok": True, "position": position, "units": "mm"}
         except Exception as e:
             self.logger.error(f"Error reading position: {e}")
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_get_target(self, _p: Dict[str, Any]) -> Dict[str, Any]:
+        """Get target position from hardware."""
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            device = self.controller.devices[self.device_key]
+            target = device.qMOV(self.axis)[self.axis]
+            return {"ok": True, "target": target, "units": "mm"}
+        except Exception as e:
+            self.logger.error(f"Error reading target: {e}")
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
 
@@ -276,7 +304,9 @@ class HsfeiPickoffDaemon(LibbyDaemon):
         try:
             # Connect to the PI C-663 Mercury Stepper Controller via TCP
             self.controller.connect_tcp(self.ip_address, self.tcp_port)
-            self.device_key = (self.ip_address, self.tcp_port)
+            # PI controller stores device with 3-tuple key: (ip, port, device_id)
+            # For single non-daisy-chain connection, device_id is always 1
+            self.device_key = (self.ip_address, self.tcp_port, 1)
             self.state['connected'] = True
 
             # Get controller information
