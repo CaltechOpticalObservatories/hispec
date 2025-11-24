@@ -59,7 +59,7 @@ class HsfeiPickoffDaemon(LibbyDaemon):
         """Called when daemon starts - initialize hardware."""
         self.logger.info("Starting pickoff daemon")
 
-        # Register RPC services using add_services()
+        # Register RPC services
         services = {
             # Status queries
             "status.get": self._service_get_status,
@@ -73,10 +73,14 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             "home": self._service_home,
             "stop": self._service_stop,
             "servo.set": self._service_set_servo,
+
+            # Connection management
+            "connect": self._service_connect,
+            "disconnect": self._service_disconnect,
         }
 
         self.add_services(services)
-        self.logger.info(f"Registered {len(services)} RPC services using add_services()")
+        self.logger.info("Registered %d RPC services", len(services))
 
         # Initialize hardware connection
         if self.ip_address is None or self.tcp_port is None:
@@ -87,7 +91,7 @@ class HsfeiPickoffDaemon(LibbyDaemon):
                 self._connect_hardware()
                 self.logger.info("Daemon started successfully and connected to hardware")
             except Exception as e:
-                self.logger.error(f"Failed to connect to hardware: {e}")
+                self.logger.error("Failed to connect to hardware: %s", e)
                 self.logger.warning("Daemon will start but hardware is not available")
                 self.state['error'] = str(e)
                 self.state['connected'] = False
@@ -97,7 +101,7 @@ class HsfeiPickoffDaemon(LibbyDaemon):
 
     # ========== RPC Service Handlers ==========
 
-    def _service_get_status(self, _p: Dict[str, Any]) -> Dict[str, Any]:
+    def _service_get_status(self, _: Dict[str, Any]) -> Dict[str, Any]:
         """Get complete status of the daemon (queries hardware)."""
         if not self.state['connected']:
             return {"ok": False, "error": "Not connected to hardware"}
@@ -134,11 +138,11 @@ class HsfeiPickoffDaemon(LibbyDaemon):
 
             return {"ok": True, "status": status}
         except Exception as e:
-            self.logger.error(f"Error reading status: {e}")
+            self.logger.error("Error reading status: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
 
-    def _service_get_position(self, _p: Dict[str, Any]) -> Dict[str, Any]:
+    def _service_get_position(self, _: Dict[str, Any]) -> Dict[str, Any]:
         """Get current position from hardware."""
         if not self.state['connected']:
             return {"ok": False, "error": "Not connected to hardware"}
@@ -147,11 +151,11 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             position = self.controller.get_position(self.device_key, self.axis)
             return {"ok": True, "position": position, "units": "mm"}
         except Exception as e:
-            self.logger.error(f"Error reading position: {e}")
+            self.logger.error("Error reading position: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
 
-    def _service_get_target(self, _p: Dict[str, Any]) -> Dict[str, Any]:
+    def _service_get_target(self, _: Dict[str, Any]) -> Dict[str, Any]:
         """Get target position from hardware."""
         if not self.state['connected']:
             return {"ok": False, "error": "Not connected to hardware"}
@@ -161,11 +165,11 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             target = device.qMOV(self.axis)[self.axis]
             return {"ok": True, "target": target, "units": "mm"}
         except Exception as e:
-            self.logger.error(f"Error reading target: {e}")
+            self.logger.error("Error reading target: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
 
-    def _service_get_limits(self, _p: Dict[str, Any]) -> Dict[str, Any]:
+    def _service_get_limits(self, _: Dict[str, Any]) -> Dict[str, Any]:
         """Get travel limits from hardware."""
         if not self.state['connected']:
             return {"ok": False, "error": "Not connected to hardware"}
@@ -180,11 +184,11 @@ class HsfeiPickoffDaemon(LibbyDaemon):
                 "units": "mm"
             }
         except Exception as e:
-            self.logger.error(f"Error reading limits: {e}")
+            self.logger.error("Error reading limits: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
 
-    def _service_get_idn(self, _p: Dict[str, Any]) -> Dict[str, Any]:
+    def _service_get_idn(self, _: Dict[str, Any]) -> Dict[str, Any]:
         """Get controller identification from hardware."""
         if not self.state['connected']:
             return {"ok": False, "error": "Not connected to hardware"}
@@ -193,7 +197,7 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             idn = self.controller.get_idn(self.device_key)
             return {"ok": True, "idn": idn}
         except Exception as e:
-            self.logger.error(f"Error reading IDN: {e}")
+            self.logger.error("Error reading IDN: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
 
@@ -214,7 +218,7 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             return {"ok": False, "error": "'target' must be a number"}
 
         target = float(target)
-        self.logger.info(f"Moving to position: {target} mm")
+        self.logger.info("Moving to position: %f mm", target)
 
         try:
             # Command the move
@@ -222,11 +226,11 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             return {"ok": True, "target": target}
 
         except Exception as e:
-            self.logger.error(f"Error moving to target: {e}")
+            self.logger.error("Error moving to target: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
 
-    def _service_home(self, _p: Dict[str, Any]) -> Dict[str, Any]:
+    def _service_home(self, _: Dict[str, Any]) -> Dict[str, Any]:
         """Home/reference the pickoff mirror."""
         if not self.state['connected']:
             return {"ok": False, "error": "Not connected to hardware"}
@@ -248,7 +252,7 @@ class HsfeiPickoffDaemon(LibbyDaemon):
                 return {"ok": False, "error": "Homing failed to start"}
 
         except Exception as e:
-            self.logger.error(f"Error during homing: {e}")
+            self.logger.error("Error during homing: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
 
@@ -265,7 +269,7 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             return {"ok": True, "status": "stopped"}
 
         except Exception as e:
-            self.logger.error(f"Error stopping motion: {e}")
+            self.logger.error("Error stopping motion: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
 
@@ -291,15 +295,44 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             return {"ok": True, "servo_on": enable}
 
         except Exception as e:
-            self.logger.error(f"Error setting servo: {e}")
+            self.logger.error("Error setting servo: %s", e)
             self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_connect(self, _: Dict[str, Any]) -> Dict[str, Any]:
+        """Connect to the hardware."""
+        if self.state['connected']:
+            return {"ok": True, "message": "Already connected"}
+
+        if self.ip_address is None or self.tcp_port is None:
+            return {"ok": False, "error": "No IP address or port specified"}
+
+        try:
+            self._connect_hardware()
+            return {"ok": True, "message": "Connected to hardware"}
+        except Exception as e:
+            self.logger.error("Failed to connect to hardware: %s", e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_disconnect(self, _: Dict[str, Any]) -> Dict[str, Any]:
+        """Disconnect from the hardware."""
+        if not self.state['connected']:
+            return {"ok": True, "message": "Already disconnected"}
+
+        try:
+            self.controller.disconnect_all()
+            self.state['connected'] = False
+            self.logger.info("Disconnected from hardware")
+            return {"ok": True, "message": "Disconnected from hardware"}
+        except Exception as e:
+            self.logger.error("Error disconnecting: %s", e)
             return {"ok": False, "error": str(e)}
 
     # ========== Hardware Connection ==========
 
     def _connect_hardware(self):
         """Connect to the PI C-663 Mercury Stepper Controller hardware."""
-        self.logger.info(f"Connecting to PI C-663 at {self.ip_address}:{self.tcp_port}")
+        self.logger.info("Connecting to PI C-663 at %s:%s", self.ip_address, self.tcp_port)
 
         try:
             # Connect to the PI C-663 Mercury Stepper Controller via TCP
@@ -315,16 +348,16 @@ class HsfeiPickoffDaemon(LibbyDaemon):
 
             # Get axis information
             axes = self.controller.get_axes(self.device_key)
-            self.logger.info(f"Available axes: {axes}")
+            self.logger.info("Available axes: %d", axes)
 
             # Read initial position for logging
             position = self.controller.get_position(self.device_key, self.axis)
-            self.logger.info(f"Current position: {position} mm")
+            self.logger.info("Current position: %f mm", position)
 
             self.logger.info("Connected to PI C-663 Mercury Stepper Controller")
 
         except Exception as e:
-            self.logger.error(f"Failed to connect to PI C-663: {e}")
+            self.logger.error("Failed to connect to PI C-663: %s",e)
             self.state['connected'] = False
             # Write error to state
             self.state['error'] = str(e)
@@ -339,7 +372,7 @@ class HsfeiPickoffDaemon(LibbyDaemon):
                 self.controller.disconnect_all()
                 self.logger.info("Disconnected from PI C-663")
             except Exception as e:
-                self.logger.error(f"Error disconnecting: {e}")
+                self.logger.error("Error disconnecting: %s", e)
 
         self.state['connected'] = False
 
