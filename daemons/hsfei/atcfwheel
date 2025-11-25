@@ -3,7 +3,7 @@
 import logging
 import configparser
 from libby.daemon import LibbyDaemon # pyright: ignore[reportMissingImports]
-from hispec.util.thorlabs.fw102c import FilterWheelController
+from hispec.util.thorlabs.fw102c import FilterWheelController #pylint: disable = E0401
 
 class Atcfwheel(LibbyDaemon):
     '''Daemon for controlling the ATC Filter Wheel via Thorlabs FW102C controller'''
@@ -30,13 +30,21 @@ class Atcfwheel(LibbyDaemon):
         self.port = int(config["atcfwheel"]["port"])
 
         self.dev = FilterWheelController()
-        self.dev.set_connection(ip = self.host, port = self.port)
+
+        # Set up logging (temporary UNTIL LIBBY LOGGING IS IMPLEMENTED)
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        self.logger.addHandler(ch)
 
 
         # Daemon state
         self.state = {
             'connected': False,
-            'error': '',
+            'error': ''
         }
 
         # Call parent __init__ first
@@ -44,7 +52,7 @@ class Atcfwheel(LibbyDaemon):
 
     def on_start(self, libby):
         '''Starts up daemon and initializies the hardware device'''
-        self.logger.info(f"Starting {self.daemon_desc} Daemon")
+        self.logger.info("Starting %s Daemon", self.daemon_desc)
         self.add_services({
             "connect":      lambda p: self.connect(),
             "disconnect":   lambda p: self.disconnect(),
@@ -56,36 +64,36 @@ class Atcfwheel(LibbyDaemon):
         })
         try:
             self.connect()
-            self.logger.info(f"Connected to {self.daemon_desc}")
+            self.logger.info("Connected to %s", self.daemon_desc)
             self.initialize()
-            self.logger.info(f"Initialized {self.daemon_desc}")
+            self.logger.info("Initialized %s", self.daemon_desc)
             self.load_named_pos()
             #publish to libby
             libby.publish("atcfwheel", {"Daemon Startup": "Success"})
-        except Exception as e:
-            self.logger.error(f"Error Connecting and Initializing {self.daemon_desc}")
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Error Connecting and Initializing %s: %s", self.daemon_desc, e)
             #publish failure
             libby.publish("atcfwheel", {"Daemon Startup": "Failed", "Connection Error": f"{e}"})
 
 
-    def on_stop(self, libby):
+    def on_stop(self, libby) -> None:
         '''Stops the daemon and disconnects from hardware device'''
         try:
             self.disconnect()
-            self.logger.info(f"Disconnected {self.daemon_desc}")
+            self.logger.info("Disconnected %s", self.daemon_desc)
             libby.publish("atcfwheel", {"Daemon Shutdown": "Success"})
-        except Exception as e:
+        except Exception as e: # pylint: disable=W0718
             libby.publish("atcfwheel", {"Daemon Startup": "Failed", "Error":f"{e}"})
-            self.logger.error(f"Disconnect {self.daemon_desc}:: Failed ")
+            self.logger.error("Disconnect %s:: Failed ", self.daemon_desc)
 
 
     def connect(self):
         """handles connection"""
         try:
-            self.dev.connect()
-            self.logger.info(f"Connected {self.daemon_desc}")
-        except Exception as e:
-            self.logger.error(F"Error: {e}")
+            self.dev.connect(ip = self.host, port = self.port)
+            self.logger.info("Connected %s", self.daemon_desc)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Error: %s",e)
             return {"Connect": "Failed", "Error": f"{e}"}
         return {"Connect": "Success"}
 
@@ -93,9 +101,9 @@ class Atcfwheel(LibbyDaemon):
         """handles disconnection"""
         try:
             self.dev.disconnect()
-            self.logger.info(f"Disconnected from {self.daemon_desc}")
-        except Exception as e:
-            self.logger.error(F"Error: {e}")
+            self.logger.info("Disconnected from %s", self.daemon_desc)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Error: %s",e)
             return {"Disconnect": "Failed", "Error": f"{e}"}
         return {"Disconnect": "Success"}
 
@@ -104,8 +112,8 @@ class Atcfwheel(LibbyDaemon):
         # for PPC102_Coms, this involves setting the enabled status
         try:
             self.dev.initialize()
-        except Exception as e:
-            self.logger.error(F"Error: {e}")
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Error: %s",e)
             return {"Initialize": "Failed", "Error": f"{e}"}
         return {"Initialize": "Success"}
 
@@ -115,11 +123,10 @@ class Atcfwheel(LibbyDaemon):
         config.read('hsfei.config')
         try:
             for name, pos in config["atcfwheel-named_pos"].items():
-                self.add_named_pos(name, int(pos))
                 self.named_positions[name] = int(pos)
-            self.logger.info(f"Loaded named positions for {self.daemon_desc}")
-        except Exception as e:
-            self.logger.error(F"Error: {e}")
+            self.logger.info("Loaded named positions for %s", self.daemon_desc)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Error: %s",e)
             return {"Load Named Positions": "Failed", "Error": f"{e}"}
         return {"Load Named Positions": "Success"}
 
@@ -127,42 +134,42 @@ class Atcfwheel(LibbyDaemon):
         """handles status"""
         try:
             status = self.dev.get_status()
-            self.logger.debug(f"status: {status}")
-        except Exception as e:
-            self.logger.error(F"Error: {e}")
+            self.logger.debug("status: %s",status)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Error: %s",e)
             return {"status": "Failed", "Error": f"{e}"}
         return {"status": status}
 
     def get_pos(self):
-        #gets current position
+        '''gets current position'''
         try:
             position = self.dev.get_pos()
-            self.logger.debug(f"get_pos: {position}")
-        except Exception as e:
-            self.logger.error(F"Error: {e}")
+            self.logger.debug("get_pos: %s",position)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Error: %s",e)
             return {"get_pos": "Failed", "Error": f"{e}"}
         return {"position": str(position)}
 
     def set_pos(self, pos):
-        #sets current position
+        '''sets current position'''
         try:
             position = int(pos)
             self.dev.set_pos(pos = position)
-            self.logger.debug(f"set_pos: {position}")
-        except Exception as e:
-            self.logger.error(F"Error: {e}")
+            self.logger.debug("set_pos: %s",position)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Error: %s",e)
             return {"Move": "Failed", "Error": f"{e}"}
         return {"Move": "Success"}
 
     def goto_named_pos(self, name):
-        #moves to named position
+        '''moves to named position'''
         try:
             goal = self.named_positions.get(name.lower())
             if goal is not None:
                 self.dev.set_pos(pos = int(goal))
-            self.logger.debug(f"goto_named_pos: {name} -> {goal}")
-        except Exception as e:
-            self.logger.error(F"Error: {e}")
+            self.logger.debug("goto_named_pos: %s -> %s",name,goal)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Error: %s",e)
             return {"Move to Named Position": "Failed", "Error": f"{e}"}
         return {"Move to Named Position": "Success"}
 
