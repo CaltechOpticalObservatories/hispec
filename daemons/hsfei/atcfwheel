@@ -1,23 +1,19 @@
-#!/usr/bin/python3
-
-import argparse
+# !/usr/bin/python3.12
+'''Module for the ATC Filter Wheel Daemon'''
 import logging
-import sys
 import configparser
-from typing import Dict, Any
-from libby.daemon import LibbyDaemon
+from libby.daemon import LibbyDaemon # pyright: ignore[reportMissingImports]
 from hispec.util.thorlabs.fw102c import FilterWheelController
 
-class atcfwheel(LibbyDaemon):
+class Atcfwheel(LibbyDaemon):
+    '''Daemon for controlling the ATC Filter Wheel via Thorlabs FW102C controller'''
     peer_id = "atcfwheel"
     transport = "rabbitmq"
-    #address_book = {
-    #    "pi_1_daemon": "tcp://131.215.200.218:5560"
-    #}
     discovery_enabled = False
     discovery_interval_s = 5.0
     rabbitmq_url = "amqp://localhost"  # RabbitMQ on hispec
     daemon_desc = "ATC FWheel"
+    named_positions = {}
 
     # pub/sub topics
     topics = {}
@@ -30,11 +26,12 @@ class atcfwheel(LibbyDaemon):
         #on start set up the daemon from config and initialize device
         config = configparser.ConfigParser()
         config.read('hsfei.config')
-        self.host = config["Device Control"]["atcfwheel_host"]
-        self.port = int(config["Device Control"]["atcfwheel_port"])
+        self.host = config["atcfwheel"]["host"]
+        self.port = int(config["atcfwheel"]["port"])
 
         self.dev = FilterWheelController()
         self.dev.set_connection(ip = self.host, port = self.port)
+
 
         # Daemon state
         self.state = {
@@ -42,14 +39,11 @@ class atcfwheel(LibbyDaemon):
             'error': '',
         }
 
-        # Setup logging
-        self.logger = logging.getLogger(self.peer_id)
-
         # Call parent __init__ first
         super().__init__()
 
     def on_start(self, libby):
-        # Add services
+        '''Starts up daemon and initializies the hardware device'''
         self.logger.info(f"Starting {self.daemon_desc} Daemon")
         self.add_services({
             "connect":      lambda p: self.connect(),
@@ -57,24 +51,25 @@ class atcfwheel(LibbyDaemon):
             "initialize":   lambda p: self.initialize(),
             "status":       lambda p: self.status(),
             "position.get": lambda p: self.get_pos(),
-            "position.set": lambda p: self.set_pos(pos = p.get("position"))
+            "position.set": lambda p: self.set_pos(pos = p.get("position")),
+            "position.goto_named": lambda p: self.goto_named_pos(name = p.get("name"))
         })
-
         try:
             self.connect()
             self.logger.info(f"Connected to {self.daemon_desc}")
             self.initialize()
             self.logger.info(f"Initialized {self.daemon_desc}")
+            self.load_named_pos()
             #publish to libby
             libby.publish("atcfwheel", {"Daemon Startup": "Success"})
         except Exception as e:
             self.logger.error(f"Error Connecting and Initializing {self.daemon_desc}")
             #publish failure
             libby.publish("atcfwheel", {"Daemon Startup": "Failed", "Connection Error": f"{e}"})
-            
-    
+
+
     def on_stop(self, libby):
-        #Disconnect and let user know
+        '''Stops the daemon and disconnects from hardware device'''
         try:
             self.disconnect()
             self.logger.info(f"Disconnected {self.daemon_desc}")
@@ -85,7 +80,7 @@ class atcfwheel(LibbyDaemon):
 
 
     def connect(self):
-        #handles connection
+        """handles connection"""
         try:
             self.dev.connect()
             self.logger.info(f"Connected {self.daemon_desc}")
@@ -95,7 +90,7 @@ class atcfwheel(LibbyDaemon):
         return {"Connect": "Success"}
 
     def disconnect(self):
-        #handles disconnection
+        """handles disconnection"""
         try:
             self.dev.disconnect()
             self.logger.info(f"Disconnected from {self.daemon_desc}")
@@ -105,7 +100,7 @@ class atcfwheel(LibbyDaemon):
         return {"Disconnect": "Success"}
 
     def initialize(self):
-        #handles initialization
+        """handles initialization"""
         # for PPC102_Coms, this involves setting the enabled status
         try:
             self.dev.initialize()
@@ -114,15 +109,29 @@ class atcfwheel(LibbyDaemon):
             return {"Initialize": "Failed", "Error": f"{e}"}
         return {"Initialize": "Success"}
 
+    def load_named_pos(self):
+        """loads named positions into the device from config file"""
+        config = configparser.ConfigParser()
+        config.read('hsfei.config')
+        try:
+            for name, pos in config["atcfwheel-named_pos"].items():
+                self.add_named_pos(name, int(pos))
+                self.named_positions[name] = int(pos)
+            self.logger.info(f"Loaded named positions for {self.daemon_desc}")
+        except Exception as e:
+            self.logger.error(F"Error: {e}")
+            return {"Load Named Positions": "Failed", "Error": f"{e}"}
+        return {"Load Named Positions": "Success"}
+
     def status(self):
-        #handles status
+        """handles status"""
         try:
             status = self.dev.get_status()
             self.logger.debug(f"status: {status}")
         except Exception as e:
             self.logger.error(F"Error: {e}")
             return {"status": "Failed", "Error": f"{e}"}
-        return {"Status": status}
+        return {"status": status}
 
     def get_pos(self):
         #gets current position
@@ -145,5 +154,17 @@ class atcfwheel(LibbyDaemon):
             return {"Move": "Failed", "Error": f"{e}"}
         return {"Move": "Success"}
 
+    def goto_named_pos(self, name):
+        #moves to named position
+        try:
+            goal = self.named_positions.get(name.lower())
+            if goal is not None:
+                self.dev.set_pos(pos = int(goal))
+            self.logger.debug(f"goto_named_pos: {name} -> {goal}")
+        except Exception as e:
+            self.logger.error(F"Error: {e}")
+            return {"Move to Named Position": "Failed", "Error": f"{e}"}
+        return {"Move to Named Position": "Success"}
+
 if __name__ == "__main__":
-    atcfwheel().serve()
+    Atcfwheel().serve()
