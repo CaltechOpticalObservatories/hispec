@@ -1,9 +1,10 @@
-# !/usr/bin/python3.12
+#!/usr/bin/python3.12
 '''Module for the ATC Filter Wheel Daemon'''
 import logging
 import configparser
 from libby.daemon import LibbyDaemon # pyright: ignore[reportMissingImports]
-from hispec.util.thorlabs.fw102c import FilterWheelController #pylint: disable = E0401
+#from hispec.util.thorlabs.fw102c import FilterWheelController #pylint: disable = E0401,E0611
+from fw102c import FilterWheelController  # Assuming fw102c.py is in the same directory
 
 class Atcfwheel(LibbyDaemon):
     '''Daemon for controlling the ATC Filter Wheel via Thorlabs FW102C controller'''
@@ -60,7 +61,8 @@ class Atcfwheel(LibbyDaemon):
             "status":       lambda p: self.status(),
             "position.get": lambda p: self.get_pos(),
             "position.set": lambda p: self.set_pos(pos = p.get("position")),
-            "position.goto_named": lambda p: self.goto_named_pos(name = p.get("name"))
+            "position.get_named": lambda p: self.get_named_position(),
+            "position.set_named": lambda p: self.goto_named_pos(name = p.get("named_pos"))
         })
         try:
             self.connect()
@@ -74,7 +76,6 @@ class Atcfwheel(LibbyDaemon):
             self.logger.error("Error Connecting and Initializing %s: %s", self.daemon_desc, e)
             #publish failure
             libby.publish("atcfwheel", {"Daemon Startup": "Failed", "Connection Error": f"{e}"})
-
 
     def on_stop(self, libby) -> None:
         '''Stops the daemon and disconnects from hardware device'''
@@ -90,7 +91,7 @@ class Atcfwheel(LibbyDaemon):
     def connect(self):
         """handles connection"""
         try:
-            self.dev.connect(ip = self.host, port = self.port)
+            self.dev.connect(host = self.host, port = self.port)
             self.logger.info("Connected %s", self.daemon_desc)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
@@ -153,9 +154,9 @@ class Atcfwheel(LibbyDaemon):
     def set_pos(self, pos):
         '''sets current position'''
         try:
-            position = int(pos)
-            self.dev.set_pos(pos = position)
-            self.logger.debug("set_pos: %s",position)
+            pos = int(pos)
+            self.dev.set_pos(pos)
+            self.logger.debug("set_pos: %d",pos)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
             return {"Move": "Failed", "Error": f"{e}"}
@@ -166,12 +167,20 @@ class Atcfwheel(LibbyDaemon):
         try:
             goal = self.named_positions.get(name.lower())
             if goal is not None:
-                self.dev.set_pos(pos = int(goal))
+                self.dev.set_pos(int(goal))
             self.logger.debug("goto_named_pos: %s -> %s",name,goal)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
             return {"Move to Named Position": "Failed", "Error": f"{e}"}
-        return {"Move to Named Position": "Success"}
+        return {"move": "Success"}
+
+    def get_named_position(self):
+        '''returns current named position'''
+        current = self.dev.get_pos()
+        for name, pos in self.named_positions.items():
+            if pos == current:
+                return {"named_pos":f"{name}"}
+        return {"named_pos": "Unknown"}
 
 if __name__ == "__main__":
     Atcfwheel().serve()
