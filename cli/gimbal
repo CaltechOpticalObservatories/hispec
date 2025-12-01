@@ -1,54 +1,56 @@
 #!/usr/bin/env python
-#SIMPLE SCRIPT FOR STAGE CONTROL DURING FEI ALIGNMENT
-#Stage: Gimbal Mount (PGM1SE_M/PPC102)
-#06/06/2025 - Elijah.AB
+"""
+Simple script for stage control during FEI alignment.
+Stage: Gimbal Mount (PGM1SE_M/PPC102)
+06/06/2025 - Elijah.AB
+"""
 
 import sys
-import os
-from hispec.util.thorlabs.ppc102 import PPC102_Coms
+from hispec.util.thorlabs.ppc102 import Ppc102Controller #pylint: disable= E0401,E0611
 
-host = '192.168.29.100'
+HOST = '192.168.29.100'
 
 def point_gimbal(x: int, y: int):
-    dev = PPC102_Coms(IP=host, port = port, log = False)
+    """Point the gimbal to the specified x and y positions."""
+    dev = Ppc102Controller(host=HOST, port = PORT, log = False)
     dev.open()
     try:
         ret = dev.get_enable(channel = 0)
         if ret[0] == 2 or ret[1] == 2:
             print("Enabling Stage")
             dev.set_enable(channel = 0, enable = 1)
-        if not dev.are_loops_closed(channel = 0):
+        if not dev.is_loop_closed(channel = 0):
             print("Closing Loops")
             dev.set_loop(channel = 0, loop = 2)
-        dev.set_position(channel = 1, pos = x)
-        dev.set_position(channel = 2, pos = y)
-        xpos = dev.get_position(channel = 1)
-        ypos = dev.get_position(channel = 2)
-        print(f"Curent position: x: {xpos} , y: {ypos} ")
+        dev.set_pos(channel = 1, pos = x)
+        dev.set_pos(channel = 2, pos = y)
+        x_cur = dev.get_pos(channel = 1)
+        y_cur = dev.get_pos(channel = 2)
+        print(f"Curent position: x: {x_cur} , y: {y_cur} ")
     finally:
         dev.close()
-    return
 
 def status():
-    dev = PPC102_Coms(IP=host, port = port, log = False)
+    """Get the current status of the gimbal."""
+    dev = Ppc102Controller(host=HOST, port = PORT, log = False)
     dev.open()
     try:
         ret = dev.get_enable(channel = 0)
         if ret[0] == 2 or ret[1] == 2:
             print("Enabling Stage")
             dev.set_enable(channel = 0, enable = 1)
-        if not dev.are_loops_closed(channel = 0):
+        if not dev.is_loop_closed(channel = 0):
             print("Closing Loops")
             dev.set_loop(channel = 0, loop = 2)
-        xpos = dev.get_position(channel = 1)
-        ypos = dev.get_position(channel = 2)
-        print(f"Curent position: x: {xpos} , y: {ypos} ")
+        x_cur = dev.get_pos(channel = 1)
+        y_cur = dev.get_pos(channel = 2)
+        print(f"Curent position: x: {x_cur} , y: {y_cur} ")
     finally:
         dev.close()
-    return
 
 def cleanup_gimbal():
-    dev = PPC102_Coms(IP=host, port = port, log = False)
+    """Cleanup the gimbal by opening loops and setting voltages to 0."""
+    dev = Ppc102Controller(host=HOST, port = PORT, log = False)
     dev.open()
     try:
         dev.set_enable(channel = 0, enable = 1)
@@ -59,10 +61,10 @@ def cleanup_gimbal():
         dev.set_output_volts(channel = 2, volts = 0)
     finally:
         dev.close()
-    return
 
 def loop_state(state):
-    dev = PPC102_Coms(IP=host, port = port, log = False)
+    """Set the loop state of the gimbal."""
+    dev = Ppc102Controller(host=HOST, port = PORT, log = False)
     dev.open()
     try:
         if state not in [0, 1]:
@@ -70,31 +72,30 @@ def loop_state(state):
             dev.close()
             return
         if state == 1:
-            print(f"Setting loop state to 'closed'")
+            print("Setting loop state to 'closed'")
             dev.set_loop(channel=0,loop=2)
         else:
-            print(f"Setting loop state to 'open'")
+            print("Setting loop state to 'open'")
             dev.set_loop(channel=0,loop=1)
 
-        if dev.are_loops_closed(channel = 0):
+        if dev.is_loop_closed(channel = 0):
             print("Loops Closed")
         else:
             print("Loops Open")
     finally:
         dev.close()
-    return
 
 if len(sys.argv) < 3:
     print("Format for this Script is: 'gimbal {red/blue} {cleanup/goto} {x} {y}'")
-    exit(1)
+    sys.exit(0)
 
 if sys.argv[1].lower() == "red":
-    port = 10012
+    PORT = 10012
 elif sys.argv[1].lower() == "blue":
-    port = 10013
+    PORT = 10013
 else:
     print("Format for this Script is: 'gimbal {red/blue} {cleanup/goto} {x} {y}'")
-    exit(1)
+    sys.exit(0)
 
 if sys.argv[2].lower() == "cleanup":
     cleanup_gimbal()
@@ -103,9 +104,10 @@ elif sys.argv[2].lower() in "loops":
 elif sys.argv[2].lower() == "goto":
     if len(sys.argv) < 5:
         print("Format for this Script is: 'gimbal {red/blue} {cleanup/goto} {x} {y}'")
-        exit(1)
+        sys.exit(0)
     try:
-        xpos = float(sys.argv[3]); ypos = float(sys.argv[4])
+        xpos = float(sys.argv[3])
+        ypos = float(sys.argv[4])
         point_gimbal( xpos, ypos)
         # Use num1 and num2 as integers
     except ValueError:
@@ -114,7 +116,7 @@ elif sys.argv[2].lower() == "goto":
         print("Error: Not enough arguments provided.")
 elif sys.argv[2].lower() == "status":
     status()
-    
+
 else:
     print("Format for this Script is: 'gimbal {red/blue} {cleanup/goto/status} {x} {y}'")
-    exit(1)
+    sys.exit(0)
