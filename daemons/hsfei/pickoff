@@ -69,7 +69,7 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             "idn.get": self._service_get_idn,
 
             # Control commands
-            "move": self._service_move,
+            "position.set": self._service_set_position,
             "home": self._service_home,
             "stop": self._service_stop,
             "servo.set": self._service_set_servo,
@@ -201,32 +201,31 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
 
-    def _service_move(self, p: Dict[str, Any]) -> Dict[str, Any]:
-        """Move to target position.
+    def _service_set_position(self, p: Dict[str, Any]) -> Dict[str, Any]:
+        """Set/move to target position.
 
         Args:
-            p: {"target": <position_in_mm>}
+            p: {"position": <position_in_mm>}
         """
         if not self.state['connected']:
             return {"ok": False, "error": "Not connected to hardware"}
 
-        target = p.get("target")
-        if target is None:
-            return {"ok": False, "error": "Missing 'target' parameter"}
+        position = p.get("position")
+        if position is None:
+            return {"ok": False, "error": "Missing 'position' parameter"}
 
-        if not isinstance(target, (int, float)):
-            return {"ok": False, "error": "'target' must be a number"}
+        if not isinstance(position, (int, float)):
+            return {"ok": False, "error": "'position' must be a number"}
 
-        target = float(target)
-        self.logger.info("Moving to position: %f mm", target)
+        position = float(position)
+        self.logger.info("Setting position to: %f mm", position)
 
         try:
-            # Command the move
-            self.controller.set_position(self.device_key, self.axis, target, blocking=False)
-            return {"ok": True, "target": target}
+            self.controller.set_position(self.device_key, self.axis, position, blocking=False)
+            return {"ok": True, "position": position, "units": "mm"}
 
         except Exception as e:
-            self.logger.error("Error moving to target: %s", e)
+            self.logger.error("Error setting position: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
 
