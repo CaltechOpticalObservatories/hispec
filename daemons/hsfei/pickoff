@@ -1,0 +1,445 @@
+#!/usr/bin/env python3
+"""
+HSFEI Pickoff MirrorDaemon
+
+This daemon provides control and monitoring of the FEI pickoff mirrorusing Libby.
+"""
+
+import argparse
+import logging
+import sys
+from typing import Dict, Any
+
+from libby.daemon import LibbyDaemon
+from hispec.util.pi import PIControllerBase
+
+
+class HsfeiPickoffDaemon(LibbyDaemon):
+    """Daemon for controlling the FEI pickoff mirror position."""
+
+    peer_id = "pickoff"
+    group_id = "hsfei"
+    transport = "rabbitmq"
+    rabbitmq_url = "amqp://localhost"  # RabbitMQ on hispec
+    discovery_enabled = False
+    discovery_interval_s = 5.0
+
+    # pub/sub topics
+    topics = {}
+
+    def __init__(self, ip_address='192.168.29.100', tcp_port=10001, axis='1'):
+        """Initialize the pickoff daemon.
+
+        Args:
+            ip_address: IP address of the PI controller (default: 192.168.29.100)
+            tcp_port: TCP port for the PI controller (default: 10001)
+            axis: Axis identifier (default: '1')
+        """
+        # PI controller configuration
+        self.ip_address = ip_address
+        self.tcp_port = tcp_port
+        self.axis = axis
+        self.device_key = None
+
+        # PI controller instance
+        self.controller = PIControllerBase(log=True)
+
+        # Daemon state
+        self.state = {
+            'connected': False,
+            'error': '',
+        }
+
+        # Setup logging
+        self.logger = logging.getLogger(self.peer_id)
+
+        # Call parent __init__ first
+        super().__init__()
+
+    def on_start(self, libby):
+        """Called when daemon starts - initialize hardware."""
+        self.logger.info("Starting pickoff daemon")
+
+        # Register RPC services
+        services = {
+            # Status queries
+            "status.get": self._service_get_status,
+            "position.get": self._service_get_position,
+            "target.get": self._service_get_target,
+            "limits.get": self._service_get_limits,
+            "idn.get": self._service_get_idn,
+
+            # Control commands
+            "position.set": self._service_set_position,
+            "home": self._service_home,
+            "stop": self._service_stop,
+            "servo.set": self._service_set_servo,
+
+            # Connection management
+            "connect": self._service_connect,
+            "disconnect": self._service_disconnect,
+        }
+
+        self.add_services(services)
+        self.logger.info("Registered %d RPC services", len(services))
+
+        # Initialize hardware connection
+        if self.ip_address is None or self.tcp_port is None:
+            self.logger.error("No IP address or port specified for PI C-663 controller")
+            self.state['error'] = 'No IP address or port specified'
+        else:
+            try:
+                self._connect_hardware()
+                self.logger.info("Daemon started successfully and connected to hardware")
+            except Exception as e:
+                self.logger.error("Failed to connect to hardware: %s", e)
+                self.logger.warning("Daemon will start but hardware is not available")
+                self.state['error'] = str(e)
+                self.state['connected'] = False
+
+        # Publish initial status
+        libby.publish("pickoff.status", self.state)
+
+    # ========== RPC Service Handlers ==========
+
+    def _service_get_status(self, _: Dict[str, Any]) -> Dict[str, Any]:
+        """Get complete status of the daemon (queries hardware)."""
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            position = self.controller.get_pos(self.device_key, self.axis)
+            moving = self.controller.is_moving(self.device_key, self.axis)
+            servo_on = self.controller.is_loop_closed(self.device_key, self.axis)
+            referenced = self.controller.is_homed(self.device_key, self.axis)
+            limits = self.controller.get_limits(self.device_key, self.axis)
+            limit_min, limit_max = limits[self.axis] if limits else (None, None)
+            idn = self.controller.get_idn(self.device_key)
+
+            # Get target position
+            target = None
+            try:
+                device = self.controller.devices[self.device_key]
+                target = device.qMOV(self.axis)[self.axis]
+            except Exception:
+                # If qMOV fails, target is unknown
+                pass
+
+            status = {
+                'connected': True,
+                'position': position,
+                'target': target,
+                'moving': moving,
+                'servo_on': servo_on,
+                'referenced': referenced,
+                'limit_min': limit_min,
+                'limit_max': limit_max,
+                'idn': idn,
+            }
+
+            return {"ok": True, "status": status}
+        except Exception as e:
+            self.logger.error("Error reading status: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_get_position(self, _: Dict[str, Any]) -> Dict[str, Any]:
+        """Get current position from hardware."""
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            position = self.controller.get_pos(self.device_key, self.axis)
+            return {"ok": True, "position": position, "units": "mm"}
+        except Exception as e:
+            self.logger.error("Error reading position: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_get_target(self, _: Dict[str, Any]) -> Dict[str, Any]:
+        """Get target position from hardware."""
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            device = self.controller.devices[self.device_key]
+            target = device.qMOV(self.axis)[self.axis]
+            return {"ok": True, "target": target, "units": "mm"}
+        except Exception as e:
+            self.logger.error("Error reading target: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_get_limits(self, _: Dict[str, Any]) -> Dict[str, Any]:
+        """Get travel limits from hardware."""
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            limits = self.controller.get_limits(self.device_key, self.axis)
+            if limits is None:
+                return {"ok": False, "error": "Failed to read limits"}
+            limit_min, limit_max = limits[self.axis]
+            return {
+                "ok": True,
+                "limit_min": limit_min,
+                "limit_max": limit_max,
+                "units": "mm"
+            }
+        except Exception as e:
+            self.logger.error("Error reading limits: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_get_idn(self, _: Dict[str, Any]) -> Dict[str, Any]:
+        """Get controller identification from hardware."""
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            idn = self.controller.get_idn(self.device_key)
+            return {"ok": True, "idn": idn}
+        except Exception as e:
+            self.logger.error("Error reading IDN: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_set_position(self, p: Dict[str, Any]) -> Dict[str, Any]:
+        """Set/move to target position.
+
+        Args:
+            p: {"position": <position_in_mm>}
+        """
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        position = p.get("position")
+        if position is None:
+            return {"ok": False, "error": "Missing 'position' parameter"}
+
+        if not isinstance(position, (int, float)):
+            return {"ok": False, "error": "'position' must be a number"}
+
+        position = float(position)
+        self.logger.info("Setting position to: %f mm", position)
+
+        try:
+            self.controller.set_pos(position, self.device_key, self.axis, blocking=False)
+            return {"ok": True, "position": position, "units": "mm"}
+
+        except Exception as e:
+            self.logger.error("Error setting position: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_home(self, _: Dict[str, Any]) -> Dict[str, Any]:
+        """Home/reference the pickoff mirror."""
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        self.logger.info("Homing pickoff mirror (FRF)")
+
+        try:
+            # Execute reference move (home)
+            success = self.controller.home(
+                self.device_key,
+                self.axis,
+                method="FRF",
+                blocking=False
+            )
+
+            if success:
+                return {"ok": True, "status": "homing"}
+            else:
+                return {"ok": False, "error": "Homing failed to start"}
+
+        except Exception as e:
+            self.logger.error("Error during homing: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_stop(self, _p: Dict[str, Any]) -> Dict[str, Any]:
+        """Stop any ongoing motion."""
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        self.logger.info("Stopping motion")
+
+        try:
+            # Halt all motion on the controller
+            self.controller.halt_motion(self.device_key)
+            return {"ok": True, "status": "stopped"}
+
+        except Exception as e:
+            self.logger.error("Error stopping motion: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_set_servo(self, p: Dict[str, Any]) -> Dict[str, Any]:
+        """Enable or disable the servo.
+
+        Args:
+            p: {"enable": true/false}
+        """
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        enable = p.get("enable")
+        if enable is None:
+            return {"ok": False, "error": "Missing 'enable' parameter"}
+
+        if not isinstance(enable, bool):
+            return {"ok": False, "error": "'enable' must be boolean"}
+
+        try:
+            self.controller.close_loop(self.device_key, self.axis, enable=enable)
+            self.logger.info(f"Servo {'enabled' if enable else 'disabled'}")
+            return {"ok": True, "servo_on": enable}
+
+        except Exception as e:
+            self.logger.error("Error setting servo: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_connect(self, _: Dict[str, Any]) -> Dict[str, Any]:
+        """Connect to the hardware."""
+        if self.state['connected']:
+            return {"ok": True, "message": "Already connected"}
+
+        if self.ip_address is None or self.tcp_port is None:
+            return {"ok": False, "error": "No IP address or port specified"}
+
+        try:
+            self._connect_hardware()
+            return {"ok": True, "message": "Connected to hardware"}
+        except Exception as e:
+            self.logger.error("Failed to connect to hardware: %s", e)
+            return {"ok": False, "error": str(e)}
+
+    def _service_disconnect(self, _: Dict[str, Any]) -> Dict[str, Any]:
+        """Disconnect from the hardware."""
+        if not self.state['connected']:
+            return {"ok": True, "message": "Already disconnected"}
+
+        try:
+            self.controller.disconnect_all()
+            self.state['connected'] = False
+            self.logger.info("Disconnected from hardware")
+            return {"ok": True, "message": "Disconnected from hardware"}
+        except Exception as e:
+            self.logger.error("Error disconnecting: %s", e)
+            return {"ok": False, "error": str(e)}
+
+    # ========== Hardware Connection ==========
+
+    def _connect_hardware(self):
+        """Connect to the PI C-663 Mercury Stepper Controller hardware."""
+        self.logger.info("Connecting to PI C-663 at %s:%s", self.ip_address, self.tcp_port)
+
+        try:
+            # Connect to the PI C-663 Mercury Stepper Controller via TCP
+            self.controller.connect_tcp(self.ip_address, self.tcp_port)
+            # PI controller stores device with 3-tuple key: (ip, port, device_id)
+            # For single non-daisy-chain connection, device_id is always 1
+            self.device_key = (self.ip_address, self.tcp_port, 1)
+            self.state['connected'] = True
+
+            # Get controller information
+            idn = self.controller.get_idn(self.device_key)
+            self.logger.info(f"Connected to: {idn}")
+
+            # Get axis information
+            axes = self.controller.get_axes(self.device_key)
+            self.logger.info("Available axes: %s", axes)
+
+            # Read initial position for logging
+            position = self.controller.get_pos(self.device_key, self.axis)
+            self.logger.info("Current position: %f mm", position)
+
+            self.logger.info("Connected to PI C-663 Mercury Stepper Controller")
+
+        except Exception as e:
+            self.logger.error("Failed to connect to PI C-663: %s",e)
+            self.state['connected'] = False
+            # Write error to state
+            self.state['error'] = str(e)
+
+    def on_stop(self, _libby):
+        """Cleanup when daemon shuts down."""
+        self.logger.info("Shutting down pickoff daemon")
+
+        # Disconnect from PI C-663 controller
+        if self.state['connected'] and self.controller:
+            try:
+                self.controller.disconnect_all()
+                self.logger.info("Disconnected from PI C-663")
+            except Exception as e:
+                self.logger.error("Error disconnecting: %s", e)
+
+        self.state['connected'] = False
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(
+        description='HSFEI Pickoff Mirror Daemon (PI C-663 Stepper)'
+    )
+    parser.add_argument(
+        '-i', '--ip',
+        type=str,
+        default='192.168.29.100',
+        help='IP address of the PI C-663 controller (default: 192.168.29.100)'
+    )
+    parser.add_argument(
+        '--tcp-port',
+        type=int,
+        default=10001,
+        help='TCP port for PI controller communication (default: 10001)'
+    )
+    parser.add_argument(
+        '-a', '--axis',
+        type=str,
+        default='1',
+        help='Axis identifier (default: 1)'
+    )
+
+    args = parser.parse_args()
+
+    # Setup logging to file and console
+    log_level = logging.INFO
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
+    # Create logger
+    logger = logging.getLogger()
+    logger.setLevel(log_level)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(logging.Formatter(log_format))
+    logger.addHandler(console_handler)
+
+    # File handler
+    file_handler = logging.FileHandler('hsfei_pickoff_daemon.log')
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(logging.Formatter(log_format))
+    logger.addHandler(file_handler)
+
+    # Create and run daemon
+    try:
+        daemon = HsfeiPickoffDaemon(
+            ip_address=args.ip,
+            tcp_port=args.tcp_port,
+            axis=args.axis,
+        )
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
