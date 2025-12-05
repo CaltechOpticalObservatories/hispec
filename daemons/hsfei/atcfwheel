@@ -15,7 +15,7 @@ class Atcfwheel(LibbyDaemon): #pylint: disable = W0223
     transport = "rabbitmq"
     discovery_enabled = False
     discovery_interval_s = 5.0
-    rabbitmq_url = "amqp://localhost" 
+    rabbitmq_url = "amqp://localhost"
     daemon_desc = "ATC FWheel"
     named_positions = {}
 
