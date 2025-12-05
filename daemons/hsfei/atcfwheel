@@ -9,10 +9,13 @@ from hispec.util.thorlabs.fw102c import FilterWheelController #pylint: disable =
 class Atcfwheel(LibbyDaemon): #pylint: disable = W0223
     '''Daemon for controlling the ATC Filter Wheel via Thorlabs FW102C controller'''
     peer_id = "atcfwheel"
+    group_id = "hsfei"
+
+    # RabbitMQ on hispec
     transport = "rabbitmq"
     discovery_enabled = False
     discovery_interval_s = 5.0
-    rabbitmq_url = "amqp://localhost"  # RabbitMQ on hispec
+    rabbitmq_url = "amqp://localhost" 
     daemon_desc = "ATC FWheel"
     named_positions = {}
 
