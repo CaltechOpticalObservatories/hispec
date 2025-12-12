@@ -1,15 +1,11 @@
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["hispec", "hispec.*"]
-
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hispec"
+name = "onewire"
 version = "0.1.0"
-description = "HISPEC Instrument Control Software"
+description = "OneWire controller software"
 authors = [
     { name="Michael Langmayr", email="langmayr@caltech.edu" },
     { name="Don Neill", email="neill@astro.caltech.edu" },
@@ -18,10 +14,9 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.7"
 dependencies = [
-    "keyring",
-    "pipython",
-    "pyserial",
-    "libximc",
-    "libby@git+https://github.com/CaltechOpticalObservatories/libby.git",
-    "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base"
+    "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base#egg=main"
+]
+[tool.pytest.ini_options]
+pythonpath = [
+    "."
 ]

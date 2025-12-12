@@ -1,0 +1,50 @@
+[build-system]
+# Specifies the build system to use. 
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Basic information about your project.
+name = "newport"
+version = "0.1.0" 
+dependencies = [
+    "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base#egg=main"
+]
+requires-python = ">=3.7"
+authors = [
+  {name = "Don Neill", email = "neill@astro.caltech.edu"}
+]
+maintainers = [
+  {name = "Don Neill", email = "neill@astro.caltech.edu"}
+]
+description = "Newport controller software"
+readme = "README.md" 
+license = { text = "MIT" }
+# keywords = ["example", "package", "keywords"]
+classifiers = [
+  "Programming Language :: Python"
+]
+
+[project.urls]
+# Various URLs related to your project. These links are displayed on PyPI.
+# Homepage = "https://example.com"
+# Documentation = "https://readthedocs.org"
+Repository = "https://github.com/COO-Utils/newport"
+# "Bug Tracker" = "https://github.com/yourusername/your-repo/issues"
+# Changelog = "https://github.com/yourusername/your-repo/blob/master/CHANGELOG.md"
+
+[project.scripts]
+# Defines command-line scripts for your package. Replace with your script and function.
+# your-command = "your_module:your_function"
+
+[project.optional-dependencies]
+# Optional dependencies that can be installed with extra tags, like "dev".
+dev = [
+  "pytest", 
+  "black",
+  "flake8"
+]
+[tool.pytest.ini_options]
+pythonpath = [
+    "."
+]

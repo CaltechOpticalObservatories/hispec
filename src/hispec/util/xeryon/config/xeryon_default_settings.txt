@@ -1,0 +1,13 @@
+% Default settings for Xeryon motion stages
+% Axis-specific settings use the format X:<tag>=<value>
+% Master settings use <tag>=<value>
+
+X:LLIM=10
+X:HLIM=200
+X:SSPD=5000
+X:PTO2=100
+X:PTOL=100
+X:POLI=5
+
+POLI=7
+SAVE=0

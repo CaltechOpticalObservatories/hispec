@@ -1,0 +1,43 @@
+[build-system] 
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "standa"
+version = "0.1.0"
+description = "A collection of Python interfaces for communicating with standa controllers"
+authors = [
+    { name = "Elijah Anakalea-Buckley", email = "elijahab@caltech.edu" }
+]
+maintainers = [
+    { name = "Elijah Anakalea-Buckley", email = "elijahab@caltech.edu" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+
+dependencies = [
+    "libximc"
+]
+
+[project.urls]
+Repository = "https://github.com/COO-Utilities/standa"
+
+[project.optional-dependencies]
+dev = [
+    "pytest-mock",
+    "pytest", 
+    "black",
+    "flake8"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "default: marks tests as default run set",
+    "unit: marks tests as unit tests",
+    "functional: marks tests as functional tests",
+]
+
+[tool.setuptools.packages.find]
+# find packages under the "standa" namespace
+include = ["smc8"]
