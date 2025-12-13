@@ -20,5 +20,6 @@ dependencies = [
     "keyring",
     "pipython",
     "pyserial",
-    "libximc"
+    "libximc",
+    "scipy"
 ]
