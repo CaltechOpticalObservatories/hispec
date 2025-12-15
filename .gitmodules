@@ -1,0 +1,48 @@
+[submodule "src/hispec/util/lakeshore"]
+	path = src/hispec/util/lakeshore
+	url = https://github.com/COO-Utilities/lakeshore
+	branch = main
+[submodule "src/hispec/util/inficon"]
+	path = src/hispec/util/inficon
+	url = https://github.com/COO-Utilities/inficon
+	branch = main
+[submodule "src/hispec/util/gammavac"]
+	path = src/hispec/util/gammavac
+	url = https://github.com/COO-Utilities/gammavac
+	branch = main
+[submodule "src/hispec/util/standa"]
+	path = src/hispec/util/standa
+	url = https://github.com/COO-Utilities/standa
+	branch = main
+[submodule "src/hispec/util/thorlabs"]
+	path = src/hispec/util/thorlabs
+	url = https://github.com/COO-Utilities/thorlabs
+	branch = main
+[submodule "src/hispec/util/sunpower"]
+	path = src/hispec/util/sunpower
+	url = https://github.com/COO-Utilities/sunpower
+	branch = main
+[submodule "src/hispec/util/onewire"]
+	path = src/hispec/util/onewire
+	url = https://github.com/COO-Utilities/onewire
+	branch = main
+[submodule "src/hispec/util/xeryon"]
+	path = src/hispec/util/xeryon
+	url = https://github.com/COO-Utilities/xeryon
+	branch = main
+[submodule "src/hispec/util/pi"]
+	path = src/hispec/util/pi
+	url = https://github.com/COO-Utilities/pi
+	branch = main
+[submodule "src/hispec/util/srs"]
+	path = src/hispec/util/srs
+	url = https://github.com/COO-Utilities/srs
+	branch = main
+[submodule "src/hispec/util/ozoptics"]
+	path = src/hispec/util/ozoptics
+	url = https://github.com/COO-Utilities/ozoptics
+	branch = main
+[submodule "src/hispec/util/newport"]
+	path = src/hispec/util/newport
+	url = https://github.com/COO-Utilities/newport
+	branch = main
