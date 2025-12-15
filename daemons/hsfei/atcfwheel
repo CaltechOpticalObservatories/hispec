@@ -2,7 +2,7 @@
 '''Module for the ATC Filter Wheel Daemon'''
 import logging
 import configparser
-from daemon import HispecDaemon # pyright: ignore[reportMissingImports]
+from hispec import HispecDaemon # pyright: ignore[reportMissingImports]
 from hispec.util.thorlabs.fw102c import FilterWheelController #pylint: disable = E0401,E0611
 #from fw102c import FilterWheelController  # Assuming fw102c.py is in the same directory
 
