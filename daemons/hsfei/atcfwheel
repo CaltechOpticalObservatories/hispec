@@ -2,11 +2,11 @@
 '''Module for the ATC Filter Wheel Daemon'''
 import logging
 import configparser
-from libby.daemon import LibbyDaemon # pyright: ignore[reportMissingImports]
+from daemon import HispecDaemon # pyright: ignore[reportMissingImports]
 from hispec.util.thorlabs.fw102c import FilterWheelController #pylint: disable = E0401,E0611
 #from fw102c import FilterWheelController  # Assuming fw102c.py is in the same directory
 
-class Atcfwheel(LibbyDaemon): #pylint: disable = W0223
+class Atcfwheel(HispecDaemon): #pylint: disable = W0223
     '''Daemon for controlling the ATC Filter Wheel via Thorlabs FW102C controller'''
     peer_id = "atcfwheel"
     group_id = "hsfei"
@@ -29,7 +29,7 @@ class Atcfwheel(LibbyDaemon): #pylint: disable = W0223
         """
         #on start set up the daemon from config and initialize device
         config = configparser.ConfigParser()
-        config.read('hsfei.config')
+        config.read('hsfei.toml')
         self.host = config["atcfwheel"]["host"]
         self.port = int(config["atcfwheel"]["port"])
 
