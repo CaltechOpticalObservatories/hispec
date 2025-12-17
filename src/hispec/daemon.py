@@ -1,11 +1,14 @@
-from __future__ import annotations
+""" Hispec Daemon template """
+from __future__ import annotations # for Python 3.9 compatibility
 import json
+import logging
 from dataclasses import is_dataclass, asdict
 import collections.abc as cabc
 import signal, sys, threading, time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Type
 
 from libby import Libby
+from . import config as cfg
 
 Payload = Dict[str, Any]
 RPCHandler = Callable[[Payload], Dict[str, Any]]
@@ -63,20 +66,101 @@ class HispecDaemon:
 
     # Config ingestion
     @classmethod
-    def from_config_file(cls, path: str, *, env_prefix: str = "LIBBY_") -> "HispecDaemon":
+    def from_config_file(
+        cls: Type["HispecDaemon"],
+        path: str,
+        daemon_id: Optional[str] = None,
+    ) -> "HispecDaemon":
         """
-        Build a daemon from a JSON or YAML file and then apply environment
-        overrides whose keys start with env_prefix (default: LIBBY_).
+        Build a daemon from a YAML config file.
+
+        Args:
+            path: Path to yaml config file
+            daemon_id: For subsystem configs, which daemon to instantiate.
+                      If None and config has multiple daemons, raises error.
+
+        Returns:
+            Configured daemon instance
         """
-        pass
+        loader = cfg.DaemonConfigLoader(path)
+
+        # For subsystem configs, daemon_id is required unless only one daemon
+        if loader.is_subsystem:
+            if daemon_id is None:
+                if len(loader.daemon_ids) == 1:
+                    daemon_id = loader.daemon_ids[0]
+                else:
+                    raise cfg.ConfigError(
+                        f"Subsystem config has multiple daemons: {loader.daemon_ids}. "
+                        f"Specify daemon_id parameter."
+                    )
+
+        config_dict = loader.get_daemon_config(daemon_id)
+        return cls.from_config(config_dict)
 
     @classmethod
-    def from_config(cls, cfg: Dict[str, Any]) -> "HispecDaemon":
+    def from_config(cls: Type["HispecDaemon"], config: Dict[str, Any]) -> "HispecDaemon":
         """
-        Build a daemon from a pre-loaded dict. Only the known public attributes
-        are mapped; anything else stays in _config for user code to read.
+        Build a daemon from a configuration dictionary.
+
+        Known daemon attributes are mapped directly to instance attributes.
+
+        Args:
+            config: Configuration dictionary
+
+        Returns:
+            Configured daemon instance
         """
-        pass
+        instance = cls()
+
+        # Map known daemon attributes directly
+        for attr in cfg.DAEMON_ATTRS:
+            if attr in config:
+                setattr(instance, attr, config[attr])
+
+        # Store full config for subclass access
+        instance._config = config
+
+        # Setup logging
+        instance._setup_logging()
+
+        return instance
+
+    def _setup_logging(self) -> None:
+        """Configure logging from config or defaults."""
+        log_config = self._config.get("logging", {})
+        level_str = log_config.get("level", "INFO").upper()
+        level = getattr(logging, level_str, logging.INFO)
+        log_file = log_config.get("file")
+
+        logging.basicConfig(
+            level=level,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            filename=log_file,
+        )
+
+        self.logger = logging.getLogger(self.peer_id or self.__class__.__name__)
+
+    def get_config(self, key: str, default: Any = None) -> Any:
+        """
+        Get a value from the daemon's configuration.
+
+        Args:
+            key: Config key (supports dot notation for nested keys, e.g., "hardware.ip_address")
+            default: Default value if key not found
+
+        Returns:
+            Config value or default
+        """
+        keys = key.split(".")
+        value = self._config
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return default
+        return value
+
 
     # optional hooks
     def on_start(self, libby: Libby) -> None: ...

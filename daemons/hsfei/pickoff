@@ -2,43 +2,34 @@
 """
 HSFEI Pickoff MirrorDaemon
 
-This daemon provides control and monitoring of the FEI pickoff mirrorusing Libby.
+This daemon provides control and monitoring of the FEI pickoff mirror using Libby.
 """
 
 import argparse
-import logging
 import sys
 from typing import Dict, Any
 
-from libby.daemon import LibbyDaemon
+from hispec import HispecDaemon
 from hispec.util.pi import PIControllerBase
 
 
-class HsfeiPickoffDaemon(LibbyDaemon):
+class HsfeiPickoffDaemon(HispecDaemon):
     """Daemon for controlling the FEI pickoff mirror position."""
 
+    # Defaults
     peer_id = "pickoff"
     group_id = "hsfei"
     transport = "rabbitmq"
-    rabbitmq_url = "amqp://localhost"  # RabbitMQ on hispec
     discovery_enabled = False
-    discovery_interval_s = 5.0
 
-    # pub/sub topics
-    topics = {}
+    def __init__(self):
+        """Initialize the pickoff daemon."""
+        super().__init__()
 
-    def __init__(self, ip_address='192.168.29.100', tcp_port=10001, axis='1'):
-        """Initialize the pickoff daemon.
-
-        Args:
-            ip_address: IP address of the PI controller (default: 192.168.29.100)
-            tcp_port: TCP port for the PI controller (default: 10001)
-            axis: Axis identifier (default: '1')
-        """
-        # PI controller configuration
-        self.ip_address = ip_address
-        self.tcp_port = tcp_port
-        self.axis = axis
+        # PI controller configuration from config file
+        self.ip_address = self.get_config("hardware.ip_address", "192.168.29.100")
+        self.tcp_port = self.get_config("hardware.tcp_port", 10001)
+        self.axis = self.get_config("hardware.axis", "1")
         self.device_key = None
 
         # PI controller instance
@@ -50,11 +41,13 @@ class HsfeiPickoffDaemon(LibbyDaemon):
             'error': '',
         }
 
-        # Setup logging
-        self.logger = logging.getLogger(self.peer_id)
+    def get_named_positions(self):
+        """Get named positions from config (e.g., home, deployed, science)."""
+        return self._config.get("named_positions", {})
 
-        # Call parent __init__ first
-        super().__init__()
+    def get_named_position(self, name: str):
+        """Get a specific named position value, or None if not found."""
+        return self.get_named_positions().get(name)
 
     def on_start(self, libby):
         """Called when daemon starts - initialize hardware."""
@@ -385,6 +378,16 @@ def main():
         description='HSFEI Pickoff Mirror Daemon (PI C-663 Stepper)'
     )
     parser.add_argument(
+        '-c', '--config',
+        type=str,
+        help='Path to config file (YAML or JSON)'
+    )
+    parser.add_argument(
+        '-d', '--daemon-id',
+        type=str,
+        help='Daemon ID (required for subsystem configs with multiple daemons)'
+    )
+    parser.add_argument(
         '-i', '--ip',
         type=str,
         default='192.168.29.100',
@@ -405,33 +408,27 @@ def main():
 
     args = parser.parse_args()
 
-    # Setup logging to file and console
-    log_level = logging.INFO
-    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-
-    # Create logger
-    logger = logging.getLogger()
-    logger.setLevel(log_level)
-
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(log_level)
-    console_handler.setFormatter(logging.Formatter(log_format))
-    logger.addHandler(console_handler)
-
-    # File handler
-    file_handler = logging.FileHandler('hsfei_pickoff_daemon.log')
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(logging.Formatter(log_format))
-    logger.addHandler(file_handler)
-
     # Create and run daemon
     try:
-        daemon = HsfeiPickoffDaemon(
-            ip_address=args.ip,
-            tcp_port=args.tcp_port,
-            axis=args.axis,
-        )
+        if args.config:
+            # Load from config file
+            daemon = HsfeiPickoffDaemon.from_config_file(
+                args.config,
+                daemon_id=args.daemon_id,
+            )
+        else:
+            # Use CLI args - build config dict and use from_config
+            config = {
+                "peer_id": "pickoff",
+                "group_id": "hsfei",
+                "transport": "rabbitmq",
+                "hardware": {
+                    "ip_address": args.ip,
+                    "tcp_port": args.tcp_port,
+                    "axis": args.axis,
+                }
+            }
+            daemon = HsfeiPickoffDaemon.from_config(config)
         daemon.serve()
     except KeyboardInterrupt:
         print("\nDaemon interrupted by user")
