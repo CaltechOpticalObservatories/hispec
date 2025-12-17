@@ -161,6 +161,7 @@ class HispecDaemon:
                 return default
         return value
 
+
     # optional hooks
     def on_start(self, libby: Libby) -> None: ...
     def on_stop(self, libby: Optional[Libby] = None) -> None: ...

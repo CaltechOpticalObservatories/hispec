@@ -46,3 +46,10 @@
 	path = src/hispec/util/newport
 	url = https://github.com/COO-Utilities/newport
 	branch = main
+[submodule "etc/PIPython"]
+	path = etc/PIPython
+	url = https://github.com/PI-PhysikInstrumente/PIPython
+[submodule "etc/camera-interface"]
+	path = etc/camera-interface
+	url = https://github.com/CaltechOpticalObservatories/camera-interface
+	branch = main
