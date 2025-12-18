@@ -1,0 +1,28 @@
+# Single Daemon Configuration Example
+# For standalone daemon deployment or development/testing
+#
+# Usage:
+#   daemon = HsfeiPickoffDaemon.from_config_file("config/pickoff_single.yaml")
+
+peer_id: atcfwheel
+group_id: hsfei
+transport: rabbitmq
+rabbitmq_url: amqp://localhost
+discovery_enabled: false
+
+hardware:
+  host: 192.168.29.100
+  port: 10010
+  axis: "1"
+
+named_positions:
+    open: 1
+    nd_filter_1: 2
+    nd_filter_2: 3
+    nd_filter_3: 4
+    nd_filter_4: 5
+    nd_filter_5: 6
+
+logging:
+  level: INFO
+  # file: /var/log/hispec/atcfwheel.log
