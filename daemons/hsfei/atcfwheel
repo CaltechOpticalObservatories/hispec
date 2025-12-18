@@ -51,6 +51,14 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
         """Get a specific named position value, or None if not found."""
         return self.get_named_positions().get(name)
 
+    def cur_named_position(self):
+        """Get the name of the current position, if it matches a named position."""
+        current_pos = self.get_pos().get("position")
+        for name, pos in self.get_named_positions().items():
+            if str(pos) == str(current_pos):
+                return name
+        return None
+
     def on_start(self, libby):
         '''Starts up daemon and initializies the hardware device'''
         self.logger.info("Starting %s Daemon", self.daemon_desc)
@@ -61,7 +69,7 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
             "status":       lambda p: self.status(),
             "position.get": lambda p: self.get_pos(),
             "position.set": lambda p: self.set_pos(pos = p.get("position")),
-            "position.get_named": lambda p: self.get_named_position(),
+            "position.get_named": lambda p: self.cur_named_position(),
             "position.set_named": lambda p: self.goto_named_pos(name = p.get("named_pos"))
         })
         # Initialize hardware connection
