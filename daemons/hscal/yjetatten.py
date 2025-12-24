@@ -1,8 +1,7 @@
-import logging
-from libby.daemon import LibbyDaemon
+from hispec import HispecDaemon
 from hispec.util.ozoptics.dd100mc import OZController
 
-class YJetAtten(LibbyDaemon):
+class YJetAtten(HispecDaemon):
     """
     Daemon to control the YJ attenuator via OZ Optics DD100-MC controller.
     """
@@ -12,35 +11,22 @@ class YJetAtten(LibbyDaemon):
     # RabbitMQ config
     transport = "rabbitmq"
     rabbitmq_url = "amqp://localhost"
-    discovery_enabled = True
-    discovery_interval_s = 2.0
+    discovery_enabled = False
 
-    # pub/sub topics
-    topics = {}
+    def __init__(self):
+        super().__init__()
 
-    def __init__(self, host=None, port=None):
-        """ initialize the YJ attenuator daemon
-        Args:
-            host (str): hostname or IP address of the DD100-MC controller
-            port (int): port number of the DD100-MC controller
-        """
-        self.host = host
-        self.port = port
+        self.ip_address = self.get_config("hardware.ip_address", default=None)
+        self.tcp_port = self.get_config("hardware.tcp_port", default=None)
 
         # OZoptics DD100-MC controller instance
-        self.dev = OZController()
+        self.controller = OZController()
 
         # daemon state
         self.state = {
             'connected': False,
             'error': ''
         }
-
-        # set up logging
-        self.logger = logging.getLogger(self.peer_id)
-
-        # call parent init
-        super().__init__()
 
 
     def on_start(self, libby):
@@ -62,9 +48,9 @@ class YJetAtten(LibbyDaemon):
         self.add_services(services)
         self.logger.info('Registered %d RPC services', len(services))
 
-        if self.host is None or self.port is None:
-            self.logger.error("No host or port specified")
-            self.state['error'] = "No host or port specified"
+        if self.ip_address is None or self.tcp_port is None:
+            self.logger.error("Missing IP address or TCP port for YJ Etalon DD100-MC controller")
+            self.state['error'] = "No ip address or tcp port specified"
         else:
             ret = self.connect()
             if not ret["ok"]:
@@ -76,6 +62,7 @@ class YJetAtten(LibbyDaemon):
                 else:
                     self.state['connected'] = True
                     self.state['error'] = ''
+                    self.logger.info("YJ attenuator daemon connected and initialized successfully")
 
         libby.publish("yjetatten.status", self.state)
 
@@ -83,58 +70,63 @@ class YJetAtten(LibbyDaemon):
         # clean up on daemon stop
         ret = self.disconnect()
         if not ret["ok"]:
-            libby.publish("yjetatten", {"Daemon Shutdown": "Failed", "Error": ret.get("error")})
+            self.state['error'] = ret.get("error")
         else:
-            libby.publish("yjetatten", {"Daemon Shutdown": "Success"})
+            self.state['connected'] = False
+            self.state['error'] = ''
+        self.logger.info("YJ attenuator daemon stopped successfully")
 
 
     def connect(self):
         """ handles connection to the device """
-        if self.state['connected']:
+        if self.controller.is_connected():
             return {"ok": True, "message": "Already connected"}
 
         try:
-            self.dev.connect(host=self.host, port=self.port, con_type='tcp')
-            if self.dev.is_connected():
-                self.logger.info("Connected to YJ Attenuator controller at %s:%d", self.host, self.port)
-                return {"ok": True, "message": "Connected to controller"}
-            else:
-                self.logger.error("Failed to connect to YJ Attenuator controller")
-                return {"ok": False, "error": "Failed to connect to controller"}
+            self.controller.connect(host=self.ip_address, port=self.tcp_port, con_type='tcp')
         except Exception as e:
-            self.logger.error("Exception while connecting to YJ Attenuator controller: %s", str(e))
-            return {"ok": False, "error": f"Failed to connect to controller {str(e)}"}
+            self.logger.error("Exception while connecting: %s", str(e))
+            return {"ok": False, "error": f"Connection failed: {str(e)}"}
+
+        if self.controller.is_connected():
+            self.logger.info("Connected to YJ Attenuator DD100-MC controller at %s:%d",
+                             self.ip_address, self.tcp_port)
+            return {"ok": True, "message": "Connection successful"}
+        else:
+            self.logger.error("Failed to connect to YJ Attenuator DD100-MC controller")
+            return {"ok": False, "error": "Connection failed"}
 
     def disconnect(self):
         """ handles disconnection from the device """
-        if not self.state['connected']:
+        if not self.controller.is_connected():
             return {"ok": True, "message": "Already disconnected"}
 
         try:
-            self.dev.disconnect()
-            if not self.dev.is_connected():
-                self.logger.info("Disconnected from YJ Attenuator controller")
-                return {"ok": True, "message": "Disconnected from controller"}
-            else:
-                self.logger.error("Failed to disconnect from YJ Attenuator controller")
-                return {"ok": False, "error": "Failed to disconnect from controller"}
+            self.controller.disconnect()
         except Exception as e:
-            self.logger.error("Exception while disconnecting from YJ Attenuator controller: %s", str(e))
-            return {"ok": False, "error": f"Failed to disconnect from controller {str(e)}"}
+            self.logger.error("Exception while disconnecting: %s", str(e))
+            return {"ok": False, "error": f"Failed to disconnect, {str(e)}"}
+
+        if not self.controller.is_connected():
+            self.logger.info("Disconnected from YJ Attenuator DD100-MC controller")
+            return {"ok": True, "message": "Disconnected successfully"}
+        else:
+            self.logger.error("Failed to disconnect from YJ Attenuator DD100-MC controller")
+            return {"ok": False, "error": "Failed to disconnect"}
 
 
     def initialize(self):
         """ initializes the device (i.e. homing) """
-        if self.dev.initialize():
-            self.logger.info("Initialized YJ Attenuator controller")
+        if self.controller.initialize():
+            self.logger.info("Initialized YJ Attenuator DD100-MC controller")
             return {"ok": True, "message": "Successfully homed device"}
         else:
-            self.logger.error("Failed to initialize YJ Attenuator controller")
+            self.logger.error("Failed to initialize YJ Attenuator DD100-MC controller")
             return {"ok": False, "error": "Failed to home device"}
 
     def reset(self):
         """ resets the device """
-        ret = self.dev.reset()
+        ret = self.controller.reset()
         if ret is not None:
             self.logger.info("Reset YJ Attenuator controller")
             return {"ok": True, "message": "Successfully reset device", "reset": ret}
@@ -144,7 +136,7 @@ class YJetAtten(LibbyDaemon):
 
     def get_stage_params(self):
         """ gets the device params """
-        ret = self.dev.get_params()
+        ret = self.controller.get_params()
         if ret is not None:
             self.logger.debug("get_params: %s", str(ret))
             return {"ok": True, "params": ret}
@@ -157,7 +149,7 @@ class YJetAtten(LibbyDaemon):
         if item not in ['atten','pos']:
             self.logger.error("Invalid item requested: %s", item)
             return {"ok": False, "error": "Invalid item requested"}
-        ret = self.dev.get_atomic_value(item)
+        ret = self.controller.get_atomic_value(item)
         if ret is None:
             self.logger.error(f"Failed to get {item} from YJ Attenuator controller")
             return {"ok": False, "error": f"Failed to get {item} value"}
@@ -167,7 +159,7 @@ class YJetAtten(LibbyDaemon):
 
     def set_attenuation(self, attenuation: float):
         """ sets the attenuation value on the device """
-        if self.dev.set_attenuation(attenuation):
+        if self.controller.set_attenuation(attenuation):
             self.logger.info("Successfully set attenuation to %f", attenuation)
             return {"ok": True, "message": "Successfully set attenuation"}
         else:
@@ -176,7 +168,7 @@ class YJetAtten(LibbyDaemon):
 
     def set_position(self, position: int):
         """ sets the position value on the device """
-        if self.dev.set_pos(position):
+        if self.controller.set_pos(position):
             self.logger.info("Successfully set position to %d", position)
             return {"ok": True, "message": "Successfully set position"}
         else:
@@ -187,7 +179,7 @@ class YJetAtten(LibbyDaemon):
         """ steps the device in the given direction """
         if direction not in ['F', 'B']:
             return {"ok": False, "error": "Invalid direction, must be 'F' or 'B'"}
-        ret = self.dev.step(direction)
+        ret = self.controller.step(direction)
         if ret is not None:
             self.logger.info("Successfully stepped device %s to position %d", direction, ret)
             return {"ok": True, "message": "Successfully stepped device", "position": ret}
