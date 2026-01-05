@@ -12,8 +12,8 @@ HOST = '192.168.29.100'
 
 def point_gimbal(x: int, y: int):
     """Point the gimbal to the specified x and y positions."""
-    dev = Ppc102Controller(host=HOST, port = PORT, log = False)
-    dev.open()
+    dev = Ppc102Controller(log = False)
+    dev.connect(host=HOST, port = PORT)
     try:
         ret = dev.get_enable(channel = 0)
         if ret[0] == 2 or ret[1] == 2:
@@ -28,12 +28,12 @@ def point_gimbal(x: int, y: int):
         y_cur = dev.get_pos(channel = 2)
         print(f"Curent position: x: {x_cur} , y: {y_cur} ")
     finally:
-        dev.close()
+        dev.disconnect()
 
 def status():
     """Get the current status of the gimbal."""
-    dev = Ppc102Controller(host=HOST, port = PORT, log = False)
-    dev.open()
+    dev = Ppc102Controller(log = False)
+    dev.connect(host=HOST, port = PORT)
     try:
         ret = dev.get_enable(channel = 0)
         if ret[0] == 2 or ret[1] == 2:
@@ -46,12 +46,12 @@ def status():
         y_cur = dev.get_pos(channel = 2)
         print(f"Curent position: x: {x_cur} , y: {y_cur} ")
     finally:
-        dev.close()
+        dev.disconnect()
 
 def cleanup_gimbal():
     """Cleanup the gimbal by opening loops and setting voltages to 0."""
-    dev = Ppc102Controller(host=HOST, port = PORT, log = False)
-    dev.open()
+    dev = Ppc102Controller(log = False)
+    dev.connect(host=HOST, port = PORT)
     try:
         dev.set_enable(channel = 0, enable = 1)
         print("Loops Open")
@@ -60,16 +60,16 @@ def cleanup_gimbal():
         dev.set_output_volts(channel = 1, volts = 0)
         dev.set_output_volts(channel = 2, volts = 0)
     finally:
-        dev.close()
+        dev.disconnect()
 
 def loop_state(state):
     """Set the loop state of the gimbal."""
-    dev = Ppc102Controller(host=HOST, port = PORT, log = False)
-    dev.open()
+    dev = Ppc102Controller(log = False)
+    dev.connect(host=HOST, port = PORT)
     try:
         if state not in [0, 1]:
             print("Loop state must be 0 (open) or 1 (closed)")
-            dev.close()
+            dev.disconnect()
             return
         if state == 1:
             print("Setting loop state to 'closed'")
@@ -83,7 +83,7 @@ def loop_state(state):
         else:
             print("Loops Open")
     finally:
-        dev.close()
+        dev.disconnect()
 
 if len(sys.argv) < 3:
     print("Format for this Script is: 'gimbal {red/blue} {cleanup/goto} {x} {y}'")
