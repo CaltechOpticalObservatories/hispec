@@ -2,7 +2,7 @@
 '''Module for the ATC Filter Wheel Daemon'''
 import argparse
 import sys
-from typing import Dict, Any
+from typing import Dict, Any #pylint: disable = W0611
 
 from hispec.daemon import HispecDaemon #pylint: disable = E0401,E0611
 from hispec.util.thorlabs.fw102c import FilterWheelController #pylint: disable = E0401,E0611
@@ -57,7 +57,7 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
         for name, pos in self.get_named_positions().items():
             if str(pos) == str(current_pos):
                 return {"ok": True, "named_pos": name, "position": current_pos}
-        return {"ok": False, "error": "Current position does not match any named position", "position": current_pos}
+        return {"ok": False, "error": "Current position does not match any named position", "position": current_pos} #pylint: disable = C0301
 
     def on_start(self, libby):
         '''Starts up daemon and initializies the hardware device'''
