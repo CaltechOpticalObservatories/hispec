@@ -51,11 +51,10 @@ daemons:
     hardware:
       host: 192.168.29.100
       port: 10010
-      axis: "1"
     named_positions:
-      open: 1
-      nd_filter_1: 2
-      nd_filter_2: 3
-      nd_filter_3: 4
-      nd_filter_4: 5
-      nd_filter_5: 6
+      clear: 1
+      nd1: 2
+      nd2: 3
+      nd3: 4
+      nd4: 5
+      nd5: 6

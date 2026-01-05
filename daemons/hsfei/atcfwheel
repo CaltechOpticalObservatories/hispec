@@ -29,9 +29,9 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
         super().__init__()
 
         self.host = self.get_config("hardware.host", "192.168.29.100")
-        self.port = self.get_config("hardware.port", 10001)
+        self.port = self.get_config("hardware.port", 10010)
         self.device_key = None
-        self.dev = FilterWheelController()
+        self.dev = FilterWheelController(log = True)
         self.daemon_desc = "ATC Filter Wheel Daemon"
 
         # Daemon state
@@ -53,11 +53,11 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
 
     def cur_named_position(self):
         """Get the name of the current position, if it matches a named position."""
-        current_pos = self.get_pos().get("position")
+        current_pos = self.dev.get_pos()
         for name, pos in self.get_named_positions().items():
             if str(pos) == str(current_pos):
-                return name
-        return None
+                return {"ok": True, "named_pos": name, "position": current_pos}
+        return {"ok": False, "error": "Current position does not match any named position", "position": current_pos}
 
     def on_start(self, libby):
         '''Starts up daemon and initializies the hardware device'''
@@ -66,7 +66,7 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
             "connect":      lambda p: self.connect(),
             "disconnect":   lambda p: self.disconnect(),
             "initialize":   lambda p: self.initialize(),
-            "status":       lambda p: self.status(),
+            "status.get":       lambda p: self.status(),
             "position.get": lambda p: self.get_pos(),
             "position.set": lambda p: self.set_pos(pos = p.get("position")),
             "position.get_named": lambda p: self.cur_named_position(),
@@ -79,7 +79,7 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
         else:
             try:
                 connection = self.connect()
-                if connection.get("Connect") != "Success":
+                if not connection.get("ok"):
                     raise ConnectionError(connection.get("Error"))
                 self.state['connected'] = True
                 self.logger.info("Daemon started successfully and connected to hardware")
@@ -145,7 +145,15 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
     def status(self):
         """handles status"""
         try:
-            status = self.dev.get_status()
+            limits = self.dev.get_limits()
+            position = self.cur_named_position()
+            status = {
+                "connected": self.dev.is_connected(),
+                "position": position.get("position"),
+                "named_pos": position.get("named_pos"),
+                "min_limit": limits.get("1")[0],
+                "max_limit": limits.get("1")[1],
+            }
             self.logger.debug("status: %s",status)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
@@ -192,7 +200,67 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
             return {"ok": False, "error": str(e)}
-        return {"ok": True, "named_position": name, "position": goal}
+        return {"ok": True, "named_pos": name, "position": goal}
 
-if __name__ == "__main__":
-    Atcfwheel().serve()
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(
+        description='HSFEI ATC Filter Wheel Daemon'
+    )
+    parser.add_argument(
+        '-c', '--config',
+        type=str,
+        help='Path to config file (YAML or JSON)'
+    )
+    parser.add_argument(
+        '-d', '--daemon-id',
+        type=str,
+        default='',
+        help='Daemon ID (required for subsystem configs with multiple daemons)'
+    )
+    parser.add_argument(
+        '-H', '--host',
+        type=str,
+        default='192.168.29.100',
+        help='Host address of the ATC Filter Wheel'
+    )
+    parser.add_argument(
+        '-p', '--port',
+        type=int,
+        default=10010,
+        help='Port for ATC Filter Wheel (default: 10010)'
+    )
+
+    args = parser.parse_args()
+
+    # Create and run daemon
+    try:
+        if args.config:
+            # Load from config file
+            daemon = Atcfwheel.from_config_file(
+                args.config,
+                daemon_id=args.daemon_id,
+            )
+        else:
+            # Use CLI args - build config dict and use from_config
+            config = {
+                "peer_id": "atcfwheel",
+                "group_id": "hsfei",
+                "transport": "rabbitmq",
+                "hardware": {
+                    "host": args.host,
+                    "port": args.port,
+                }
+            }
+            daemon = Atcfwheel.from_config(config)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e: # pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
