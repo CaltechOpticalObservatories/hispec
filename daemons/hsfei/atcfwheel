@@ -130,7 +130,6 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
         if not self.state['connected']:
             return {"ok": False, "error": "Not connected to hardware"}
 
-        # for PPC102_Coms, this involves setting the enabled status
         try:
             self.dev.initialize()
         except Exception as e: # pylint: disable=W0718
