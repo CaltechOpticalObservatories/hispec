@@ -39,9 +39,11 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
         # Daemon state
         self.state = {
             'connected': False,
-            'error': ''
+            'error': '',
+            'enabled': False,
+            'loops_closed': False
         }
-    
+
     def get_named_positions(self):
         """Get named positions from config (e.g., home, deployed, science)."""
         return self._config.get("named_positions", {})
@@ -52,9 +54,9 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
 
     def cur_named_position(self):
         """Get the name of the current position, if it matches a named position."""
-        current_pos = self.dev.get_pos()
+        current_pos = self.dev.get_pos(channel=1), self.dev.get_pos(channel=2)
         for name, pos in self.get_named_positions().items():
-            if str(pos) == str(current_pos):
+            if abs(float(pos) - float(current_pos)) <= 0.001:
                 return {"ok": True, "named_pos": name, "position": current_pos}
         return {"ok": False, "error": "Current position does not match any named position", "position": current_pos} #pylint: disable = C0301
 
@@ -73,7 +75,7 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
             "position.get": lambda p: self.get_pos(),
             "position.set": lambda p: self.set_pos(axis = p.get("axis"),
                                                    pos = p.get("position")),
-            "position.get_named": lambda p: self.get_named_position(),
+            "position.get_named": lambda p: self.cur_named_position(),
             "position.set_named": lambda p: self.goto_named_pos(name = p.get("named_pos"))
         })
         # Initialize hardware connection
@@ -84,7 +86,7 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
             try:
                 connection = self.connect()
                 if not connection.get("ok"):
-                    raise ConnectionError(connection.get("Error"))
+                    raise ConnectionError(connection.get("error"))
                 self.state['connected'] = True
                 self.logger.info("Daemon started successfully and connected to hardware")
                 self.initialize()
@@ -102,7 +104,7 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
             self.logger.info("Disconnected %s", self.daemon_desc)
             libby.publish("yjpiaagim", {"Daemon Shutdown": "Success"})
         except Exception as e: # pylint: disable=W0718
-            libby.publish("yjpiaagim", {"Daemon Startup": "Failed", "Error":f"{e}"})
+            libby.publish("yjpiaagim", {"Daemon Startup": "Failed", "error":f"{e}"})
             self.logger.error("Disconnect %s:: Failed ", self.daemon_desc)
 
 
@@ -126,33 +128,48 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
                 raise ConnectionAbortedError("Failed to disconnect to device")
             self.logger.info("Disconnected from %s", self.daemon_desc)
         except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
+            self.logger.error("error: %s",e)
             return {"ok": False, "error": str(e)}
-        return {"ok": True, "message": "Disconnected from hardware"} 
+        return {"ok": True, "message": "Disconnected from hardware"}
 
     def initialize(self):
         """handles initialization"""
         # for PPC102_Coms, this involves setting the enable
         if not self.state['connected']:
             return {"ok": False, "error": "Not connected to hardware"}
-    
+
         try:
             self.dev.set_enable(channel = 0, enable = 1)
+            self.state['enabled'] = True
+            self.logger.debug("Initialized %s", self.daemon_desc)
         except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
+            self.logger.error("error: %s",e)
             return {"ok":False , "error": str(e)}
         return {"ok": True}
 
-    def status(self): #TODO: Check to make sure this is correct for PPC102 
+    def status(self):
         """handles status"""
         if not self.state['connected']:
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            status = self.dev.get_status_update()
+            res_x = self.dev.get_status_update(channel = 1)
+            res_y = self.dev.get_status_update(channel = 2)
+            enabled = self.dev.get_enable(channel = 0)
+            status = {
+                "is_connected": self.dev.is_connected(),
+                "position_x": res_x[1],
+                "position_y": res_y[1],
+                "voltage_x": res_x[0],
+                "voltage_y": res_y[0],
+                "flag_x": res_x[2],
+                "flag_y": res_y[2],
+                "enabled": enabled,
+                "loops_closed": self.dev.is_loop_closed()
+            }
             self.logger.debug("status: %s",status)
         except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
+            self.logger.error("error: %s",e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "status": status}
 
@@ -165,81 +182,155 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
             closed = self.dev.is_loop_closed()
             self.logger.debug("is_loops_closed: %s",closed)
         except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
+            self.logger.error("error: %s",e)
             return {"ok": False, "error": str(e)}
         return {"ok":True, "loops_closed": closed}
-    
+
     def close_loops(self):
         '''closes control loops'''
         try:
             self.dev.set_loop(channel=0, loop=2)
             self.logger.debug("close_loops called")
+            closed = self.dev.is_loop_closed()
+            if not closed:
+                raise RuntimeError("Failed to close loops")
+            self.state['loops_closed'] = True
         except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
-            return {"close_loops": "Failed", "Error": f"{e}"}
-        return {"close_loops": "Success"}
+            self.logger.error("error: %s",e)
+            return {"ok": False, "error": str(e)}
+        return {"ok":True, "loops_closed": closed}
 
     def open_loops(self):
         '''opens control loops'''
         try:
             self.dev.set_loop(channel=0, loop=1)
             self.logger.debug("open_loops called")
+            closed = self.dev.is_loop_closed()
+            if closed:
+                raise RuntimeError("Failed to open loops")
+            self.state['loops_closed'] = False
         except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
-            return {"open_loops": "Failed", "Error": f"{e}"}
-        return {"open_loops": "Success"}
+            self.logger.error("error: %s",e)
+            return {"ok": False, "error": str(e)}
+        return {"ok":True, "loops_closed": closed}
 
     def get_pos(self):
         '''gets current position'''
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+        if not self.state['enabled']:
+            return {"ok": False, "error": "Device not enabled"}
+        if not self.state['loops_closed']:
+            return {"ok": False, "error": "Control loops are not closed"}
         try:
             xpos = self.dev.get_pos(channel=1)
             ypos = self.dev.get_pos(channel=2)
             position = (xpos, ypos)
             self.logger.debug("get_pos: %s",position)
         except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
-            return {"get_pos": "Failed", "Error": f"{e}"}
-        return {"position": str(position)}
+            self.logger.error("error: %s",e)
+            return {"ok": False, "error": str(e)}
+        return {"ok":True, "position": str(position)}
 
     def set_pos(self, axis, pos):
         '''sets current position'''
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+        if not self.state['enabled']:
+            return {"ok": False, "error": "Device not enabled"}
+        if not self.state['loops_closed']:
+            return {"ok": False, "error": "Control loops are not closed"}
         try:
             pos = float(pos)
             axis = int(axis)
             if axis not in [0,1]:
                 self.logger.error("Axis must be 0 (X) or 1 (Y)")
-                return {"Move": "Failed", "Error": "Axis must be 0 (X) or 1 (Y)"}
+                return {"ok": False, "error": "Axis must be 0 (X) or 1 (Y)"}
             chan = axis + 1
             self.dev.set_pos(channel=chan, pos=pos)
             self.logger.debug("set_pos: %d",pos)
+            position = self.dev.get_pos(channel=chan)
         except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
-            return {"Move": "Failed", "Error": f"{e}"}
-        return {"Move": "Success"}
+            self.logger.error("error: %s",e)
+            return {"ok": False, "error": str(e)}
+        return {"ok":True, "position": str(position)}
 
     def goto_named_pos(self, name):
         '''moves to named position'''
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
         try:
-            goal = self.named_positions.get(name.lower())
+            goal = self.get_named_position(name.lower())
             if goal is not None:
-                self.dev.set_pos(int(goal))
+                self.dev.set_pos(channel=1, pos=float(goal[0]))
+                self.dev.set_pos(channel=2, pos=float(goal[1]))
             self.logger.debug("goto_named_pos: %s -> %s",name,goal)
+            cur_pos = (self.dev.get_pos(channel=1), self.dev.get_pos(channel=2))
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
-            return {"Move to Named Position": "Failed", "Error": f"{e}"}
-        return {"move": "Success"}
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "named_pos": name, "position": cur_pos}
 
-    def get_named_position(self):
-        '''returns current named position'''
-        current = (
-            round(self.dev.get_pos(channel=1), 3),
-            round(self.dev.get_pos(channel=2), 3),
-        )
-        for name, pos in self.named_positions.items():
-            if pos == current:
-                return {"named_pos": name}
-        return {"named_pos": "Unknown"}
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(
+        description='HSFEI Blue Gimbal Mount Daemon'
+    )
+    parser.add_argument(
+        '-c', '--config',
+        type=str,
+        help='Path to config file (YAML or JSON)'
+    )
+    parser.add_argument(
+        '-d', '--daemon-id',
+        type=str,
+        default='',
+        help='Daemon ID (required for subsystem configs with multiple daemons)'
+    )
+    parser.add_argument(
+        '-H', '--host',
+        type=str,
+        default='192.168.29.100',
+        help='Host address of the ATC Filter Wheel'
+    )
+    parser.add_argument(
+        '-p', '--port',
+        type=int,
+        default=10013,
+        help='Port for Blue Gimbal Mount (default: 10013)'
+    )
 
-if __name__ == "__main__":
-    Yjpiaagim().serve()
+    args = parser.parse_args()
 
+    # Create and run daemon
+    try:
+        if args.config:
+            # Load from config file
+            daemon = Yjpiaagim.from_config_file(
+                args.config,
+                daemon_id=args.daemon_id,
+            )
+        else:
+            # Use CLI args - build config dict and use from_config
+            config = {
+                "peer_id": "atcfwheel",
+                "group_id": "hsfei",
+                "transport": "rabbitmq",
+                "hardware": {
+                    "host": args.host,
+                    "port": args.port,
+                }
+            }
+            daemon = Yjpiaagim.from_config(config)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e: # pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
