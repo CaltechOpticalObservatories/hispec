@@ -22,7 +22,7 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
     topics = {}
 
     def __init__(self):
-        """Initialize the pickoff daemon.
+        """Initialize the ATC Filter Wheel daemon.
 
         Args: come from the hsfei configuration file
         """
@@ -39,9 +39,6 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
             'connected': False,
             'error': ''
         }
-
-        # Call parent __init__ first
-        super().__init__()
 
     def get_named_positions(self):
         """Get named positions from config (e.g., home, deployed, science)."""
