@@ -32,7 +32,6 @@ class Atcfwheel(HispecDaemon): #pylint: disable = W0223
         self.port = self.get_config("hardware.port", 10010)
         self.device_key = None
         self.dev = FilterWheelController(log = True)
-        self.daemon_desc = "ATC Filter Wheel Daemon"
 
         # Daemon state
         self.state = {
