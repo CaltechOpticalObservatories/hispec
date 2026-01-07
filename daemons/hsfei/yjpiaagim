@@ -9,7 +9,7 @@ from hispec.util.thorlabs.ppc102 import Ppc102Controller #pylint: disable = E040
 #from ppc102 import Ppc102Controller  # Assuming ppc102.py is in the same directory
 
 class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
-    '''Daemon for controlling the ATC Filter Wheel via Thorlabs FW102C controller'''
+    '''Daemon for controlling the Blue Piaa Gimbal Mount via Thorlabs PPC102 controller'''
 
     # Defaults
     peer_id = "yjpiaagim"
@@ -54,11 +54,20 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
 
     def cur_named_position(self):
         """Get the name of the current position, if it matches a named position."""
-        current_pos = self.dev.get_pos(channel=1), self.dev.get_pos(channel=2)
-        for name, pos in self.get_named_positions().items():
-            if abs(float(pos) - float(current_pos)) <= 0.001:
-                return {"ok": True, "named_pos": name, "position": current_pos}
-        return {"ok": False, "error": "Current position does not match any named position", "position": current_pos} #pylint: disable = C0301
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            current_pos = self.dev.get_pos(channel=1), self.dev.get_pos(channel=2)
+            for name, pos in self.get_named_positions().items():
+                dx = abs(float(pos[0]) - float(current_pos[0]))
+                dy = abs(float(pos[1]) - float(current_pos[1]))
+                if dx <= 0.001 and dy <= 0.001:
+                    return {"ok": True, "named_pos": name, "position": current_pos}
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Error: %s",e)
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "named_pos": "unknown", "position": current_pos} #pylint: disable = C0301
 
 
     def on_start(self, libby):
@@ -76,7 +85,8 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
             "position.set": lambda p: self.set_pos(axis = p.get("axis"),
                                                    pos = p.get("position")),
             "position.get_named": lambda p: self.cur_named_position(),
-            "position.set_named": lambda p: self.goto_named_pos(name = p.get("named_pos"))
+            "position.set_named": lambda p: self.goto_named_pos(name = p.get("named_pos")),
+            "cleanup":     lambda p: self.clean_up_gimbal()
         })
         # Initialize hardware connection
         if self.host is None or self.port is None:
@@ -107,6 +117,18 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
             libby.publish("yjpiaagim", {"Daemon Startup": "Failed", "error":f"{e}"})
             self.logger.error("Disconnect %s:: Failed ", self.daemon_desc)
 
+    def clean_up_gimbal(self):
+        '''Cleans up gimbal settings'''
+        try:
+            self.dev.set_loop(channel=0, loop=1)  # Open loops
+            self.dev.set_enable(channel=0, enable=1)  # Device can stay enabled
+            self.dev.set_output_volts(channel=1, volts=0)  # Set output voltages to 0
+            self.dev.set_output_volts(channel=2, volts=0)
+            self.logger.info("Cleaned up %s", self.daemon_desc)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("error during cleanup: %s",e)
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "message": "Gimbal cleaned up"}
 
     def connect(self):
         """handles connection"""
@@ -263,8 +285,8 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
         try:
             goal = self.get_named_position(name.lower())
             if goal is not None:
-                self.dev.set_pos(channel=1, pos=float(goal[0]))
-                self.dev.set_pos(channel=2, pos=float(goal[1]))
+                self.set_pos(axis=0, pos=float(goal[0]))
+                self.set_pos(axis=1, pos=float(goal[1]))
             self.logger.debug("goto_named_pos: %s -> %s",name,goal)
             cur_pos = (self.dev.get_pos(channel=1), self.dev.get_pos(channel=2))
         except Exception as e: # pylint: disable=W0718
@@ -292,7 +314,7 @@ def main():
         '-H', '--host',
         type=str,
         default='192.168.29.100',
-        help='Host address of the ATC Filter Wheel'
+        help='Host address of the Blue Piaa Gimbal Mount controller (default:192.168.29.100)'
     )
     parser.add_argument(
         '-p', '--port',
@@ -314,7 +336,7 @@ def main():
         else:
             # Use CLI args - build config dict and use from_config
             config = {
-                "peer_id": "atcfwheel",
+                "peer_id": "yjpiaagim",
                 "group_id": "hsfei",
                 "transport": "rabbitmq",
                 "hardware": {
