@@ -1,5 +1,6 @@
-[tool.setuptools]
-packages = ["hispec.util"]
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["hispec", "hispec.*"]
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -21,5 +22,8 @@ dependencies = [
     "pipython",
     "pyserial",
     "libximc",
-    "scipy"
+    "scipy",
+    "pyyaml",
+    "libby@git+https://github.com/CaltechOpticalObservatories/libby.git",
+    "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base"
 ]
