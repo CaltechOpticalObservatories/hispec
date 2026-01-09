@@ -1,0 +1,290 @@
+# 2026-01-08
+#
+# Created by Chris Johnson (CAJ) at the UCLA Infrared Laboratory.
+#
+# NOTE: The installation will FAIL if some settings are not modified. Please read below!
+#
+# This autoinstall assumes that the system uses the eno1np0 network interface
+# like the ASLab Lancelot systems purchased for the HISPEC Project.
+#
+# An internet connection is required for the installation to complete successfully.
+# Building a custom ISO is outside the scope of this project.
+#
+# This build will install to the *smallest* storage disk available (this is opposite
+# from the default).
+#
+# CAJ: Basic Instructions
+#      1. Download the Ubuntu Server ISO: https://ubuntu.com/download/server
+#      2. Create a USB stick for the installation using whatever method desired.
+#         a. My preferred method is using Rufus on a Windows PC.
+#      3. Copy this file, autoinstall.yaml, to the root of the USB Drive.
+#      4. Complete the OPTIONAL steps below if desired.
+#      5. *** MANDATORY ***: Modify the settings labled with MODIFY below.
+#      6. Boot the USB stick and Ubuntu should install with no user input! 
+#         Install takes about XX minutes: (Started at 14:00)
+#
+# CAJ: WARNING: Ubuntu's autoinstall file is very sensitive to syntax.
+#      A single character out of place can cause the installation to fail.
+#
+#      SSH keys can be added to each account, and to the root account. 
+#      By default, the root account will not allow login even with SSH.
+#      This is a good security measure to leave in.
+#
+#      If there are network setup and/or storage issues while setting up,
+#      These can be specified as interactive during the installation.
+#
+# CAJ: To speed up the process, you can modify grub to reduce the timeout
+#      from 30 seconds to 5 seconds (or less).
+#      [OPTIONAL]
+#
+# CAJ: Unless the keyword "autoinstall" is added to the boot line, then
+#      the installation will pause and prompt the user to continue.
+#      [OPTIONAL]
+#
+# diff grub.cfg grub.cfg.autoinstall
+#1c1
+#< set timeout=30
+#---
+#> set timeout=5
+#10c10
+#< 	linux	/casper/vmlinuz  ---
+#---
+#> 	linux	/casper/vmlinuz autoinstall ---
+#
+# CAJ: Set default passwords for every user to "hispec".
+#      To create a password for an account: openssl passwd -6 hispec
+#
+# CAJ: To-Do
+#   1. Create a post-install script to automate some tasks.
+#
+#cloud-config
+# See the autoinstall documentation at:
+# https://canonical-subiquity.readthedocs-hosted.com/en/latest/reference/autoinstall-reference.html
+autoinstall:
+  active-directory:
+    admin-name: ''
+    domain-name: ''
+  apt:
+    disable_components: []
+    fallback: offline-install
+    geoip: true
+    mirror-selection:
+      primary:
+      - country-mirror
+      - arches:
+        - amd64
+        - i386
+        uri: http://archive.ubuntu.com/ubuntu/
+      - arches:
+        - s390x
+        - arm64
+        - armhf
+        - powerpc
+        - ppc64el
+        - riscv64
+        uri: http://ports.ubuntu.com/ubuntu-ports
+    preserve_sources_list: false
+    security:
+    - arches:
+      - amd64
+      - i386
+      uri: http://security.ubuntu.com/ubuntu/
+    - arches:
+      - s390x
+      - arm64
+      - armhf
+      - powerpc
+      - ppc64el
+      - riscv64
+      uri: http://ports.ubuntu.com/ubuntu-ports
+  codecs:
+    install: false
+  drivers:
+    install: false
+  kernel:
+    package: linux-generic-hwe-24.04
+  keyboard:
+    layout: us
+    toggle: null
+    variant: ''
+  locale: en_US.UTF-8
+  network:
+    ethernets:
+      eno1np0:
+        addresses:
+        - 192.168.29.222/24 # MODIFY: Change IP as required. MUST provide Internet
+        nameservers:
+          addresses:
+          - 192.168.29.254  # MODIFY: Change DNS as required
+          search:
+          - caltech.edu # MODIFY: Change DNS search suffixes as required
+          # - astro.ucla.edu
+          # - keck.hawaii.edu
+        routes:
+        - to: default
+          via: 192.168.29.254 # MODIFY: Change gateway as required
+    version: 2
+  oem:
+    install: auto
+  packages:
+    # Essential Build Tools
+    - autoconf
+    - build-essential
+    - flex
+    - flex-doc
+    - bison
+    - bison-doc
+    # - curl # Already installed by default
+    # - git # Already installed by default
+    - groff
+    - libc6-dev-i386 # NOT lib32c-dev
+    - libbz2-dev
+    - libffi-dev    
+    - liblzma-dev
+    - libmotif-dev
+    - libncurses-dev # NOT libncursesw5-dev
+    - libreadline-dev
+    - libsqlite3-dev
+    - libssl-dev
+    - libxml2-dev
+    - libxmlsec1-dev
+    - llvm
+    - make
+    - m4
+    - pandoc
+    - pyqt5-dev-tools
+    - python3-dev
+    - python3-docutils
+    - python3-pil.imagetk
+    - python3-pip
+    - python3-tk
+    - python3-venv
+    - rst2pdf
+    - snmp
+    - software-properties-common
+    - tk-dev
+    # - wget # Already installed by default
+    - xaw3dg-dev
+    - xorg-dev
+    # - xz-utils # Already installed by default
+    - zlib1g-dev
+    # KROOT Specific Packages
+    - openconnect
+    - subversion
+    - cvs
+    - at
+    # - libxt-dev # Already installed by default
+    # - libncurses-dev # Already installed by default
+    # - tcl # Already installed by default
+    # - tcl-dev # Already installed by default
+    - tcl-thread
+    - tcllib
+    # - tk # Already installed by default
+    # - tk-dev # Already installed by default
+    - expect
+    - tclx8.4 # NOT tclx
+    - tcl-fitstcl
+    - libpq-dev
+    # - g++ # Already installed by default
+    - gfortran
+    - libpam0g-dev # NOT libpam-dev
+    - python3-ephem
+    # Additional Instrument Development Packages
+    - libboost-all-dev
+    - libopencv-dev
+    - libccfits-dev
+    - libcfitsio-dev
+    # CAJ: Install for Testing
+    # - virt-manager
+    # - smartmontools
+  source:
+    id: ubuntu-server
+    search_drivers: false
+  ssh:
+    allow-pw: true
+    authorized-keys:
+    - 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPqrTAPHTxP6ECM/bFR2tBTwdCWHJEYwEBntvu1ted5v
+      chrisaj5@github/127692781 # ssh-import-id gh:chrisaj5'
+    install-server: true
+#  interactive-sections:
+#- storage    
+  storage:
+    layout:
+      name: direct
+      match:
+        size: smallest
+  timezone: America/Los_Angeles
+  updates: security
+  user-data:
+    hostname: hscomputer # MODIFY: Change this to proper system name
+    users:
+    - gecos: HISPEC Main
+      groups:
+      - adm
+      - cdrom
+      - sudo
+      - dip
+      - plugdev
+      - lxd
+      lock_passwd: false
+      name: hispec
+      passwd: $6$rMGXJxmN5OxnsaVm$eoFq44czpnmCkCIJ6k3FSRDgmZrogXGaB/2U2KxrwGx6s59AlZaCF0b5bU4oHwAP3sEWzpf8GKBlodBKIqt/P1
+      shell: /bin/bash
+      ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPqrTAPHTxP6ECM/bFR2tBTwdCWHJEYwEBntvu1ted5v
+        johnsonc@t3.astro.ucla.edu
+    - gecos: HISPEC Dev
+      groups:
+      - adm
+      - cdrom
+      - sudo
+      - dip
+      - plugdev
+      - lxd
+      - dialout
+      lock_passwd: false
+      name: hsdev
+      passwd: $6$rMGXJxmN5OxnsaVm$eoFq44czpnmCkCIJ6k3FSRDgmZrogXGaB/2U2KxrwGx6s59AlZaCF0b5bU4oHwAP3sEWzpf8GKBlodBKIqt/P1
+      shell: /bin/bash
+    - gecos: HISPEC Bld
+      groups:
+      - adm
+      - cdrom
+      - sudo
+      - dip
+      - plugdev
+      - lxd
+      - dialout
+      lock_passwd: false
+      name: hispecbld
+      passwd: $6$rMGXJxmN5OxnsaVm$eoFq44czpnmCkCIJ6k3FSRDgmZrogXGaB/2U2KxrwGx6s59AlZaCF0b5bU4oHwAP3sEWzpf8GKBlodBKIqt/P1
+      shell: /bin/bash
+    - gecos: HISPEC Eng
+      groups:
+      - adm
+      - cdrom
+      - sudo
+      - dip
+      - plugdev
+      - lxd
+      - dialout
+      lock_passwd: false
+      name: hispeceng
+      passwd: $6$rMGXJxmN5OxnsaVm$eoFq44czpnmCkCIJ6k3FSRDgmZrogXGaB/2U2KxrwGx6s59AlZaCF0b5bU4oHwAP3sEWzpf8GKBlodBKIqt/P1
+      shell: /bin/bash
+    - gecos: HISPEC Run
+      groups:
+      - adm
+      - cdrom
+      - sudo
+      - dip
+      - plugdev
+      - lxd
+      - dialout
+      lock_passwd: false
+      name: hispecrun
+      passwd: $6$rMGXJxmN5OxnsaVm$eoFq44czpnmCkCIJ6k3FSRDgmZrogXGaB/2U2KxrwGx6s59AlZaCF0b5bU4oHwAP3sEWzpf8GKBlodBKIqt/P1
+      shell: /bin/bash
+  late-commands:
+    - curtin in-target -- groupadd -g 2001 instr
+  version: 1
