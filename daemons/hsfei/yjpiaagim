@@ -32,7 +32,7 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
 
         #load configuration from hsfei.yaml
         self.host = self.get_config("hardware.host", "192.168.29.100")
-        self.port = self.get_config("hardware.port", 10010)
+        self.port = self.get_config("hardware.port", 10013)
         self.device_key = None
         self.dev = Ppc102Controller(log = True)
 
@@ -58,11 +58,15 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            current_pos = self.dev.get_pos(channel=1), self.dev.get_pos(channel=2)
+            current_pos = (
+                float(self.dev.get_pos(channel=1)),
+                float(self.dev.get_pos(channel=2))
+                )
+
             for name, pos in self.get_named_positions().items():
                 dx = abs(float(pos[0]) - float(current_pos[0]))
                 dy = abs(float(pos[1]) - float(current_pos[1]))
-                if dx <= 0.001 and dy <= 0.001:
+                if dx <= 0.01 and dy <= 0.01:
                     return {"ok": True, "named_pos": name, "position": current_pos}
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
@@ -107,9 +111,13 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
                 self.state['error'] = str(e)
                 self.state['connected'] = False
 
+        # Publish initial status
+        libby.publish("yjpiaagim.status", self.state)
+
     def on_stop(self, libby) -> None: #pylint: disable=W0222
         '''Stops the daemon and disconnects from hardware device'''
         try:
+            self.clean_up_gimbal()
             self.disconnect()
             self.logger.info("Disconnected %s", self.daemon_desc)
             libby.publish("yjpiaagim", {"Daemon Shutdown": "Success"})
@@ -161,7 +169,8 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            self.dev.set_enable(channel = 0, enable = 1)
+            self.dev.set_enable(channel = 1, enable = 1)
+            self.dev.set_enable(channel = 2, enable = 1)
             self.state['enabled'] = True
             self.logger.debug("Initialized %s", self.daemon_desc)
         except Exception as e: # pylint: disable=W0718
@@ -177,7 +186,9 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
         try:
             res_x = self.dev.get_status_update(channel = 1)
             res_y = self.dev.get_status_update(channel = 2)
-            enabled = self.dev.get_enable(channel = 0)
+            enabled_x = self.dev.get_enable(channel = 1)
+            enabled_y = self.dev.get_enable(channel = 2)
+            enabled = enabled_x == 1 and enabled_y == 1
             status = {
                 "is_connected": self.dev.is_connected(),
                 "position_x": res_x[1],
@@ -247,12 +258,12 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
         try:
             xpos = self.dev.get_pos(channel=1)
             ypos = self.dev.get_pos(channel=2)
-            position = (xpos, ypos)
+            position = [float(xpos), float(ypos)]
             self.logger.debug("get_pos: %s",position)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("error: %s",e)
             return {"ok": False, "error": str(e)}
-        return {"ok":True, "position": str(position)}
+        return {"ok":True, "position": position}
 
     def set_pos(self, axis, pos):
         '''sets current position'''
@@ -270,12 +281,12 @@ class Yjpiaagim(HispecDaemon): #pylint: disable = W0223
                 return {"ok": False, "error": "Axis must be 0 (X) or 1 (Y)"}
             chan = axis + 1
             self.dev.set_pos(channel=chan, pos=pos)
-            self.logger.debug("set_pos: %d",pos)
+            self.logger.debug("set_pos: %s",pos)
             position = self.dev.get_pos(channel=chan)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("error: %s",e)
             return {"ok": False, "error": str(e)}
-        return {"ok":True, "position": str(position)}
+        return {"ok":True, "position": position}
 
     def goto_named_pos(self, name):
         '''moves to named position'''
