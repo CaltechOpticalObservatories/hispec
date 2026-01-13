@@ -1,0 +1,68 @@
+# HSFEI Subsystem Configuration
+group_id: hsfei
+transport: rabbitmq
+rabbitmq_url: amqp://hispec-rabbitmq
+discovery_enabled: false
+
+daemons:
+  pickoff1:
+    hardware:
+      ip_address: 192.168.29.100
+      tcp_port: 10001
+      axis: "1"
+    named_positions:
+      home: 0.0
+      science: 12.5
+      calibration: 25.0
+      engineering: 37.5
+
+  pickoff2:
+    hardware:
+      ip_address: 192.168.29.101
+      tcp_port: 10001
+      axis: "1"
+    named_positions:
+      home: 0.0
+      flat: 10.0
+      arc: 20.0
+      dark: 30.0
+
+  pickoff3:
+    hardware:
+      ip_address: 192.168.29.102
+      tcp_port: 10001
+      axis: "1"
+    named_positions:
+      home: 0.0
+      science: 12.5
+      calibration: 25.0
+      engineering: 37.5
+
+  pickoff4:
+    hardware:
+      ip_address: 192.168.29.103
+      tcp_port: 10001
+      axis: "1"
+    named_positions:
+      home: 0.0
+      test_pos_1: 10.0
+
+  atcfwheel:
+    hardware:
+      host: 192.168.29.100
+      port: 10010
+    named_positions:
+      clear: 1
+      nd1: 2
+      nd2: 3
+      nd3: 4
+      nd4: 5
+      nd5: 6
+
+  yjpiaagim:
+    hardware:
+      host: 192.168.29.100
+      port: 10013
+    named_positions:
+      center: [0.0, 0.0]
+      top_left: [-5.0, 5.0]
