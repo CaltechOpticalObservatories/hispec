@@ -110,7 +110,9 @@ autoinstall:
   locale: en_US.UTF-8
   network:
     ethernets:
-      eno1np0:
+      all-en:
+        match:
+          name: "en*"
         addresses:
         - 192.168.29.222/24 # MODIFY: Change IP as required. MUST provide Internet
         nameservers:
