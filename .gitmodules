@@ -1,49 +1,49 @@
-[submodule "src/hispec/util/lakeshore"]
-	path = src/hispec/util/lakeshore
+[submodule "src/hispec/driver/lakeshore"]
+	path = src/hispec/driver/lakeshore
 	url = https://github.com/COO-Utilities/lakeshore
 	branch = main
-[submodule "src/hispec/util/inficon"]
-	path = src/hispec/util/inficon
+[submodule "src/hispec/driver/inficon"]
+	path = src/hispec/driver/inficon
 	url = https://github.com/COO-Utilities/inficon
 	branch = main
-[submodule "src/hispec/util/gammavac"]
-	path = src/hispec/util/gammavac
+[submodule "src/hispec/driver/gammavac"]
+	path = src/hispec/driver/gammavac
 	url = https://github.com/COO-Utilities/gammavac
 	branch = main
-[submodule "src/hispec/util/standa"]
-	path = src/hispec/util/standa
+[submodule "src/hispec/driver/standa"]
+	path = src/hispec/driver/standa
 	url = https://github.com/COO-Utilities/standa
 	branch = main
-[submodule "src/hispec/util/thorlabs"]
-	path = src/hispec/util/thorlabs
+[submodule "src/hispec/driver/thorlabs"]
+	path = src/hispec/driver/thorlabs
 	url = https://github.com/COO-Utilities/thorlabs
 	branch = main
-[submodule "src/hispec/util/sunpower"]
-	path = src/hispec/util/sunpower
+[submodule "src/hispec/driver/sunpower"]
+	path = src/hispec/driver/sunpower
 	url = https://github.com/COO-Utilities/sunpower
 	branch = main
-[submodule "src/hispec/util/onewire"]
-	path = src/hispec/util/onewire
+[submodule "src/hispec/driver/onewire"]
+	path = src/hispec/driver/onewire
 	url = https://github.com/COO-Utilities/onewire
 	branch = main
-[submodule "src/hispec/util/xeryon"]
-	path = src/hispec/util/xeryon
+[submodule "src/hispec/driver/xeryon"]
+	path = src/hispec/driver/xeryon
 	url = https://github.com/COO-Utilities/xeryon
 	branch = main
-[submodule "src/hispec/util/pi"]
-	path = src/hispec/util/pi
+[submodule "src/hispec/driver/pi"]
+	path = src/hispec/driver/pi
 	url = https://github.com/COO-Utilities/pi
 	branch = main
-[submodule "src/hispec/util/srs"]
-	path = src/hispec/util/srs
+[submodule "src/hispec/driver/srs"]
+	path = src/hispec/driver/srs
 	url = https://github.com/COO-Utilities/srs
 	branch = main
-[submodule "src/hispec/util/ozoptics"]
-	path = src/hispec/util/ozoptics
+[submodule "src/hispec/driver/ozoptics"]
+	path = src/hispec/driver/ozoptics
 	url = https://github.com/COO-Utilities/ozoptics
 	branch = main
-[submodule "src/hispec/util/newport"]
-	path = src/hispec/util/newport
+[submodule "src/hispec/driver/newport"]
+	path = src/hispec/driver/newport
 	url = https://github.com/COO-Utilities/newport
 	branch = main
 [submodule "etc/PIPython"]

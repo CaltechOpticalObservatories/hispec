@@ -362,6 +362,41 @@ For Linux, you can find it here: https://www.physikinstrumente.com/en/products/s
    - **ABI mismatch error (libft4222.so):** Try upgrading ``glibc`` to version 2.10 or newer.
    - **SPI Mode Note:** If enabling SPI master mode, the SS pin **must be tied high**.
 
+**SPI FTDI 4222 udev Configuration (Non-root Access)**
+
+1. Create the udev rules file:
+
+   ::
+
+      /etc/udev/rules.d/99_HISPEC_spi_ftdi_4222.rules
+
+2. Add the following rule:
+
+   ::
+
+      SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", OWNER="hsdev", MODE="0660", GROUP="dialout"
+
+3. Reload and apply the udev rules:
+
+   .. code-block:: bash
+
+      sudo udevadm control --reload-rules
+      sudo udevadm trigger
+
+4. Verify device permissions:
+
+   After reconnecting the SPI board, confirm that the USB device permissions are set
+   correctly:
+
+   ::
+
+      ls -l /dev/bus/usb/*/* | grep 0403
+
+   The device node should be owned by ``hsdev``, belong to the ``dialout`` group, and
+   have read/write permissions for the owner and group (``0660``).
+
+Once verified, the SPI board should be accessible without requiring root privileges.
+
 
 **CameraD Installation**
 
