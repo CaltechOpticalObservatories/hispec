@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+from hispec.util.thorlabs.fw102c import FilterWheelController
+
+# --------------------
+# Configuration
+# --------------------
+HOST = "192.168.29.100"
+PORT = 10010
+
+# --------------------
+# Filter map
+# --------------------
+FILTERS = {
+    1: "Empty (100%)",
+    2: "OD1   (10%)",
+    3: "OD2   (1%)",
+    4: "OD4   (0.01%)",
+    5: "OD5   (0.001%)",
+    6: "Empty (100%)"
+}
+
+NAME_TO_SLOT = {
+    "empty": 1,
+    "od1": 2,
+    "od2": 3,
+    "od4": 4,
+    "od5": 5,
+    "empty6": 6
+}
+
+
+def parse_position(val):
+    """Accept slot number or filter name (e.g., '3', 'od2')."""
+    try:
+        slot = int(val)
+        return slot
+    except ValueError:
+        key = val.strip().lower()
+        if key in NAME_TO_SLOT:
+            return NAME_TO_SLOT[key]
+        raise argparse.ArgumentTypeError(
+            f"Invalid filter '{val}'.\n    Use slot number or one of: "
+            + ", ".join(NAME_TO_SLOT.keys())
+        )
+
+
+def parse_args():
+    filter_help = "Filter positions:\n"
+    filter_help = "  slot = optical density (tranmission)\n"
+    for slot, name in FILTERS.items():
+        filter_help += f"     {slot} = {name}\n"
+
+    parser = argparse.ArgumentParser(description="Minimal CLI for Thorlabs FW102C filter wheel", formatter_class=argparse.RawTextHelpFormatter, epilog=filter_help)
+
+    parser.add_argument("position", nargs="?", type=parse_position,
+        help="Filter slot number or name (e.g., 3, od2). Omit to query position.",
+    )
+    parser.add_argument("--get", action="store_true",
+        help="Query filter wheel position (default if no position given)",
+    )
+    parser.add_argument("--verbose", action="store_true",
+        help="Enable verbose logging",
+    )
+    return parser.parse_args()
+
+
+def slot_to_name(slot):
+    return FILTERS.get(slot, f"Unknown ({slot})")
+
+
+def main():
+    args = parse_args()
+
+    fw = FilterWheelController()
+    fw.set_verbose(args.verbose)
+
+    try:
+        fw.connect(host=HOST, port=PORT)
+
+        if args.position is not None:
+            fw.set_pos(args.position)
+            print(f"Set filter wheel to slot {args.position}: {slot_to_name(args.position)}")
+        else:
+            slot = fw.get_pos()
+            print(f"{slot} ({slot_to_name(slot)})")
+
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    finally:
+        try:
+            fw.disconnect()
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+    main()
