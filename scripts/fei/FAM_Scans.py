@@ -20,10 +20,10 @@ ENABLE_LOGGING = True
 # Path to settings file to use
 #SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24508.txt"
 #SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24494.txt"
-SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24508_20250902.txt"    # Blue
-#SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24494_20250828.txt"   # Red
+#SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24508_20250902.txt"    # Blue
+SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24494_20250828.txt"   # Red
 # Connection properites
-COM_PORT = "/dev/ttyACM1"  #Red = 0, Blue = 1
+COM_PORT = "/dev/ttyRedFAM"
 
 # Max time to wait for move to complete
 MOV_TIMEOUT = 20 # [seconds]
