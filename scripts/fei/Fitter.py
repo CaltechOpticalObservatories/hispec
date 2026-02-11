@@ -138,6 +138,7 @@ def plot_2D_FAMScan_with_gaussFit(pd_reads, center_coords, deltas):
     cbar2.set_label("Residual (uW)")
 
     plt.tight_layout()
+    plt.show(block=False)
 
     print(fit_txt)
 
@@ -238,6 +239,7 @@ def plot_1D_FAMScan_with_gaussFit(pd_reads, center_coords, deltas, show_residual
         ax.set_xlabel("Z Position (µm)")
 
     plt.tight_layout()
+    plt.show(block=False)
 
     print(fit_txt)
 
