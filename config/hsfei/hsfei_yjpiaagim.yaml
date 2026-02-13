@@ -1,0 +1,17 @@
+peer_id: yjpiaagim
+group_id: hsfei
+transport: rabbitmq
+rabbitmq_url: amqp://localhost
+discovery_enabled: false
+
+hardware:
+      host: 192.168.29.100
+      port: 10013
+
+named_positions:
+      center: [0.0, 0.0]
+      offset1: [1.0, 1.0]
+      offset2: [-1.0, -1.0]
+
+logging:
+  level: INFO
