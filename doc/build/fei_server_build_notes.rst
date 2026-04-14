@@ -9,32 +9,7 @@ System Requirements
 - Python: 3.12 (required)
 
 
-User and Hostname Setup
-=======================
 
-Create a development user ``hsdev`` and facility user ``hispecfei``:
-
-.. code-block:: bash
-
-   # Create users
-   sudo adduser hsdev
-   sudo adduser hispecfei
-
-   # Add users to sudo group
-   sudo usermod -aG sudo hsdev
-   sudo usermod -aG sudo hispecfei
-
-   # Add serial access group
-   sudo usermod -aG dialout hsdev
-   sudo usermod -aG dialout hispecfei
-
-   # Set new hostname
-   sudo hostnamectl set-hostname hispecfei
-   sudo vim /etc/hosts
-
-In ``/etc/hosts`` (opened with ``vim``), change the line:
-
-.. code-block:: text
 
    127.0.1.1   old-hostname
 
