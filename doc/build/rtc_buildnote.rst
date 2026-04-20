@@ -45,7 +45,7 @@ Storage Configuration
 Credentials
 -----------
 * **Name/Server/User:** ``hsfei``
-* **Password:** ``fain'tdev``
+* **Password:** Set during installation (not documented here for security reasons).
 * **Software:** Default "Popular Snaps" selected.
 
 3. Post-Install System Hardening
