@@ -29,9 +29,13 @@ print(f"** Connected to: {dev.qIDN()}")
 dev.CloseConnection()
 print(f"Disconnected from controller for now")
 
+def vprint(message, verbose=True):
+    if verbose:
+        print(message)
+
 #-- Main 2D Scan (using the redPM)
 
-def redPM_TT(start, stop, nsteps, center_coords=None, pause=0.0, nread=NREAD_DFLT):
+def redPM_TT(start, stop, nsteps, center_coords=None, pause=0.0, nread=NREAD_DFLT, verbose=True):
     # Example: pd_reads, center_coords, deltas = redPM_XY(-0.05, 0.05, 11, )
 
     if (center_coords is not None) and len(center_coords) != 2:
@@ -53,7 +57,7 @@ def redPM_TT(start, stop, nsteps, center_coords=None, pause=0.0, nread=NREAD_DFL
     print(f"** Connecting to controller")
     dev.ConnectTCPIP(ipaddress= IPADDRESS, ipport = IPPORT)
     time.sleep(1)
-    print(f"** Connected to: {dev.qIDN()}")
+    vprint(f"** Connected to: {dev.qIDN()}")
 
     # Close servo loops (in case they weren't previously closed)
     if not all(dev.qSVO(axes).values()):
@@ -65,10 +69,10 @@ def redPM_TT(start, stop, nsteps, center_coords=None, pause=0.0, nread=NREAD_DFL
     cur_max_pos = [np.nan, np.nan]
     with redPM_cmds.redPM_cmds() as pd:
         for yind, dely in enumerate(delys):
-            print(f"** Moving to Y = {dely:0.5f}")
+            vprint(f"** Moving to Y = {dely:0.5f}", verbose=verbose)
             dev.MOV({yAx:dely})
             for xind, delx in enumerate(delxs):
-                print(f"** Moving to X = {delx:0.5f}")
+                vprint(f"** Moving to X = {delx:0.5f}", verbose=verbose)
                 dev.MOV({xAx:delx})
                 
                 # Give time for PD to settle
