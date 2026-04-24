@@ -24,9 +24,9 @@ FAM_RED_Z_CENTER  = {   'mmf' : 7.700,
                         'smf' : 6.697 }
 
 FAM_BLUE_CENTER = {     'mmf' : np.array([-22.795, -0.035]),
-                        'smf' : np.array([-7.8088, 0.0246])}
+                        'smf' : np.array([-7.8162, 0.0259])}
 FAM_BLUE_Z_CENTER = {   'mmf' : 9.150, 
-                        'smf' : 9.0443 }
+                        'smf' : 9.091 }
 
 # Relevant optical ratios
 OAP_EFL = 180   # [mm] EFL of the OAP
@@ -193,7 +193,7 @@ def main(dx, dy, dry_run=False, verbose=False, mask='keck'):
 def move_FAM(dx, dy, FAM=None, ref_mode="center", dry_run=False, verbose=False, fib_type='smf'):
 
     # Import Xeryon library, which will be needed for moving the FAM
-    from hispec.util.xeryon import Xeryon, Stage
+    from hispec.driver.xeryon import Xeryon, Stage
 
     # -------------------------
     # Validate the selected FAM
@@ -228,7 +228,7 @@ def move_FAM(dx, dy, FAM=None, ref_mode="center", dry_run=False, verbose=False, 
     # -------------------------
     # Compute requested delta (always the same)
     # -------------------------
-    dy = -dy    # NOTE: the FAM y-axis is flipped compared to the camera
+    dy = -dy    # NOTE: the FAM y-axis is flipped compared to the camera/LSM
     fam_delta = np.array([dx, dy]) * FAM_SCALE
 
     # -------------------------
@@ -355,6 +355,8 @@ if __name__ == "__main__":
                         help="FAM reference frame: 'center' (default) or 'current'")
     parser.add_argument("--mask", choices=["keck", "circ"], default="keck",
                         help="Mask to use: 'keck' (default) or 'circ'")
+    parser.add_argument("--fib-type", choices=["mmf", "smf"], default="smf",
+                        help="Fiber to use: 'smf' (default) or 'mmf'")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Verbose output (debug / engineering info)")
     args = parser.parse_args()
@@ -364,7 +366,7 @@ if __name__ == "__main__":
     if (not result) and (args.fam is not None):
         fam_result, _ = move_FAM(dx=args.dx, dy=args.dy, FAM=args.fam,
                                ref_mode=args.fam_ref,
-                               dry_run=args.dry_run, verbose=args.verbose)
+                               dry_run=args.dry_run, verbose=args.verbose, fib_type=args.fib_type)
         result = result or fam_result
 
     sys.exit(result)
