@@ -2,7 +2,7 @@
 
 import argparse
 import sys
-from hispec.util.thorlabs.fw102c import FilterWheelController
+from hispec.driver.thorlabs.fw102c import FilterWheelController
 
 # --------------------
 # Configuration
