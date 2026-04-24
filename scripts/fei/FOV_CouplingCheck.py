@@ -13,14 +13,18 @@ import Fitter
 # -------------------------
 # Saving properties
 # -------------------------
-SAVE_DIR = "/home/hsdev/dechever/AIT_Verification_Data/Experiment5_FOVCouplingCheck"
-MASK_TYPE = "Keck"  # "Circ" or "Keck" (used only for filename formatting)
+SAVE_DIR = "/home/hsdev/dechever/AIT_Verification_Data/Experiment5_FOVCouplingCheck/Experiment5b_SMF"
+
+# -------------------------
+# Mask selection
+# -------------------------
+MASK_TYPE = "Circ"  # One of: "Circ" or "Keck"
 
 # -------------------------
 # FAM selection
 # -------------------------
 # USER SETTINGS
-FAM_TO_USE = 'red'  # One ofL "red" or "blue"
+FAM_TO_USE = 'blue'  # One of: "red" or "blue"
 FAM_FIBER  = 'smf'  # One of: "mmf" or "smf"
 IS_RUN_AUTOMOPT = False      # Flag to select if auto-optimizer should be used for SMF case
 
@@ -196,8 +200,8 @@ def main(separation, nread, settle_time=0.2, verbose=False, save_flnm=None):
     # ============================================================
     print("\n--- Moving to on-center ---")
     dx, dy = 0.0, 0.0
-    SimulateFieldPoint.main(dx, dy, verbose=verbose)
-    _, start_pos = SimulateFieldPoint.move_FAM(dx, dy, FAM=FAM_TO_USE, ref_mode="center", verbose=False)
+    SimulateFieldPoint.main(dx, dy, verbose=verbose, mask=MASK_TYPE)
+    _, start_pos = SimulateFieldPoint.move_FAM(dx, dy, FAM=FAM_TO_USE, ref_mode="center", verbose=False, fib_type=FAM_FIBER)
     measure("center_1", start_pos)
 
     # ============================================================
@@ -213,8 +217,8 @@ def main(separation, nread, settle_time=0.2, verbose=False, save_flnm=None):
 
         print(f"\n--- Moving to {label} ---")
         try:
-            SimulateFieldPoint.main(dx, dy, verbose=verbose)
-            _, start_pos = SimulateFieldPoint.move_FAM(dx, dy, FAM=FAM_TO_USE, ref_mode="center", verbose=False)
+            SimulateFieldPoint.main(dx, dy, verbose=verbose, mask=MASK_TYPE)
+            _, start_pos = SimulateFieldPoint.move_FAM(dx, dy, FAM=FAM_TO_USE, ref_mode="center", verbose=False, fib_type=FAM_FIBER)
         except Exception as e:
             print(f"ERROR moving to {label}: {e}")
             raise
@@ -236,8 +240,8 @@ def main(separation, nread, settle_time=0.2, verbose=False, save_flnm=None):
 
         print(f"\n--- Moving to {label} ---")
         try:
-            SimulateFieldPoint.main(dx, dy, verbose=verbose)
-            _, start_pos = SimulateFieldPoint.move_FAM(dx, dy, FAM=FAM_TO_USE, ref_mode="center", verbose=False)
+            SimulateFieldPoint.main(dx, dy, verbose=verbose, mask=MASK_TYPE)
+            _, start_pos = SimulateFieldPoint.move_FAM(dx, dy, FAM=FAM_TO_USE, ref_mode="center", verbose=False, fib_type=FAM_FIBER)
         except Exception as e:
             print(f"ERROR moving to {label}: {e}")
             raise
@@ -248,8 +252,8 @@ def main(separation, nread, settle_time=0.2, verbose=False, save_flnm=None):
     # Return to center (final)
     # ============================================================
     print("\n--- Returning to on-center ---")
-    SimulateFieldPoint.main(0.0, 0.0, verbose=verbose)
-    _, start_pos = SimulateFieldPoint.move_FAM(0.0, 0.0, FAM=FAM_TO_USE, ref_mode="center", verbose=False)
+    SimulateFieldPoint.main(0.0, 0.0, verbose=verbose, mask=MASK_TYPE)
+    _, start_pos = SimulateFieldPoint.move_FAM(0.0, 0.0, FAM=FAM_TO_USE, ref_mode="center", verbose=False, fib_type=FAM_FIBER)
     measure("center_2", start_pos)
 
     # Drift check
@@ -281,7 +285,7 @@ def main(separation, nread, settle_time=0.2, verbose=False, save_flnm=None):
 # -------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Circular + square-corner field scan")
-    parser.add_argument("separation", type=float, help="Separation in mm at the ILS")
+    parser.add_argument("separation", type=float, help="Separation in mm at the LSM")
     parser.add_argument("--nread", type=int, default=1000, help="Number of PD samples per position")
     parser.add_argument("--settle-time", type=float, default=2.0, help="Settle time after moves [s]")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose motion output")
