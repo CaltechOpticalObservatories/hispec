@@ -9,11 +9,11 @@ from redPM_cmds import redPM_cmds
 # --------------------
 # User settings
 # --------------------
-duration_min = 120.0     # minutes to record
+duration_min = 180.0     # minutes to record
 dt = 0.1               # seconds between averaged samples
 NREAD = 5              # samples per averaged point
-outpath = "/home/hsdev/dechever/AIT_Verification_Data/LaserBankStability/"
-outfile = "1510_Stability_HalfPower_LongPeriod3.csv"
+outpath = "/home/hsdev/dechever/AIT_Verification_Data/LaserBankStability/FiberTwisting/"
+outfile = "1270_FiberTwisting_NoPatch_HalfPower_Apr20.csv"
 
 # --------------------
 # Acquisition
@@ -69,7 +69,7 @@ finally:
         plt.grid(True)
 
         # Show mean ± std as text on plot
-        textstr = f"Mean = {mean_p:.3f} µW\nSTD = {std_p:.3f} µW"
+        textstr = f"Mean = {mean_p:.3f} µW\nSTD = {std_p:.3f} µW\nStab = {std_p/mean_p * 100:.3f} %"
         plt.gca().text(0.05, 0.95, textstr, transform=plt.gca().transAxes,
                        fontsize=10, verticalalignment='top',
                        bbox=dict(facecolor='white', alpha=0.7))
