@@ -1,0 +1,29 @@
+# FEI Retractable Light Source Module — H + V C-863 servo, daisy-chained.
+#
+# Usage:
+#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_rlight.yaml
+
+peer_id: hsfei_rlight
+
+hardware:
+  ip_address: 192.168.29.100
+  tcp_port: 10003
+
+stages:
+  - name: h
+    device_id: 1
+    axis: "1"
+    units: mm
+    named_positions:
+      in: 0.0
+      out: 0.0
+  - name: v
+    device_id: 2
+    axis: "1"
+    units: mm
+    named_positions:
+      in: 0.0
+      out: 0.0
+
+logging:
+  level: INFO
