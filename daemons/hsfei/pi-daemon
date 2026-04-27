@@ -10,14 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from hispec import HispecDaemon
 from hispec.driver.pi import PIControllerBase
-from libby import (
-    BoolKeyword,
-    FloatKeyword,
-    IntKeyword,
-    Keyword,
-    StringKeyword,
-    TriggerKeyword,
-)
+from libby import KeywordRegistry
 
 
 def _as_float(v) -> Optional[float]:
@@ -54,50 +47,48 @@ class _Stage:
         """Convenience property to access the daemon's controller."""
         return self.daemon.controller
 
-    def keywords(self) -> List[Keyword]:
-        """Build the list of Keyword instances this stage exposes."""
+    def register_keywords(self, registry: KeywordRegistry) -> None:
+        """Add this stage's keywords to the given KeywordRegistry."""
         s = self.suffix
-        return [
-            BoolKeyword(f"isloopclosed{s}",
-                        getter=lambda: self.controller.is_loop_closed(self.device_key, self.axis),
-                        description="Servo control loop is closed."),
-            BoolKeyword(f"isreferenced{s}",
-                        getter=lambda: self.controller.is_homed(self.device_key, self.axis),
-                        description="Stage has been referenced (homed)."),
-            BoolKeyword(f"ismoving{s}",
-                        getter=lambda: self.controller.is_moving(self.device_key, self.axis),
-                        description="Stage is currently moving."),
-            FloatKeyword(f"positionvalue{s}",
-                         getter=lambda: self.controller.get_pos(self.device_key, self.axis),
-                         setter=self._set_position,
-                         validator=self._check_soft_limits,
-                         units=self.units,
-                         description="Stage position in engineering units."),
-            StringKeyword(f"positionnamed{s}",
-                          setter=self._set_named,
-                          validator=self._check_named,
-                          description="Move to a named preset position from the config."),
-            FloatKeyword(f"softmin{s}",
-                         getter=lambda: self._softmin,
-                         setter=lambda v: setattr(self, "_softmin", v),
-                         units=self.units,
-                         nullable=True,
-                         description="Software lower limit; null to clear."),
-            FloatKeyword(f"softmax{s}",
-                         getter=lambda: self._softmax,
-                         setter=lambda v: setattr(self, "_softmax", v),
-                         units=self.units,
-                         nullable=True,
-                         description="Software upper limit; null to clear."),
-            FloatKeyword(f"hardmin{s}",
-                         getter=lambda: self._hard_limits()[0],
-                         units=self.units,
-                         description="Hardware travel minimum (from the controller)."),
-            FloatKeyword(f"hardmax{s}",
-                         getter=lambda: self._hard_limits()[1],
-                         units=self.units,
-                         description="Hardware travel maximum (from the controller)."),
-        ]
+        registry.bool(f"isloopclosed{s}",
+                      getter=lambda: self.controller.is_loop_closed(self.device_key, self.axis),
+                      description="Servo control loop is closed.")
+        registry.bool(f"isreferenced{s}",
+                      getter=lambda: self.controller.is_homed(self.device_key, self.axis),
+                      description="Stage has been referenced (homed).")
+        registry.bool(f"ismoving{s}",
+                      getter=lambda: self.controller.is_moving(self.device_key, self.axis),
+                      description="Stage is currently moving.")
+        registry.float(f"positionvalue{s}",
+                       getter=lambda: self.controller.get_pos(self.device_key, self.axis),
+                       setter=self._set_position,
+                       validator=self._check_soft_limits,
+                       units=self.units,
+                       description="Stage position in engineering units.")
+        registry.string(f"positionnamed{s}",
+                        setter=self._set_named,
+                        validator=self._check_named,
+                        description="Move to a named preset position from the config.")
+        registry.float(f"softmin{s}",
+                       getter=lambda: self._softmin,
+                       setter=lambda v: setattr(self, "_softmin", v),
+                       units=self.units,
+                       nullable=True,
+                       description="Software lower limit; null to clear.")
+        registry.float(f"softmax{s}",
+                       getter=lambda: self._softmax,
+                       setter=lambda v: setattr(self, "_softmax", v),
+                       units=self.units,
+                       nullable=True,
+                       description="Software upper limit; null to clear.")
+        registry.float(f"hardmin{s}",
+                       getter=lambda: self._hard_limits()[0],
+                       units=self.units,
+                       description="Hardware travel minimum (from the controller).")
+        registry.float(f"hardmax{s}",
+                       getter=lambda: self._hard_limits()[1],
+                       units=self.units,
+                       description="Hardware travel maximum (from the controller).")
 
     def halt(self):
         """Halt motion on this stage."""
@@ -176,23 +167,17 @@ class PiDaemon(HispecDaemon):
 
         self.logger.info("Starting %s daemon with %d stage(s)", self.peer_id, len(self.stages))
 
-        all_keywords: List[Keyword] = []
         for stage in self.stages:
-            all_keywords.extend(stage.keywords())
-        all_keywords += [
-            BoolKeyword("isconnected",
-                        getter=self._controller_responsive,
-                        description="Check if daemon can talk to the PI controller."),
-            IntKeyword("error",
-                       getter=self._error_code,
-                       description="Latest PI controller error code (0 = no error). Reading clears the register."),
-            TriggerKeyword("halt",
-                           action=self._halt_all,
-                           description="Halt motion on all stages."),
-        ]
-        self.register_keywords(all_keywords)
-
-        self.logger.info("Registered %d keywords", len(all_keywords))
+            stage.register_keywords(self.keyword_registry)
+        self.keyword_registry.bool("isconnected",
+                                   getter=self._controller_responsive,
+                                   description="Check if daemon can talk to the PI controller.")
+        self.keyword_registry.int("error",
+                                  getter=self._error_code,
+                                  description="Latest PI controller error code (0 = no error). Reading clears the register.")
+        self.keyword_registry.trigger("halt",
+                                      action=self._halt_all,
+                                      description="Halt motion on all stages.")
 
         if not (self.ip_address and self.tcp_port):
             self.logger.error("No IP address or port specified")
