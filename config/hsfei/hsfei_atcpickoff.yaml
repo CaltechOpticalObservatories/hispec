@@ -1,0 +1,23 @@
+# ATC Pickoff Dichroic Selector — C-663 stepper instance
+#
+# Usage:
+#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_atcpickoff.yaml
+
+peer_id: hsfei_atcpickoff
+
+hardware:
+  ip_address: 192.168.29.100
+  tcp_port: 10008
+  axis: "1"
+  units: mm
+  timeout_s: 30.0
+  retry_count: 3
+
+
+named_positions:
+  open: 0.0
+  dichroic_1: 0.0
+  dichroic_2: 0.0
+
+logging:
+  level: INFO

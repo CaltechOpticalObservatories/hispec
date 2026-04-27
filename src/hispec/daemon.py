@@ -5,9 +5,9 @@ import logging
 from dataclasses import is_dataclass, asdict
 import collections.abc as cabc
 import signal, sys, threading, time
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, Iterable, List, Optional, Type
 
-from libby import Libby
+from libby import Keyword, Libby
 from . import config as cfg
 
 Payload = Dict[str, Any]
@@ -43,7 +43,7 @@ class HispecDaemon:
     peer_id: Optional[str] = None
     bind: Optional[str] = None
     address_book: Optional[Dict[str, str]] = None
-    discovery_enabled: bool = True
+    discovery_enabled: bool = False
     discovery_interval_s: float = 5.0
 
     # transport selection: "zmq" or "rabbitmq (default)"
@@ -189,6 +189,19 @@ class HispecDaemon:
         self.services.update(mapping)
         if hasattr(self, "libby"): self._register_services(mapping)
 
+    def register_keyword(self, keyword: Keyword) -> None:
+        """Register a Keyword; delegates to the underlying Libby instance."""
+        self.libby.register_keyword(keyword)
+
+    def register_keywords(self, keywords: Iterable[Keyword]) -> None:
+        """Register many keywords in one libby call; call from on_start or later."""
+        self.libby.register_keywords(keywords)
+
+    @property
+    def keyword_registry(self):
+        """KeywordRegistry on the underlying Libby instance."""
+        return self.libby.keyword_registry
+
     def add_topic(self, topic: str, fn: EvtHandler) -> None:
         self.topics[topic] = fn
         if hasattr(self, "libby"):
@@ -273,6 +286,10 @@ class HispecDaemon:
             self.on_start(self.libby)
         except Exception as ex:
             print(f"[{self.__class__.__name__}] on_start error: {ex}", file=sys.stderr)
+
+        keywords_to_register = self.libby.keyword_registry.drain()
+        if keywords_to_register:
+            self.libby.register_keywords(keywords_to_register)
 
         if self.transport == "rabbitmq":
             print(f"[{self.__class__.__name__}] up: id={self.config_peer_id()} transport=rabbitmq url={self.rabbitmq_url}")

@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+"""
+HSFEI PI Daemon
+"""
+
+import argparse
+import sys
+import threading
+from typing import Any, Dict, List, Optional
+
+from hispec import HispecDaemon
+from hispec.driver.pi import PIControllerBase
+from libby import KeywordRegistry
+
+
+def _as_float(v) -> Optional[float]:
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+class _Stage:
+    """One PI axis and the keywords it exposes."""
+
+    def __init__(self, daemon, spec: Dict[str, Any], is_only: bool):
+        self.daemon = daemon
+        self.name = spec.get("name", "")
+        self.device_id = int(spec.get("device_id", 1))
+        self.axis = str(spec.get("axis", "1"))
+        self.units = spec.get("units")
+        self.named_positions: Dict[str, float] = spec.get("named_positions", {}) or {}
+        self._softmin = _as_float(spec.get("softmin"))
+        self._softmax = _as_float(spec.get("softmax"))
+        self._move_lock = threading.Lock()
+        self.suffix = "" if is_only else self.name
+
+    @property
+    def device_key(self):
+        """Convenience property to get the (ip, port, device_id) tuple for this stage."""
+        return (self.daemon.ip_address, self.daemon.tcp_port, self.device_id)
+
+    @property
+    def controller(self):
+        """Convenience property to access the daemon's controller."""
+        return self.daemon.controller
+
+    def register_keywords(self, registry: KeywordRegistry) -> None:
+        """Add this stage's keywords to the given KeywordRegistry."""
+        s = self.suffix
+        registry.bool(f"isloopclosed{s}",
+                      getter=lambda: self.controller.is_loop_closed(self.device_key, self.axis),
+                      description="Servo control loop is closed.")
+        registry.bool(f"isreferenced{s}",
+                      getter=lambda: self.controller.is_homed(self.device_key, self.axis),
+                      description="Stage has been referenced (homed).")
+        registry.bool(f"ismoving{s}",
+                      getter=lambda: self.controller.is_moving(self.device_key, self.axis),
+                      description="Stage is currently moving.")
+        registry.float(f"positionvalue{s}",
+                       getter=lambda: self.controller.get_pos(self.device_key, self.axis),
+                       setter=self._set_position,
+                       validator=self._check_soft_limits,
+                       units=self.units,
+                       description="Stage position in engineering units.")
+        registry.string(f"positionnamed{s}",
+                        setter=self._set_named,
+                        validator=self._check_named,
+                        description="Move to a named preset position from the config.")
+        registry.float(f"softmin{s}",
+                       getter=lambda: self._softmin,
+                       setter=lambda v: setattr(self, "_softmin", v),
+                       units=self.units,
+                       nullable=True,
+                       description="Software lower limit; null to clear.")
+        registry.float(f"softmax{s}",
+                       getter=lambda: self._softmax,
+                       setter=lambda v: setattr(self, "_softmax", v),
+                       units=self.units,
+                       nullable=True,
+                       description="Software upper limit; null to clear.")
+        registry.float(f"hardmin{s}",
+                       getter=lambda: self._hard_limits()[0],
+                       units=self.units,
+                       description="Hardware travel minimum (from the controller).")
+        registry.float(f"hardmax{s}",
+                       getter=lambda: self._hard_limits()[1],
+                       units=self.units,
+                       description="Hardware travel maximum (from the controller).")
+
+    def halt(self):
+        """Halt motion on this stage."""
+        try:
+            self.controller.halt_motion(self.device_key)
+        except Exception as e:
+            self.daemon.logger.error("halt on %r failed: %s", self.name, e)
+
+    def check_loop_closed(self):
+        """Ensure the control loop is closed for this stage, required for motion commands."""
+        try:
+            if not self.controller.is_loop_closed(self.device_key, self.axis):
+                self.controller.close_loop(self.device_key, self.axis, enable=True)
+        except Exception as e:
+            self.daemon.logger.error("close-loop on %r failed: %s", self.name, e)
+
+    def _hard_limits(self):
+        limits = self.controller.get_limits(self.device_key, self.axis)
+        if limits is None:
+            raise RuntimeError("failed to read hardware limits")
+        return limits[self.axis]
+
+    def _check_soft_limits(self, v: float) -> Optional[str]:
+        if self._softmin is not None and v < self._softmin:
+            return f"target {v} below softmin {self._softmin}"
+        if self._softmax is not None and v > self._softmax:
+            return f"target {v} above softmax {self._softmax}"
+        return None
+
+    def _check_named(self, name: str) -> Optional[str]:
+        if not name:
+            return "value must be a non-empty string"
+        if name not in self.named_positions:
+            return (f"unknown named position '{name}'; "
+                    f"available: {list(self.named_positions.keys())}")
+        return None
+
+    def _set_position(self, v: float) -> None:
+        with self._move_lock:
+            try:
+                moving = self.controller.is_moving(self.device_key, self.axis)
+            except Exception as e:
+                raise RuntimeError(f"could not check motion state: {e}") from e
+            if moving:
+                raise RuntimeError("stage is already moving; halt or wait for completion")
+            if not self.controller.set_pos(v, self.device_key, self.axis, blocking=False):
+                raise RuntimeError("controller rejected MOV command")
+
+    def _set_named(self, name: str) -> None:
+        pos = float(self.named_positions[name])
+        err = self._check_soft_limits(pos)
+        if err:
+            raise RuntimeError(err)
+        self._set_position(pos)
+
+
+class PiDaemon(HispecDaemon):
+    """Daemon for controlling PI motion hardware via keywords."""
+
+    group_id = "hsfei"
+
+    def __init__(self):
+        super().__init__()
+
+        self.ip_address = None
+        self.tcp_port = None
+        self.stages: List[_Stage] = []
+        self.controller = PIControllerBase(log=True)
+
+    def on_start(self, _libby):
+        """Called when daemon starts - initialize hardware."""
+        # from_config populates _config after __init__, so read it here
+        self.ip_address = self.get_config("hardware.ip_address")
+        self.tcp_port = self.get_config("hardware.tcp_port")
+        self.stages = self._build_stages()
+
+        self.logger.info("Starting %s daemon with %d stage(s)", self.peer_id, len(self.stages))
+
+        for stage in self.stages:
+            stage.register_keywords(self.keyword_registry)
+        self.keyword_registry.bool("isconnected",
+                                   getter=self._controller_responsive,
+                                   description="Check if daemon can talk to the PI controller.")
+        self.keyword_registry.int("error",
+                                  getter=self._error_code,
+                                  description="Latest PI controller error code (0 = no error). Reading clears the register.")
+        self.keyword_registry.trigger("halt",
+                                      action=self._halt_all,
+                                      description="Halt motion on all stages.")
+
+        if not (self.ip_address and self.tcp_port):
+            self.logger.error("No IP address or port specified")
+            return
+
+        try:
+            self._connect_hardware()
+            self.logger.info("Daemon started successfully and connected to hardware")
+        except Exception as e:
+            self.logger.error("Failed to connect to hardware: %s", e)
+            self.logger.warning("Daemon will start but hardware is not available")
+
+    def _controller_responsive(self) -> bool:
+        """Return True if the controller answers IsControllerReady?."""
+        if not self.stages:
+            return False
+        try:
+            return bool(self.controller.is_controller_ready(self.stages[0].device_key))
+        except Exception:
+            return False
+
+    def _error_code(self) -> int:
+        """Return the controller's latest qERR? code (0 = no error, -1 = lookup failed)."""
+        if not self.stages:
+            return -1
+        try:
+            code = self.controller.get_error_code(self.stages[0].device_key)
+            return int(code) if code is not None else -1
+        except Exception:
+            return -1
+
+    def _build_stages(self) -> List[_Stage]:
+        stages_cfg = self._config.get("stages")
+        if stages_cfg:
+            return [_Stage(self, s, is_only=False) for s in stages_cfg]
+        return [_Stage(self, {
+            "name": "",
+            "device_id": 1,
+            "axis": self.get_config("hardware.axis", "1"),
+            "units": self.get_config("hardware.units"),
+            "named_positions": self._config.get("named_positions", {}),
+            "softmin": self.get_config("hardware.softmin", None),
+            "softmax": self.get_config("hardware.softmax", None),
+        }, is_only=True)]
+
+    def _halt_all(self) -> None:
+        for stage in self.stages:
+            stage.halt()
+
+    def _connect_hardware(self):
+        """Connect to the PI controller hardware."""
+        self.logger.info("Connecting to PI at %s:%s", self.ip_address, self.tcp_port)
+
+        if len(self.stages) > 1:
+            self.controller.connect_tcpip_daisy_chain(self.ip_address, self.tcp_port)
+        else:
+            self.controller.connect_tcp(self.ip_address, self.tcp_port)
+
+        for stage in self.stages:
+            try:
+                idn = self.controller.get_idn(stage.device_key)
+                self.logger.info("Stage %r: %s", stage.name or "(default)", idn)
+                stage.check_loop_closed()
+            except Exception as e:
+                self.logger.error("Error preparing stage %r: %s", stage.name or "(default)", e)
+
+    def on_stop(self, _libby):
+        """Cleanup when daemon shuts down."""
+        self.logger.info("Shutting down %s daemon", self.peer_id)
+
+        if self.controller is not None:
+            try:
+                self.controller.disconnect_all()
+                self.logger.info("Disconnected from PI controller")
+            except Exception as e:
+                self.logger.error("Error disconnecting: %s", e)
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(
+        description='HSFEI PI Motion Daemon'
+    )
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+    parser.add_argument('-d', '--daemon-id', type=str,
+                        help='Daemon ID (required for subsystem configs with multiple daemons)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        daemon = PiDaemon.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

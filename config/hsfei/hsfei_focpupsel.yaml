@@ -1,0 +1,21 @@
+# Focal/Pupil Plane Selector — C-663 stepper instance
+#
+# Usage:
+#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_focpupsel.yaml
+
+peer_id: hsfei_focpupsel
+
+hardware:
+  ip_address: 192.168.29.100
+  tcp_port: 10009
+  axis: "1"
+  units: mm
+  timeout_s: 30.0
+  retry_count: 3
+
+named_positions:
+  focal: 0.0
+  pupil: 0.0
+
+logging:
+  level: INFO
