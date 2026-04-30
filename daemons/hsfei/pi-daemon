@@ -34,6 +34,7 @@ class _Stage:
         self.named_positions: Dict[str, float] = spec.get("named_positions", {}) or {}
         self._softmin = _as_float(spec.get("softmin"))
         self._softmax = _as_float(spec.get("softmax"))
+        self._position_tolerance = _as_float(spec.get("position_tolerance"))
         self._move_lock = threading.Lock()
         self.suffix = "" if is_only else self.name
 
@@ -52,7 +53,8 @@ class _Stage:
         s = self.suffix
         registry.bool(f"isloopclosed{s}",
                       getter=lambda: self.controller.is_loop_closed(self.device_key, self.axis),
-                      description="Servo control loop is closed.")
+                      setter=self._set_loop_closed,
+                      description="Servo control loop is closed; modify to close (true) or open (false).")
         registry.bool(f"isreferenced{s}",
                       getter=lambda: self.controller.is_homed(self.device_key, self.axis),
                       description="Stage has been referenced (homed).")
@@ -65,10 +67,13 @@ class _Stage:
                        validator=self._check_soft_limits,
                        units=self.units,
                        description="Stage position in engineering units.")
-        registry.string(f"positionnamed{s}",
+        registry.string(f"namedpos{s}",
+                        getter=self._get_named,
                         setter=self._set_named,
                         validator=self._check_named,
-                        description="Move to a named preset position from the config.")
+                        description=("Named preset position. Modify to move to a preset; "
+                                     "show returns the current preset name when within "
+                                     "hardware.position_tolerance, else empty."))
         registry.float(f"softmin{s}",
                        getter=lambda: self._softmin,
                        setter=lambda v: setattr(self, "_softmin", v),
@@ -125,6 +130,21 @@ class _Stage:
             return (f"unknown named position '{name}'; "
                     f"available: {list(self.named_positions.keys())}")
         return None
+
+    def _get_named(self) -> str:
+        """Return the preset name when current position is within tolerance, else ""."""
+        if self._position_tolerance is None or not self.named_positions:
+            return ""
+        pos = self.controller.get_pos(self.device_key, self.axis)
+        for name, target in self.named_positions.items():
+            if abs(pos - float(target)) <= self._position_tolerance:
+                return name
+        return ""
+
+    def _set_loop_closed(self, v: bool) -> None:
+        ok = self.controller.close_loop(self.device_key, self.axis, enable=bool(v))
+        if not ok:
+            raise RuntimeError(f"controller rejected loop {'close' if v else 'open'}")
 
     def _set_position(self, v: float) -> None:
         with self._move_lock:
@@ -221,6 +241,7 @@ class PiDaemon(HispecDaemon):
             "named_positions": self._config.get("named_positions", {}),
             "softmin": self.get_config("hardware.softmin", None),
             "softmax": self.get_config("hardware.softmax", None),
+            "position_tolerance": self.get_config("hardware.position_tolerance", None),
         }, is_only=True)]
 
     def _halt_all(self) -> None:
@@ -236,11 +257,16 @@ class PiDaemon(HispecDaemon):
         else:
             self.controller.connect_tcp(self.ip_address, self.tcp_port)
 
+        auto_close_loop = bool(self.get_config("hardware.auto_close_loop", True))
+        if not auto_close_loop:
+            self.logger.info("hardware.auto_close_loop=false; leaving servo loops as-is")
+
         for stage in self.stages:
             try:
                 idn = self.controller.get_idn(stage.device_key)
                 self.logger.info("Stage %r: %s", stage.name or "(default)", idn)
-                stage.check_loop_closed()
+                if auto_close_loop:
+                    stage.check_loop_closed()
             except Exception as e:
                 self.logger.error("Error preparing stage %r: %s", stage.name or "(default)", e)
 
