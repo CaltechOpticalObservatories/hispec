@@ -67,24 +67,24 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         try:
             self.dev.initialize()
             self.keyword_registry.bool("isconnected",
-                                    getter=self.keyword_wrapper(self.dev.isconnected),
-                                    description="Check if daemon can talk to the FW controller.")
+                            getter=self.keyword_wrapper(self.dev.isconnected),
+                            description="Check if daemon can talk to the FW controller.")
             self.keyword_registry.int("position",
-                                    getter=self.keyword_wrapper(self.get_pos, key="position"),
-                                    setter=lambda v: self.keyword_wrapper(self.set_pos, int(v)),
-                                    description="Set and get current position of FilterWheel.")
+                            getter=self.keyword_wrapper(self.get_pos, key="position"),
+                            setter=lambda v: self.keyword_wrapper(self.set_pos, int(v)),
+                            description="Set and get current position of FilterWheel.")
             self.keyword_registry.str("namedposition",
-                                    getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
-                                    setter=lambda v: self.keyword_wrapper(self.goto_named_pos, str(v)),
-                                    description="Set and get named position of FilterWheel.")
+                            getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
+                            setter=lambda v: self.keyword_wrapper(self.goto_named_pos, str(v)),
+                            description="Set and get named position of FilterWheel.")
             self.keyword_registry.int("softmin",
-                                    getter=lambda: self._soft_min,
-                                    setter=lambda v: setattr(self, "_soft_min", int(v)),
-                                    description="Software lower limit for filter wheel position.")
+                            getter=lambda: self._soft_min,
+                            setter=lambda v: setattr(self, "_soft_min", int(v)),
+                            description="Software lower limit for filter wheel position.")
             self.keyword_registry.int("softmax",
-                                    getter=lambda: self._soft_max,
-                                    setter=lambda v: setattr(self, "_soft_max", int(v)),
-                                    description="Software upper limit for filter wheel position.")
+                            getter=lambda: self._soft_max,
+                            setter=lambda v: setattr(self, "_soft_max", int(v)),
+                            description="Software upper limit for filter wheel position.")
 
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
