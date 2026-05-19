@@ -2,12 +2,10 @@
 '''Module for the Filter Wheel Daemon'''
 import argparse
 import sys
-import threading
 from typing import Dict, Any,  Optional #pylint: disable = W0611
 
 from hispec.daemon import HispecDaemon #pylint: disable = E0401,E0611
 from hispec.driver.thorlabs.fw102c import FilterWheelController #pylint: disable = E0401,E0611
-from libby import KeywordRegistry #pylint: disable = E0611
 
 class Filterwheel(HispecDaemon): #pylint: disable = W0223
     '''Daemon for controlling the Filter Wheel via Thorlabs FW102C controller'''
@@ -251,7 +249,7 @@ def main():
     except KeyboardInterrupt:
         print("\nDaemon interrupted by user")
         sys.exit(0)
-    except Exception as e:
+    except Exception as e: #pylint: disable=W0718
         print(f"Error running daemon: {e}", file=sys.stderr)
         sys.exit(1)
 
