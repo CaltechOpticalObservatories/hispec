@@ -21,6 +21,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.port = None
         self.dev = FilterWheelController(log=True)
         self.daemon_desc = self.get_config("peer_id")
+        self.units = self.get_config("units")
         self._soft_min = None  # No limit by default
         self._soft_max = None  # No limit by default
 
@@ -65,23 +66,28 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         try:
             self.dev.initialize()
             self.keyword_registry.bool("isconnected",
-                            getter=self.keyword_wrapper(self.dev.isconnected),
+                            getter=self.keyword_wrapper(self.dev.is_connected),
                             description="Check if daemon can talk to the FW controller.")
             self.keyword_registry.int("position",
                             getter=self.keyword_wrapper(self.get_pos, key="position"),
-                            setter=lambda v: self.keyword_wrapper(self.set_pos, int(v)),
+                            setter=self.keyword_wrapper(self.set_pos, key="position"),
+                            validator=self._check_soft_limits,
+                            units=self.units,
                             description="Set and get current position of FilterWheel.")
-            self.keyword_registry.str("namedposition",
+            self.keyword_registry.string("namedposition",
                             getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
-                            setter=lambda v: self.keyword_wrapper(self.goto_named_pos, str(v)),
+                            setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
+                            validator=self._check_soft_limits,
                             description="Set and get named position of FilterWheel.")
             self.keyword_registry.int("softmin",
                             getter=lambda: self._soft_min,
                             setter=lambda v: setattr(self, "_soft_min", int(v)),
+                            units=self.units,
                             description="Software lower limit for filter wheel position.")
             self.keyword_registry.int("softmax",
                             getter=lambda: self._soft_max,
                             setter=lambda v: setattr(self, "_soft_max", int(v)),
+                            units=self.units,
                             description="Software upper limit for filter wheel position.")
 
         except Exception as e: # pylint: disable=W0718
@@ -211,17 +217,16 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
 
     @staticmethod
     def keyword_wrapper(func, key=None):
-        """Wrap a daemon method for use as a keyword getter/setter.
-        
-        Returns the value at `key` on success, or raises RuntimeError on failure.
-        If no `key` is given, returns the full result dict (minus 'ok').
-        """
-        def wrapper(self, *args, **kwargs):
-            result = func(*args, **kwargs)
+        """Wrap a daemon method for use as a keyword getter/setter."""
+        def wrapper(*args, **kwargs):
+            try:
+                result = func(*args, **kwargs)
+                print(f"DEBUG keyword_wrapper [{func.__name__}]: result={result}")
+            except Exception as e:
+                print(f"DEBUG keyword_wrapper [{func.__name__}]: exception={e}")
+                raise
             if not result.get("ok"):
-                error = result.get("error", f"Unknown error in {func.__name__}")
-                self.logger.error("keyword_wrapper [%s]: %s", func.__name__, error)
-                raise RuntimeError(error)
+                raise RuntimeError(result.get("error", f"Unknown error in {func.__name__}"))
             if key:
                 return result[key]
             return {k: v for k, v in result.items() if k != "ok"}
