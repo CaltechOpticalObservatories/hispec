@@ -1,0 +1,31 @@
+# Single Daemon Configuration Example
+# For standalone daemon deployment or development/testing
+#
+# Usage:
+#   daemon = Atcfwheel.from_config_file("config/hsfei_atcfwheel.yaml")
+# ATC Pickoff Dichroic Selector — C-663 stepper instance
+#
+# Usage:
+#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_atcpickoff.yaml
+
+peer_id: hsfei_atcfwheel
+group_id: hsfei
+
+hardware:
+  ip_address: 192.168.29.100
+  tcp_port: 10010
+  units: filter_pos
+  timeout_s: 30.0
+  retry_count: 3
+
+named_positions:
+  clear: 1
+  nd1: 2
+  nd2: 3
+  nd3: 4
+  nd4: 5
+  nd5: 6
+
+logging:
+  level: INFO
+  # file: /var/log/hispec/atcfwheel.log
