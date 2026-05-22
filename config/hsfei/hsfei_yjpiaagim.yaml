@@ -1,0 +1,25 @@
+#
+# Usage:
+#   daemons/hsfei/piaa-gimbalmount -c config/hsfei/hsfei_yjpiaagim.yaml
+
+peer_id: yjpiaagim
+group_id: hsfei
+
+hardware:
+      ip_address: 192.168.29.100
+      tcp_port: 10013
+      axis: 2
+      units: urad
+      timeout: 30.0
+      retry_count: 3
+      hardlimits:
+        min: -10.0
+        max: 10.0
+
+named_positions:
+      center: [0.0, 0.0]
+      offset1: [1.0, 1.0]
+      offset2: [-1.0, -1.0]
+
+logging:
+  level: INFO
