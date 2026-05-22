@@ -8,7 +8,7 @@
 # Usage:
 #   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_atcpickoff.yaml
 
-peer_id: hsfei_atcfwheel
+peer_id: atcfwheel
 group_id: hsfei
 
 hardware:

@@ -20,10 +20,10 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.host = None
         self.port = None
         self.dev = FilterWheelController(log=True)
-        self.daemon_desc = self.get_config("peer_id")
-        self.units = self.get_config("units")
         self._soft_min = None  # No limit by default
         self._soft_max = None  # No limit by default
+        self.daemon_desc = "Filter Wheel Daemon"
+        self.units = "position units"  # Set appropriate units for your filter wheel
 
         # Daemon state
         self.state = {
@@ -35,6 +35,8 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         '''Starts up daemon and initializies the hardware device'''
         self.host = self.get_config("hardware.ip_address")
         self.port = self.get_config("hardware.tcp_port")
+        self.daemon_desc = self.get_config("peer_id")
+        self.units = self.get_config("units")
 
         # Initialize hardware connection
         if not(self.host and self.port):
@@ -64,7 +66,9 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
+            print("DEBUG: Initializing FilterWheel with config:", self._config)
             self.dev.initialize()
+            print("DEBUGDEBUGDEBUGDEBUGDEBUG: initializing devices with config:", self._config)
             self.keyword_registry.bool("isconnected",
                             getter=self.keyword_wrapper(self.dev.is_connected),
                             description="Check if daemon can talk to the FW controller.")
@@ -89,6 +93,11 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                             setter=lambda v: setattr(self, "_soft_max", int(v)),
                             units=self.units,
                             description="Software upper limit for filter wheel position.")
+            self.keyword_registry.int("printcheck",
+                            getter=self.print_check,
+                            description="Debug keyword to check registration and execution.")
+
+            print("DEBUG: Registered keywords")
 
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
@@ -176,6 +185,11 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.logger.error("Error: %s",e)
             return {"ok": False, "error": str(e)}
         return {"ok":True, "position": int(position)}
+    
+    def print_check(self):
+        """"Debug keyword registration"""
+        print("DEBUG: Registered and executed")
+        return 1
 
     def set_pos(self, pos):
         '''sets current position'''
@@ -249,6 +263,7 @@ def main():
         sys.exit(2)
 
     try:
+        print(f"DDDDDDDDDDDDDDDDD Starting FilterWheel Daemon with config: {args.config} and daemon ID: {args}")
         daemon = Filterwheel.from_config_file(args.config, daemon_id=args.daemon_id)
         daemon.serve()
     except KeyboardInterrupt:
