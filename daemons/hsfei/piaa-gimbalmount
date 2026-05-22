@@ -66,10 +66,10 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                             getter=self.dev.is_loop_closed,
                             description="Check if gimbal loops are closed.")
             self.keyword_registry.bool("closeloops",
-                            setter=self.keyword_wrapper(self.close_loops),
+                            setter=self.dev.close_loop,
                             description="Close gimbal control loops.")
             self.keyword_registry.bool("openloops",
-                            setter=self.keyword_wrapper(self.open_loops),
+                            setter=self.dev.set_loop(loop=1),
                             description="Open gimbal control loops.")
             self.keyword_registry.int("position",
                             getter=self.keyword_wrapper(self.get_pos, key="position"),
