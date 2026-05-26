@@ -72,6 +72,8 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             limits = self.dev.get_limits().get("1")
             self._hard_min = limits[0]
             self._hard_max = limits[1]
+            self._soft_max = self._hard_max  # Default soft max to hard max
+            self._soft_min = self._hard_min  # Default soft min to hard min
             self.keyword_registry.bool("isconnected",
                             getter=self.dev.is_connected,
                             description="Check if daemon can talk to the FW controller.")
@@ -107,6 +109,12 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                             getter=lambda: self._hard_max,
                             units=self.units,
                             description="Hardware upper limit for filter wheel position.")
+            self.keyword_registry.trigger("connect",
+                            action=self.keyword_wrapper(self.connect),
+                            description="Connect to the filter wheel hardware.")
+            self.keyword_registry.trigger("disconnect",
+                            action=self.keyword_wrapper(self.disconnect),
+                            description="Disconnect from the filter wheel hardware.")
 
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
