@@ -22,6 +22,8 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.dev = FilterWheelController(log=True)
         self._soft_min = None  # No limit by default
         self._soft_max = None  # No limit by default
+        self._hard_min = 1     # Default hard limits for FW102C
+        self._hard_max = None     # Default hard limits for FW102C
         self.daemon_desc = "Filter Wheel Daemon"
         self.units = "position units"  # Set appropriate units for your filter wheel
 
@@ -66,22 +68,26 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            print("DEBUG: Initializing FilterWheel with config:", self._config)
             self.dev.initialize()
-            print("DEBUGDEBUGDEBUGDEBUGDEBUG: initializing devices with config:", self._config)
+            limits = self.dev.get_limits().get("1")
+            self._hard_min = limits[0]
+            self._hard_max = limits[1]
             self.keyword_registry.bool("isconnected",
-                            getter=self.keyword_wrapper(self.dev.is_connected),
+                            getter=self.dev.is_connected,
                             description="Check if daemon can talk to the FW controller.")
+            self.keyword_registry.string("error",
+                            getter=lambda: self.state['error'],
+                            description="Get the current error message.")
             self.keyword_registry.int("position",
                             getter=self.keyword_wrapper(self.get_pos, key="position"),
                             setter=self.keyword_wrapper(self.set_pos, key="position"),
-                            validator=self._check_soft_limits,
+                            #validator=self._check_soft_limits,
                             units=self.units,
                             description="Set and get current position of FilterWheel.")
             self.keyword_registry.string("namedposition",
                             getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
                             setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
-                            validator=self._check_soft_limits,
+                            #validator=self._check_soft_limits,
                             description="Set and get named position of FilterWheel.")
             self.keyword_registry.int("softmin",
                             getter=lambda: self._soft_min,
@@ -93,14 +99,18 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                             setter=lambda v: setattr(self, "_soft_max", int(v)),
                             units=self.units,
                             description="Software upper limit for filter wheel position.")
-            self.keyword_registry.int("printcheck",
-                            getter=self.print_check,
-                            description="Debug keyword to check registration and execution.")
-
-            print("DEBUG: Registered keywords")
+            self.keyword_registry.int("hardmin",
+                            getter=lambda: self._hard_min,
+                            units=self.units,
+                            description="Hardware lower limit for filter wheel position.")
+            self.keyword_registry.int("hardmax",
+                            getter=lambda: self._hard_max,
+                            units=self.units,
+                            description="Hardware upper limit for filter wheel position.")
 
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
+            self.state['error'] = str(e)
             return {"ok":False , "error": str(e)}
         return {"ok": True}
 
@@ -152,6 +162,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.logger.info("Disconnected from %s", self.daemon_desc)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "message": "Disconnected from hardware"}
 
@@ -170,6 +181,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.logger.debug("status: %s",status)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "status": status}
 
@@ -183,13 +195,9 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.logger.debug("get_pos: %s",position)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok":True, "position": int(position)}
-    
-    def print_check(self):
-        """"Debug keyword registration"""
-        print("DEBUG: Registered and executed")
-        return 1
 
     def set_pos(self, pos):
         '''sets current position'''
@@ -203,6 +211,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.logger.debug("set_pos: %d",pos)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "position": int(pos)}
 
@@ -218,6 +227,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.logger.debug("goto_named_pos: %s -> %s",name,goal)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "named_pos": name, "position": goal}
 
@@ -235,7 +245,6 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         def wrapper(*args, **kwargs):
             try:
                 result = func(*args, **kwargs)
-                print(f"DEBUG keyword_wrapper [{func.__name__}]: result={result}")
             except Exception as e:
                 print(f"DEBUG keyword_wrapper [{func.__name__}]: exception={e}")
                 raise
@@ -263,7 +272,7 @@ def main():
         sys.exit(2)
 
     try:
-        print(f"DDDDDDDDDDDDDDDDD Starting FilterWheel Daemon with config: {args.config} and daemon ID: {args}")
+        print(f"Starting FilterWheel Daemon with config: {args.config} and daemon ID: {args}")
         daemon = Filterwheel.from_config_file(args.config, daemon_id=args.daemon_id)
         daemon.serve()
     except KeyboardInterrupt:

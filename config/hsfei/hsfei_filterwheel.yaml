@@ -8,7 +8,7 @@
 # Usage:
 #   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_atcpickoff.yaml
 
-peer_id: atcfwheel
+peer_id: hsfei_atcfwheel
 group_id: hsfei
 
 hardware:
@@ -28,4 +28,4 @@ named_positions:
 
 logging:
   level: INFO
-  # file: /var/log/hispec/atcfwheel.log
+  file: /tmp/atcfwheel.log
