@@ -78,13 +78,13 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.keyword_registry.string("error",
                             getter=lambda: self.state['error'],
                             description="Get the current error message.")
-            self.keyword_registry.int("position",
+            self.keyword_registry.int("positionvalue",
                             getter=self.keyword_wrapper(self.get_pos, key="position"),
                             setter=self.keyword_wrapper(self.set_pos, key="position"),
                             #validator=self._check_soft_limits,
                             units=self.units,
                             description="Set and get current position of FilterWheel.")
-            self.keyword_registry.string("namedposition",
+            self.keyword_registry.string("positionnamed",
                             getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
                             setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
                             #validator=self._check_soft_limits,
