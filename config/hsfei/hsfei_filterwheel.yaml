@@ -25,12 +25,12 @@ limits:
   hard_max: 6
 
 named_positions:
-  clear: 1
-  nd1: 2
-  nd2: 3
-  nd3: 4
-  nd4: 5
-  nd5: 6
+  empty: 1
+  OD1: 2
+  OD2: 3
+  OD4: 4
+  OD5: 5
+  empty2: 6
 
 logging:
   level: INFO
