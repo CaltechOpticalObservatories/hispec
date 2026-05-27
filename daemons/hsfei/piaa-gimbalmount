@@ -4,8 +4,8 @@ import argparse
 import sys
 from typing import Dict, Any,  Optional #pylint: disable = W0611
 
-from hispec.daemon import HispecDaemon #pylint: disable = E0401,E0611
-from hispec.driver.thorlabs.ppc102 import Ppc102Controller #pylint: disable = E0401,E0611
+from hispec.daemon import HispecDaemon #pylint: disable = E0611
+from hispec.driver.thorlabs.ppc102 import Ppc102Controller #pylint: disable = E0611
 #from ppc102 import Ppc102Controller  # Assuming ppc102.py is in the same directory
 
 class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
@@ -73,17 +73,17 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                             description="Check if daemon can talk to the GimbalMount controller.")
             self.keyword_registry.bool("isloopsclosed",
                             getter=self.dev.is_loop_closed,
-                            setter=self.keyword_wrapper(self.set_loops, key="loops"),
+                            setter=self.keyword_wrapper(self.set_loops, key="isloopsclosed"),
                             description="Check if gimbal loops are closed.")
-            self.keyword_registry.int("positionx",
-                            getter=self.keyword_wrapper(self.get_pos, key="position"),
-                            setter=self.keyword_wrapper(self.set_pos, key="position"),
+            self.keyword_registry.float("positionvaluex",
+                            getter=self.keyword_wrapper(self.get_xpos, key="position"),
+                            setter=self.keyword_wrapper(self.set_xpos, key="position"),
                             validator=self._check_soft_limits,
                             units=self.units,
                             description="Set and get current position of GimbalMount.")
-            self.keyword_registry.int("positiony",
-                            getter=self.keyword_wrapper(self.get_pos, key="position"),
-                            setter=self.keyword_wrapper(self.set_pos, key="position"),
+            self.keyword_registry.float("positionvaluey",
+                            getter=self.keyword_wrapper(self.get_ypos, key="position"),
+                            setter=self.keyword_wrapper(self.set_ypos, key="position"),
                             validator=self._check_soft_limits,
                             units=self.units,
                             description="Set and get current position of GimbalMount.")
@@ -113,7 +113,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             self.keyword_registry.string("status",
                             getter=self.keyword_wrapper(self.status,key="status"),
                             description="Grabs status of gimbal mount")
-            self.keyword_registry.trigger("cleanupgimbal",
+            self.keyword_registry.trigger("cleanup",
                             action=self.clean_up_gimbal,
                             description="Clean up Gimbal, Open loops and set voltage to 0")
 
@@ -126,9 +126,6 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             self.state['connected'] = False
 
         self.logger.info("Starting %s Daemon", self.daemon_desc)
-
-        # Publish initial status
-        libby.publish(self.peer_id, "status: %s", self.state)
 
     def initialize(self):
         """handles initialization"""
@@ -146,57 +143,14 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok":False , "error": str(e)}
         return {"ok": True}
 
-    def get_named_positions(self):
-        """Get named positions from config (e.g., home, deployed, science)."""
-        return self._config.get("named_positions", {})
-
-    def get_named_position(self, name: str):
-        """Get a specific named position value, or None if not found."""
-        return self.get_named_positions().get(name)
-
-    def cur_named_position(self):
-        """Get the name of the current position, if it matches a named position."""
-        if not self.state['connected']:
-            return {"ok": False, "error": "Not connected to hardware"}
-
-        try:
-            current_pos = (
-                float(self.dev.get_pos(channel=1)),
-                float(self.dev.get_pos(channel=2))
-                )
-
-            for name, pos in self.get_named_positions().items():
-                dx = abs(float(pos[0]) - float(current_pos[0]))
-                dy = abs(float(pos[1]) - float(current_pos[1]))
-                if dx <= 0.01 and dy <= 0.01:
-                    return {"ok": True, "named_pos": name, "position": current_pos}
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
-            return {"ok": False, "error": str(e)}
-        return {"ok": True, "named_pos": "unknown", "position": current_pos} #pylint: disable = C0301
-
     def on_stop(self, libby) -> None: #pylint: disable=W0222
         '''Stops the daemon and disconnects from hardware device'''
         try:
             self.connect(False)
             self.logger.info("Disconnected %s", self.daemon_desc)
-            libby.publish(self.peer_id, {"Daemon Shutdown": "Success"})
         except Exception as e: # pylint: disable=W0718
-            libby.publish(self.peer_id, {"Daemon Startup": "Failed", "Error":f"{e}"})
             self.logger.error("Disconnect %s:: Failed ", self.daemon_desc)
-
-    def clean_up_gimbal(self):
-        '''Cleans up gimbal settings'''
-        try:
-            self.dev.set_loop(channel=0, loop=1)  # Open loops
-            self.dev.set_enable(channel=0, enable=1)  # Device can stay enabled
-            self.dev.set_output_volts(channel=1, volts=0)  # Set output voltages to 0
-            self.dev.set_output_volts(channel=2, volts=0)
-            self.logger.info("Cleaned up %s", self.daemon_desc)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("error during cleanup: %s",e)
-            return {"ok": False, "error": str(e)}
-        return {"ok": True, "message": "Gimbal cleaned up"}
+            self.logger.error("Error: %s",e)
 
     def connect(self, connect):
         """handles connection"""
@@ -212,6 +166,19 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             self.logger.error("Failed to Connect or Disconnect with Hardware: %s",e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "isconnected": result}
+
+    def clean_up_gimbal(self):
+        '''Cleans up gimbal settings'''
+        try:
+            self.dev.set_loop(channel=0, loop=1)  # Open loops
+            self.dev.set_enable(channel=0, enable=1)  # Device can stay enabled
+            self.dev.set_output_volts(channel=1, volts=0)  # Set output voltages to 0
+            self.dev.set_output_volts(channel=2, volts=0)
+            self.logger.info("Cleaned up %s", self.daemon_desc)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("error during cleanup: %s",e)
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "message": "Gimbal cleaned up"}
 
     def status(self):
         """handles status"""
@@ -254,7 +221,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": str(e)}
         return {"ok":True, "isloopsclosed": closed}
 
-    def set_loops(self, loops):
+    def set_loops(self, loops: bool):
         '''sets control loops'''
         try:
             if loops:
@@ -272,7 +239,15 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": str(e)}
         return {"ok":True, "isloopsclosed": result}
 
-    def get_pos(self):
+    def get_xpos(self):
+        '''gets current X position'''
+        return self.get_pos(axis=0)
+
+    def get_ypos(self):
+        '''gets current Y position'''
+        return self.get_pos(axis=1)
+
+    def get_pos(self, axis : int):
         '''gets current position'''
         if not self.state['connected']:
             return {"ok": False, "error": "Not connected to hardware"}
@@ -281,14 +256,21 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         if not self.state['isloopsclosed']:
             return {"ok": False, "error": "Control loops are not closed"}
         try:
-            xpos = self.dev.get_pos(channel=1)
-            ypos = self.dev.get_pos(channel=2)
-            position = [float(xpos), float(ypos)]
+            pos = self.dev.get_pos(channel=axis+1)
+            position = float(pos)
             self.logger.debug("get_pos: %s",position)
         except Exception as e: # pylint: disable=W0718
             self.logger.error("error: %s",e)
             return {"ok": False, "error": str(e)}
         return {"ok":True, "position": position}
+
+    def set_xpos(self, pos: float):
+        '''sets current X position'''
+        return self.set_pos(axis=0, pos=pos)
+
+    def set_ypos(self, pos: float):
+        '''sets current Y position'''
+        return self.set_pos(axis=1, pos=pos)
 
     def set_pos(self, axis, pos):
         '''sets current position'''
@@ -319,7 +301,8 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            goal = self.get_named_position(name.lower())
+            str_goal = name.lower()
+            goal = self.named_positions.get(str_goal)
             if goal is not None:
                 self.set_pos(axis=0, pos=float(goal[0]))
                 self.set_pos(axis=1, pos=float(goal[1]))
@@ -328,7 +311,29 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
             return {"ok": False, "error": str(e)}
-        return {"ok": True, "named_pos": name, "position": cur_pos}
+        return {"ok": True, "named_pos": str_goal, "position": cur_pos}
+
+    def cur_named_position(self):
+        """Get the name of the current position, if it matches a named position."""
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            current_pos = (
+                float(self.dev.get_pos(channel=1)),
+                float(self.dev.get_pos(channel=2))
+                )
+
+            for name, pos in self.named_positions.items():
+                dx = abs(float(pos[0]) - float(current_pos[0]))
+                dy = abs(float(pos[1]) - float(current_pos[1]))
+                if dx <= 0.01 and dy <= 0.01:
+                    return {"ok": True, "named_pos": name, "position": current_pos}
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Error: %s",e)
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "named_pos": "unknown", "position": current_pos} #pylint: disable = C0301
+
 
     def _check_soft_limits(self, pos: int) -> bool:
         """Returns True if position is within soft limits."""
