@@ -4,8 +4,8 @@ import argparse
 import sys
 from typing import Dict, Any,  Optional #pylint: disable = W0611
 
-from hispec.daemon import HispecDaemon #pylint: disable = E0401,E0611
-from hispec.driver.thorlabs.fw102c import FilterWheelController #pylint: disable = E0401,E0611
+from hispec.daemon import HispecDaemon #pylint: disable = E0611
+from hispec.driver.thorlabs.fw102c import FilterWheelController #pylint: disable = E0611
 
 class Filterwheel(HispecDaemon): #pylint: disable = W0223
     '''Daemon for controlling the Filter Wheel via Thorlabs FW102C controller'''
@@ -64,9 +64,6 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.logger.warning("Daemon will start but hardware is not available")
             self.state['error'] = str(e)
             self.state['connected'] = False
-
-        # Publish initial status
-        libby.publish(self.peer_id, self.state)
 
     def initialize(self):
         """handles initialization"""
@@ -139,11 +136,9 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         try:
             self.connect(False)
             self.logger.info("Disconnected %s", self.daemon_desc)
-            libby.publish(self.peer_id, {"Daemon Shutdown": "Success"})
         except Exception as e: # pylint: disable=W0718
-            libby.publish(self.peer_id, {"Daemon Startup": "Failed", "Error":f"{e}"})
             self.logger.error("Disconnect %s:: Failed ", self.daemon_desc)
-
+            self.logger.error("Error: %s",e)
 
     def connect(self, connect):
         """handles connection"""
