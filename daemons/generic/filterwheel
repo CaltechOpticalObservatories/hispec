@@ -24,6 +24,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self._soft_max = None
         self._hard_min = None
         self._hard_max = None
+        self.named_positions = None
         self.daemon_desc = "Filter Wheel Daemon"
         self.units = "position units"  # Set appropriate units for your filter wheel
 
@@ -43,6 +44,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self._soft_max = self.get_config("limits.soft_max")
         self._hard_min = self.get_config("limits.hard_min")
         self._hard_max = self.get_config("limits.hard_max")
+        self.named_positions = self.get_config("named_positions")
 
         # Initialize hardware connection
         if not(self.host and self.port):
@@ -88,7 +90,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.keyword_registry.string("positionnamed",
                             getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
                             setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
-                            validator=self._check_soft_limits,
+                            validator=self._check_named,
                             description="Set and get named position of FilterWheel.")
             self.keyword_registry.int("softmin",
                             getter=lambda: self._soft_min,
@@ -244,6 +246,14 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             raise ValueError(f"Position {pos} below soft min {self._soft_min}")
         if self._soft_max is not None and pos > self._soft_max:
             raise ValueError(f"Position {pos} above soft max {self._soft_max}")
+        return None
+
+    def _check_named(self, name: str) -> Optional[str]:
+        if not name:
+            return "value must be a non-empty string"
+        if name not in self.named_positions:
+            return (f"unknown named position '{name}'; "
+                    f"available: {list(self.named_positions)}")
         return None
 
     @staticmethod
