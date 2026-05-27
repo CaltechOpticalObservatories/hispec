@@ -6,7 +6,7 @@
 # ATC FilterWheel — Thor labs fw 102c contoller instance
 #
 # Usage:
-#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_atcfwheel.yaml
+#   daemons/generic/filterwheel -c config/hsfei/hsfei_filterwheel.yaml
 
 peer_id: hsfei_atcfwheel
 group_id: hsfei
