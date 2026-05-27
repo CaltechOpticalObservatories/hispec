@@ -1,0 +1,37 @@
+# Single Daemon Configuration Example
+# For standalone daemon deployment or development/testing
+#
+# Usage:
+#   daemon = Atcfwheel.from_config_file("config/hsfei_atcfwheel.yaml")
+# ATC FilterWheel — Thor labs fw 102c contoller instance
+#
+# Usage:
+#   daemons/generic/filterwheel -c config/hsfei/hsfei_filterwheel.yaml
+
+peer_id: hsfei_atcfwheel
+group_id: hsfei
+
+hardware:
+  ip_address: 192.168.29.100
+  tcp_port: 10010
+  units: filter_pos
+  timeout_s: 30.0
+  retry_count: 3
+
+limits:
+  soft_min: 1
+  soft_max: 6
+  hard_min: 1
+  hard_max: 6
+
+named_positions:
+  empty: 1
+  OD1: 2
+  OD2: 3
+  OD4: 4
+  OD5: 5
+  empty2: 6
+
+logging:
+  level: INFO
+  file: /tmp/atcfwheel.log
