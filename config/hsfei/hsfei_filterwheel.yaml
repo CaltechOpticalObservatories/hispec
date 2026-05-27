@@ -18,6 +18,12 @@ hardware:
   timeout_s: 30.0
   retry_count: 3
 
+limits:
+  soft_min: 1
+  soft_max: 6
+  hard_min: 1
+  hard_max: 6
+
 named_positions:
   clear: 1
   nd1: 2

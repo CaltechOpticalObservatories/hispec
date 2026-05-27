@@ -20,10 +20,10 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.host = None
         self.port = None
         self.dev = FilterWheelController(log=True)
-        self._soft_min = None  # No limit by default
-        self._soft_max = None  # No limit by default
-        self._hard_min = 1     # Default hard limits for FW102C
-        self._hard_max = None     # Default hard limits for FW102C
+        self._soft_min = None
+        self._soft_max = None
+        self._hard_min = None
+        self._hard_max = None
         self.daemon_desc = "Filter Wheel Daemon"
         self.units = "position units"  # Set appropriate units for your filter wheel
 
@@ -39,6 +39,10 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.port = self.get_config("hardware.tcp_port")
         self.daemon_desc = self.get_config("peer_id")
         self.units = self.get_config("units")
+        self._soft_min = self.get_config("limits.soft_min")
+        self._soft_max = self.get_config("limits.soft_max")
+        self._hard_min = self.get_config("limits.hard_min")
+        self._hard_max = self.get_config("limits.hard_max")
 
         # Initialize hardware connection
         if not(self.host and self.port):
@@ -69,11 +73,6 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
 
         try:
             self.dev.initialize()
-            limits = self.dev.get_limits().get("1")
-            self._hard_min = limits[0]
-            self._hard_max = limits[1]
-            self._soft_max = self._hard_max  # Default soft max to hard max
-            self._soft_min = self._hard_min  # Default soft min to hard min
             self.keyword_registry.bool("isconnected",
                             getter=self.dev.is_connected,
                             description="Check if daemon can talk to the FW controller.")
@@ -83,13 +82,13 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.keyword_registry.int("positionvalue",
                             getter=self.keyword_wrapper(self.get_pos, key="position"),
                             setter=self.keyword_wrapper(self.set_pos, key="position"),
-                            #validator=self._check_soft_limits,
+                            validator=self._check_soft_limits,
                             units=self.units,
                             description="Set and get current position of FilterWheel.")
             self.keyword_registry.string("positionnamed",
                             getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
                             setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
-                            #validator=self._check_soft_limits,
+                            validator=self._check_soft_limits,
                             description="Set and get named position of FilterWheel.")
             self.keyword_registry.int("softmin",
                             getter=lambda: self._soft_min,
@@ -245,7 +244,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             raise ValueError(f"Position {pos} below soft min {self._soft_min}")
         if self._soft_max is not None and pos > self._soft_max:
             raise ValueError(f"Position {pos} above soft max {self._soft_max}")
-        return True
+        return None
 
     @staticmethod
     def keyword_wrapper(func, key=None):
