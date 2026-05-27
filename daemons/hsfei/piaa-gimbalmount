@@ -2,7 +2,7 @@
 '''Module for Gimbal mount Daemon'''
 import argparse
 import sys
-from typing import Dict, Any #pylint: disable = W0611
+from typing import Dict, Any,  Optional #pylint: disable = W0611
 
 from hispec.daemon import HispecDaemon #pylint: disable = E0401,E0611
 from hispec.driver.thorlabs.ppc102 import Ppc102Controller #pylint: disable = E0401,E0611
@@ -75,22 +75,13 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                             getter=self.dev.is_loop_closed,
                             setter=self.keyword_wrapper(self.set_loops, key="loops"),
                             description="Check if gimbal loops are closed.")
-            self.keyword_registry.bool("ismoving",
-                            getter=,
-                            description="checks if stage is currently moving")
-            self.keyword_registry.bool("isreferenced",
-                            getter=,
-                            description="check if stage is referenced")
-            self.keyword_registry.trigger("halt",
-                            action=,
-                            description="Halts stage from further movement")
-            self.keyword_registry.int("positionvaluex",
+            self.keyword_registry.int("positionx",
                             getter=self.keyword_wrapper(self.get_pos, key="position"),
                             setter=self.keyword_wrapper(self.set_pos, key="position"),
                             validator=self._check_soft_limits,
                             units=self.units,
                             description="Set and get current position of GimbalMount.")
-            self.keyword_registry.int("positionvaluey",
+            self.keyword_registry.int("positiony",
                             getter=self.keyword_wrapper(self.get_pos, key="position"),
                             setter=self.keyword_wrapper(self.set_pos, key="position"),
                             validator=self._check_soft_limits,
@@ -99,7 +90,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             self.keyword_registry.string("positionnamed",
                             getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
                             setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
-                            validator=self._check_soft_limits,
+                            validator=self._check_named,
                             description="Set and get named position of GimbalMount.")
             self.keyword_registry.int("softmin",
                             getter=lambda: self._soft_min,
@@ -338,6 +329,22 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             self.logger.error("Error: %s",e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "named_pos": name, "position": cur_pos}
+
+    def _check_soft_limits(self, pos: int) -> bool:
+        """Returns True if position is within soft limits."""
+        if self._soft_min is not None and pos < self._soft_min:
+            raise ValueError(f"Position {pos} below soft min {self._soft_min}")
+        if self._soft_max is not None and pos > self._soft_max:
+            raise ValueError(f"Position {pos} above soft max {self._soft_max}")
+        return None
+
+    def _check_named(self, name: str) -> Optional[str]:
+        if not name:
+            return "value must be a non-empty string"
+        if name not in self.named_positions:
+            return (f"unknown named position '{name}'; "
+                    f"available: {list(self.named_positions)}")
+        return None
 
     @staticmethod
     def keyword_wrapper(func, key=None):
