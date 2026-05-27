@@ -1,13 +1,13 @@
 #
 # Usage:
-#   daemons/hsfei/piaa-gimbalmount -c config/hsfei/hsfei_yjpiaagim.yaml
+#   daemons/hsfei/piaa-gimbalmount -c config/hsfei/hsfei_hkpiaagim.yaml
 
-peer_id: hsfei_yjpiaagim
+peer_id: hsfei_hkpiaagim
 group_id: hsfei
 
 hardware:
   ip_address: 192.168.29.100
-  tcp_port: 10013
+  tcp_port: 10012
   axis: 2
   units: urad
   timeout: 30.0
