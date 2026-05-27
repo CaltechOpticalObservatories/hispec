@@ -52,7 +52,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.state['error'] = 'No IP address or port specified'
             return
         try:
-            connection = self.connect()
+            connection = self.connect(True)
             if not connection.get("ok"):
                 raise ConnectionError(connection.get("Error"))
             self.state['connected'] = True
@@ -77,6 +77,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.dev.initialize()
             self.keyword_registry.bool("isconnected",
                             getter=self.dev.is_connected,
+                            setter=self.keyword_wrapper(self.connect, key="isconnected"),
                             description="Check if daemon can talk to the FW controller.")
             self.keyword_registry.string("error",
                             getter=lambda: self.state['error'],
@@ -110,12 +111,6 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                             getter=lambda: self._hard_max,
                             units=self.units,
                             description="Hardware upper limit for filter wheel position.")
-            self.keyword_registry.trigger("connect",
-                            action=self.keyword_wrapper(self.connect),
-                            description="Connect to the filter wheel hardware.")
-            self.keyword_registry.trigger("disconnect",
-                            action=self.keyword_wrapper(self.disconnect),
-                            description="Disconnect from the filter wheel hardware.")
 
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
@@ -142,7 +137,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
     def on_stop(self, libby) -> None: #pylint: disable=W0222
         '''Stops the daemon and disconnects from hardware device'''
         try:
-            self.disconnect()
+            self.connect(False)
             self.logger.info("Disconnected %s", self.daemon_desc)
             libby.publish(self.peer_id, {"Daemon Shutdown": "Success"})
         except Exception as e: # pylint: disable=W0718
@@ -150,30 +145,21 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.logger.error("Disconnect %s:: Failed ", self.daemon_desc)
 
 
-    def connect(self):
+    def connect(self, connect):
         """handles connection"""
         try:
-            self.dev.connect(host = self.host, port = self.port)
-            if not self.dev.is_connected():
-                raise ConnectionError("Failed to connect to device")
-            self.logger.info("Connected %s", self.daemon_desc)
+            if connect:
+                self.dev.connect(host = self.host, port = self.port)
+            else:
+                self.dev.disconnect()
+            result = self.dev.is_connected()
+            if result != connect:
+                raise ConnectionError("Failed to Handle Connection Request")
+            self.logger.info("isconnected: %s", result)
         except Exception as e: # pylint: disable=W0718
-            self.logger.error("Failed to Connect to Hardware: %s",e)
+            self.logger.error("Failed to execute: %s",e)
             return {"ok": False, "error": str(e)}
-        return {"ok": True, "message": "Connected to hardware"}
-
-    def disconnect(self):
-        """handles disconnection"""
-        try:
-            self.dev.disconnect()
-            if self.dev.is_connected():
-                raise ConnectionAbortedError("Failed to disconnect to device")
-            self.logger.info("Disconnected from %s", self.daemon_desc)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
-            self.state['error'] = str(e)
-            return {"ok": False, "error": str(e)}
-        return {"ok": True, "message": "Disconnected from hardware"}
+        return {"ok": True, "isconnected": result}
 
     def status(self):
         """handles status"""
