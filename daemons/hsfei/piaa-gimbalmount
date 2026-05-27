@@ -1,5 +1,5 @@
 #!/usr/bin/python3.12
-'''Module for the BLUE YJ PIAA Gimbal Daemon'''
+'''Module for Gimbal mount Daemon'''
 import argparse
 import sys
 from typing import Dict, Any #pylint: disable = W0611
@@ -62,7 +62,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return
 
         try:
-            connection = self.connect()
+            connection = self.connect(True)
             if not connection.get("ok"):
                 raise ConnectionError(connection.get("error"))
             self.state['connected'] = True
@@ -77,13 +77,13 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                             description="Check if gimbal loops are closed.")
             self.keyword_registry.bool("ismoving",
                             getter=,
-                            description=)
+                            description="checks if stage is currently moving")
             self.keyword_registry.bool("isreferenced",
                             getter=,
-                            description=)
+                            description="check if stage is referenced")
             self.keyword_registry.trigger("halt",
                             action=,
-                            description=)
+                            description="Halts stage from further movement")
             self.keyword_registry.int("positionvaluex",
                             getter=self.keyword_wrapper(self.get_pos, key="position"),
                             setter=self.keyword_wrapper(self.set_pos, key="position"),
@@ -123,8 +123,8 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                             getter=self.keyword_wrapper(self.status,key="status"),
                             description="Grabs status of gimbal mount")
             self.keyword_registry.trigger("cleanupgimbal",
-                            action=,
-                            description=)
+                            action=self.clean_up_gimbal,
+                            description="Clean up Gimbal, Open loops and set voltage to 0")
 
             self.logger.info("Daemon started successfully and connected to hardware")
             self.logger.info("Initialized %s", self.daemon_desc)
@@ -137,7 +137,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         self.logger.info("Starting %s Daemon", self.daemon_desc)
 
         # Publish initial status
-        libby.publish("yjpiaagim.status", self.state)
+        libby.publish(self.peer_id, "status: %s", self.state)
 
     def initialize(self):
         """handles initialization"""
@@ -187,12 +187,11 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
     def on_stop(self, libby) -> None: #pylint: disable=W0222
         '''Stops the daemon and disconnects from hardware device'''
         try:
-            self.clean_up_gimbal()
-            self.disconnect()
+            self.connect(False)
             self.logger.info("Disconnected %s", self.daemon_desc)
-            libby.publish("yjpiaagim", {"Daemon Shutdown": "Success"})
+            libby.publish(self.peer_id, {"Daemon Shutdown": "Success"})
         except Exception as e: # pylint: disable=W0718
-            libby.publish("yjpiaagim", {"Daemon Startup": "Failed", "error":f"{e}"})
+            libby.publish(self.peer_id, {"Daemon Startup": "Failed", "Error":f"{e}"})
             self.logger.error("Disconnect %s:: Failed ", self.daemon_desc)
 
     def clean_up_gimbal(self):
