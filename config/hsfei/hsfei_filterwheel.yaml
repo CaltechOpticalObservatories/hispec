@@ -3,10 +3,10 @@
 #
 # Usage:
 #   daemon = Atcfwheel.from_config_file("config/hsfei_atcfwheel.yaml")
-# ATC Pickoff Dichroic Selector — C-663 stepper instance
+# ATC FilterWheel — Thor labs fw 102c contoller instance
 #
 # Usage:
-#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_atcpickoff.yaml
+#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_atcfwheel.yaml
 
 peer_id: hsfei_atcfwheel
 group_id: hsfei
