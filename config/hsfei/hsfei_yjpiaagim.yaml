@@ -9,15 +9,22 @@ hardware:
   ip_address: 192.168.29.100
   tcp_port: 10013
   axis: 2
-  units: urad
+  closed_loop_units: mrad
+  open_loop_units: volts
   timeout: 30.0
   retry_count: 3
 
 limits:
-  soft_min: -9.5
-  soft_max: 9.5
-  hard_min: -10.0
-  hard_max: 10.0
+  open_loop:
+    soft_min: -20.0
+    soft_max: 145.0
+    hard_min: -25.0
+    hard_max: 150.0
+  closed_loop:
+    soft_min: -9.5
+    soft_max: 9.5
+    hard_min: -10.0
+    hard_max: 10.0
 
 named_positions:
   center: [0.0, 0.0]

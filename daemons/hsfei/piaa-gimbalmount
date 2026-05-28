@@ -17,6 +17,12 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
     # pub/sub topics
     topics = {}
 
+    #voltage control parameters
+    V_MIN = -20
+    V_MAX = 150
+    DIGITAL_MIN = -32767
+    DIGITAL_MAX = 32767
+
     def __init__(self):
         """Initialize the Gimbal daemon."""
         super().__init__()
@@ -48,11 +54,11 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         self.host = self.get_config("hardware.ip_address")
         self.port = self.get_config("hardware.tcp_port")
         self.daemon_desc = self.get_config("peer_id")
-        self.units = self.get_config("units")
-        self._soft_min = self.get_config("limits.soft_min")
-        self._soft_max = self.get_config("limits.soft_max")
-        self._hard_min = self.get_config("limits.hard_min")
-        self._hard_max = self.get_config("limits.hard_max")
+        self.units = self.get_config("hardware.open_loop_units")
+        self._soft_min = self.get_config("limits.open_loop.soft_min")
+        self._soft_max = self.get_config("limits.open_loop.soft_max")
+        self._hard_min = self.get_config("limits.open_loop.hard_min")
+        self._hard_max = self.get_config("limits.open_loop.hard_max")
         self.named_positions = self.get_config("named_positions")
 
         # Initialize hardware connection
@@ -231,6 +237,20 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                 self.dev.set_loop(channel=0, loop=1)
                 self.logger.debug("open loops sent")
             result = self.dev.is_loop_closed()
+            if result:
+                self.logger.debug("loops are closed")
+                self.units = self.get_config("hardware.closed_loop_units")
+                self._soft_min = self.get_config("limits.closed_loop.soft_min")
+                self._soft_max = self.get_config("limits.closed_loop.soft_max")
+                self._hard_min = self.get_config("limits.closed_loop.hard_min")
+                self._hard_max = self.get_config("limits.closed_loop.hard_max")
+            else:
+                self.logger.debug("loops are open")
+                self.units = self.get_config("hardware.open_loop_units")
+                self._soft_min = self.get_config("limits.open_loop.soft_min")
+                self._soft_max = self.get_config("limits.open_loop.soft_max")
+                self._hard_min = self.get_config("limits.open_loop.hard_min")
+                self._hard_max = self.get_config("limits.open_loop.hard_max")
             if result != loops:
                 raise RuntimeError("Failed to execute set loops")
             self.state['isloopsclosed'] = result
@@ -266,11 +286,41 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
 
     def set_xpos(self, pos: float):
         '''sets current X position'''
-        return self.set_pos(axis=0, pos=pos)
+        if self.state['isloopsclosed']:
+            return self.set_pos(axis=0, pos=pos)
+        return self.set_volts(axis=0, volts=pos)
 
     def set_ypos(self, pos: float):
         '''sets current Y position'''
-        return self.set_pos(axis=1, pos=pos)
+        if self.state['isloopsclosed']:
+            return self.set_pos(axis=1, pos=pos)
+        return self.set_volts(axis=1, volts=pos)
+
+    def set_volts(self, axis: int, volts: float):
+        '''sets output voltage for open loop control'''
+        if not self.state['connected']:
+            return {"ok": False, "error": "Not connected to hardware"}
+        if not self.state['enabled']:
+            return {"ok": False, "error": "Device not enabled"}
+        if self.state['isloopsclosed']:
+            return {"ok": False, "error": "Control loops are closed; cannot set volts"}
+        try:
+            volts = float(volts)
+            axis = int(axis)
+            if axis not in [0,1]:
+                self.logger.error("Axis must be 0 (X) or 1 (Y)")
+                return {"ok": False, "error": "Axis must be 0 (X) or 1 (Y)"}
+            chan = axis + 1
+            #convert volts to int between -32768 and 32,767 for PPC102
+            voltage_ratio = (volts - self.V_MIN) / (self.V_MAX - self.V_MIN)
+            volts_int = int(voltage_ratio*(self.DIGITAL_MAX-self.DIGITAL_MIN)+self.DIGITAL_MIN)
+            self.dev.set_output_volts(channel=chan, volts=volts_int)
+            self.logger.debug("set_volts: %s",volts)
+            voltage = self.dev.get_status_update(channel=chan)[0]
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("error: %s",e)
+            return {"ok": False, "error": str(e)}
+        return {"ok":True, "voltage": voltage}
 
     def set_pos(self, axis, pos):
         '''sets current position'''
