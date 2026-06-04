@@ -23,6 +23,7 @@ DAEMON_ATTRS = frozenset({
     "transport",
     "rabbitmq_url",
     "group_id",
+    "description",
 })
 
 

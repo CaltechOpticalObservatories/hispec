@@ -50,6 +50,7 @@ class HispecDaemon:
     transport: str = "rabbitmq"
     rabbitmq_url: Optional[str] = None
     group_id: Optional[str] = None
+    description: str = ""
     # internal config
     _config: Dict[str, Any] = {}
 
@@ -174,6 +175,7 @@ class HispecDaemon:
     def config_bind(self) -> str: return self.bind or self._must("bind")
     def config_rabbitmq_url(self) -> str: return self.rabbitmq_url or "amqp://localhost"
     def config_group_id(self) -> Optional[str]: return self.group_id
+    def config_description(self) -> str: return self.description or ""
     def config_address_book(self) -> Dict[str, str]: return self.address_book if self.address_book is not None else {}
     def config_discovery_enabled(self) -> bool: return bool(self.discovery_enabled)
     def config_discovery_interval_s(self) -> float: return float(self.discovery_interval_s)
@@ -241,6 +243,7 @@ class HispecDaemon:
                 keys=[],
                 callback=None,
                 group_id=self.config_group_id(),
+                description=self.config_description(),
             )
         else:
             # Default to ZMQ
@@ -253,6 +256,7 @@ class HispecDaemon:
                 discover_interval_s=self.config_discovery_interval_s(),
                 hello_on_start=True,
                 group_id=self.config_group_id(),
+                description=self.config_description(),
             )
 
     def serve(self) -> None:

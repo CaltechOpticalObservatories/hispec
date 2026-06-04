@@ -4,6 +4,7 @@
 #   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_focpupsel.yaml
 
 peer_id: hsfei_focpupsel
+description: "Focal/Pupil Plane Selector — C-663 stepper instance."
 
 hardware:
   ip_address: 192.168.29.100

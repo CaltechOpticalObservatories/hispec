@@ -4,6 +4,7 @@
 #   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_rlight.yaml
 
 peer_id: hsfei_rlight
+description: "FEI Retractable Light Source Module — H + V C-863 servo, daisy-chained."
 
 hardware:
   ip_address: 192.168.29.100

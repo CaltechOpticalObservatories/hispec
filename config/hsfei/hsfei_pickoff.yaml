@@ -4,6 +4,7 @@
 #   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_pickoff.yaml
 
 peer_id: hsfei_pickoff
+description: "FEI Pickoff Mirror — C-663 stepper instance."
 
 hardware:
   ip_address: 192.168.29.100

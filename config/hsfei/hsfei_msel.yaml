@@ -4,6 +4,7 @@
 #   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_msel.yaml
 
 peer_id: hsfei_msel
+description: "FEI Mask Selector — H C-863 servo + V C-663 stepper, daisy-chained."
 
 hardware:
   ip_address: 192.168.29.100
