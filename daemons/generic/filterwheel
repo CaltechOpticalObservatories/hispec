@@ -30,7 +30,6 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
 
         # Daemon state
         self.state = {
-            'connected': False,
             'error': ''
         }
 
@@ -52,10 +51,10 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.state['error'] = 'No IP address or port specified'
             return
         try:
+            self._register_keywords()
             connection = self.connect(True)
             if not connection.get("ok"):
                 raise ConnectionError(connection.get("Error"))
-            self.state['connected'] = True
             self.logger.info("Daemon started successfully and connected to hardware")
             self.initialize()
             self.logger.info("Initialized %s", self.daemon_desc)
@@ -63,57 +62,57 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.logger.error("Failed to connect to hardware: %s", e)
             self.logger.warning("Daemon will start but hardware is not available")
             self.state['error'] = str(e)
-            self.state['connected'] = False
 
     def initialize(self):
         """handles initialization"""
-        if not self.state['connected']:
+        if not self.dev.is_connected():
             return {"ok": False, "error": "Not connected to hardware"}
-
         try:
             self.dev.initialize()
-            self.keyword_registry.bool("isconnected",
-                            getter=self.dev.is_connected,
-                            setter=self.keyword_wrapper(self.connect, key="isconnected"),
-                            description="Check if daemon can talk to the FW controller.")
-            self.keyword_registry.string("error",
-                            getter=lambda: self.state['error'],
-                            description="Get the current error message.")
-            self.keyword_registry.int("positionvalue",
-                            getter=self.keyword_wrapper(self.get_pos, key="position"),
-                            setter=self.keyword_wrapper(self.set_pos, key="position"),
-                            validator=self._check_soft_limits,
-                            units=self.units,
-                            description="Set and get current position of FilterWheel.")
-            self.keyword_registry.string("positionnamed",
-                            getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
-                            setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
-                            validator=self._check_named,
-                            description="Set and get named position of FilterWheel.")
-            self.keyword_registry.int("softmin",
-                            getter=lambda: self._soft_min,
-                            setter=lambda v: setattr(self, "_soft_min", int(v)),
-                            units=self.units,
-                            description="Software lower limit for filter wheel position.")
-            self.keyword_registry.int("softmax",
-                            getter=lambda: self._soft_max,
-                            setter=lambda v: setattr(self, "_soft_max", int(v)),
-                            units=self.units,
-                            description="Software upper limit for filter wheel position.")
-            self.keyword_registry.int("hardmin",
-                            getter=lambda: self._hard_min,
-                            units=self.units,
-                            description="Hardware lower limit for filter wheel position.")
-            self.keyword_registry.int("hardmax",
-                            getter=lambda: self._hard_max,
-                            units=self.units,
-                            description="Hardware upper limit for filter wheel position.")
-
         except Exception as e: # pylint: disable=W0718
             self.logger.error("Error: %s",e)
             self.state['error'] = str(e)
             return {"ok":False , "error": str(e)}
         return {"ok": True}
+
+    def _register_keywords(self):
+        """Register keywords for the daemon."""
+        self.keyword_registry.bool("isconnected",
+                        getter=self.dev.is_connected,
+                        setter=self.keyword_wrapper(self.connect, key="isconnected"),
+                        description="Check if daemon can talk to the FW controller.")
+        self.keyword_registry.string("error",
+                        getter=lambda: self.state['error'],
+                        description="Get the current error message.")
+        self.keyword_registry.int("positionvalue",
+                        getter=self.keyword_wrapper(self.get_pos, key="position"),
+                        setter=self.keyword_wrapper(self.set_pos, key="position"),
+                        validator=self._check_soft_limits,
+                        units=self.units,
+                        description="Set and get current position of FilterWheel.")
+        self.keyword_registry.string("positionnamed",
+                        getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
+                        setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
+                        validator=self._check_named,
+                        description="Set and get named position of FilterWheel.")
+        self.keyword_registry.int("softmin",
+                        getter=lambda: self._soft_min,
+                        setter=lambda v: setattr(self, "_soft_min", int(v)),
+                        units=self.units,
+                        description="Software lower limit for filter wheel position.")
+        self.keyword_registry.int("softmax",
+                        getter=lambda: self._soft_max,
+                        setter=lambda v: setattr(self, "_soft_max", int(v)),
+                        units=self.units,
+                        description="Software upper limit for filter wheel position.")
+        self.keyword_registry.int("hardmin",
+                        getter=lambda: self._hard_min,
+                        units=self.units,
+                        description="Hardware lower limit for filter wheel position.")
+        self.keyword_registry.int("hardmax",
+                        getter=lambda: self._hard_max,
+                        units=self.units,
+                        description="Hardware upper limit for filter wheel position.")
 
     def get_named_positions(self):
         """Get named positions from config (e.g., home, deployed, science)."""
@@ -177,7 +176,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
 
     def get_pos(self):
         '''gets current position'''
-        if not self.state['connected']:
+        if not self.dev.is_connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
@@ -191,7 +190,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
 
     def set_pos(self, pos):
         '''sets current position'''
-        if not self.state['connected']:
+        if not self.dev.is_connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
@@ -207,7 +206,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
 
     def goto_named_pos(self, name):
         '''moves to named position'''
-        if not self.state['connected']:
+        if not self.dev.is_connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
