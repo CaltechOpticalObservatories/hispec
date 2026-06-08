@@ -51,6 +51,7 @@ class _Stage:
         """Add this stage's keywords to the given KeywordRegistry."""
         s = self.suffix
         registry.bool(f"isloopclosed{s}",
+                      setter=lambda v: self.controller.close_loop(self.device_key, self.axis, enable=bool(v)),
                       getter=lambda: self.controller.is_loop_closed(self.device_key, self.axis),
                       description="Servo control loop is closed.")
         registry.bool(f"isreferenced{s}",
@@ -171,7 +172,8 @@ class PiDaemon(HispecDaemon):
             stage.register_keywords(self.keyword_registry)
         self.keyword_registry.bool("isconnected",
                                    getter=self._controller_responsive,
-                                   description="Check if daemon can talk to the PI controller.")
+                                   setter=self._set_connected,
+                                   description="Daemon's connection to the PI controller; write true to connect, false to disconnect.")
         self.keyword_registry.int("error",
                                   getter=self._error_code,
                                   description="Latest PI controller error code (0 = no error). Reading clears the register.")
@@ -198,6 +200,19 @@ class PiDaemon(HispecDaemon):
             return bool(self.controller.is_controller_ready(self.stages[0].device_key))
         except Exception:
             return False
+
+    def _set_connected(self, value: bool) -> None:
+        """Connect to or disconnect from the controller in response to a write."""
+        if value:
+            if self._controller_responsive():
+                return
+            if not (self.ip_address and self.tcp_port):
+                raise RuntimeError("no hardware ip_address/tcp_port configured")
+            # Disconnect the whole daisy chain before reconnecting
+            self.controller.disconnect_all()
+            self._connect_hardware()
+        else:
+            self.controller.disconnect_all()
 
     def _error_code(self) -> int:
         """Return the controller's latest qERR? code (0 = no error, -1 = lookup failed)."""
