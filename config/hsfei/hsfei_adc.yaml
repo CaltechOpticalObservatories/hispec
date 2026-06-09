@@ -1,0 +1,32 @@
+# ADC Rotator — two Newport SMC100PP prism rotators (prism 1 & 2),
+# daisy-chained
+#
+# Usage:
+#   daemons/hsfei/adc -c config/hsfei/hsfei_adc.yaml
+
+peer_id: hsfei_adc
+group_id: hsfei
+
+hardware:
+  ip_address: 192.168.29.100
+  tcp_port: 10006
+  move_rate: 8.0            # deg/s
+  position_tolerance: 0.05  # deg
+
+stages:
+  - stage_id: 1
+    units: deg
+    softmin: -180.0
+    softmax: 180.0
+  - stage_id: 2
+    units: deg
+    softmin: -180.0
+    softmax: 180.0
+
+# angles in degrees
+named_positions:
+  crossed: [0.0, 0.0]
+  maxdisp: [90.0, -90.0]
+
+logging:
+  level: INFO
