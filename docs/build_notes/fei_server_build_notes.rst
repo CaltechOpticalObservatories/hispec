@@ -10,7 +10,7 @@ System Requirements
 
 
 User and Hostname Setup
-=======================
+-----------------------
 
 Create a development user ``hsdev`` and facility user ``hispecfei``:
 
@@ -67,7 +67,7 @@ Notes
 
 
 Group and Account Setup
-=======================
+-----------------------
 
 Create required groups for HISPEC development:
 
@@ -499,10 +499,10 @@ OS Optimization Notes (07/09/2025)
 
 
 Final Step
-==========
+----------
 
 **RESTART/REBOOT** the server to complete driver installation and apply CPU/OS optimization changes.
 
 
 Done!
-=====
+-----

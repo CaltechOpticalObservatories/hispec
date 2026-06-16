@@ -3,13 +3,13 @@ Build Setup for hsdev User
 ===========================================
 
 System Requirements
-====================
+-------------------
 
 - OS: Ubuntu 24.04 LTS
 - Python: 3.12 (default system version)
 
 User Setup
-==========
+----------
 
 Create a development user ``hsdev``:
 
@@ -20,7 +20,7 @@ Create a development user ``hsdev``:
    sudo usermod -aG dialout hsdev  # Add serial access group
 
 Group and Account Setup
-========================
+-----------------------
 
 Create required groups for HISPEC development:
 
@@ -51,7 +51,7 @@ Create standard HISPEC accounts (if not already provisioned):
    done
 
 System Package Installation
-===========================
+---------------------------
 
 Update package list and install the essential build tools:
 
@@ -93,7 +93,7 @@ Update package list and install the essential build tools:
      pandoc groff rst2pdf
 
 KROOT Specific Packages
---------------------------
+~~~~~~~~~~~~~~~~~~~~~~~
 
 These packages are needed for KROOT environments:
 
@@ -110,7 +110,7 @@ These packages are needed for KROOT environments:
      python3-ephem
 
 Additional Instrument Development Packages
-------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -121,7 +121,7 @@ Additional Instrument Development Packages
      libcfitsio-dev
 
 Python Package Installation
-===========================
+---------------------------
 
 Use Python 3.12 (default) and install required Python packages:
 
@@ -138,7 +138,7 @@ Verify installation:
    pip3 list
 
 Optional: Virtual Environment
-=============================
+-----------------------------
 
 Create and activate a virtual environment:
 
@@ -149,7 +149,7 @@ Create and activate a virtual environment:
    pip install numpy matplotlib pipython
 
 Directory Structure
-===================
+-------------------
 
 The following directory structure is recommended:
 
@@ -168,7 +168,7 @@ Create the directories:
    chown -R hsdev:hsdev /home/hsdev/external /home/hsdev/svn
 
 External Development Libraries
-==============================
+------------------------------
 
 For third-party libraries, build and install them under ``/home/hsdev/external``:
 
@@ -182,7 +182,7 @@ For third-party libraries, build and install them under ``/home/hsdev/external``
    make && make install
 
 Update Hosts File
-=================
+-----------------
 
 The private network for HISPEC is ``192.168.29.x``.
 Edit the ``/etc/hosts`` file and add the following entries:
@@ -204,7 +204,7 @@ Edit the ``/etc/hosts`` file and add the following entries:
   192.168.29.154  hs1wireblue
 
 Disable Unnecessary Services
-============================
+----------------------------
 
 To reduce background system noise or services not needed in headless/dev setups:
 
@@ -218,6 +218,6 @@ To reduce background system noise or services not needed in headless/dev setups:
    sudo systemctl disable avahi-daemon.service      # Zeroconf mDNS
 
 Done!
-=====
+-----
 
 System is now prepared for development under the ``hsdev`` user.
