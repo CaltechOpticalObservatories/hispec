@@ -49,11 +49,6 @@ class _Stage:
         registry.bool(f"isreferenced{s}",
                       getter=self.is_referenced,
                       description="ADC rotator stage is referenced (homed).")
-        # SMC100PP is a stepper with no servo loop, always true while connected
-        registry.bool(f"isloopclosed{s}",
-                      getter=self.is_loop_closed,
-                      description="ADC rotator stage servo loop closed "
-                                  "(always true: stepper has no servo loop).")
         registry.bool(f"ismoving{s}",
                       getter=self.is_moving,
                       description="ADC rotator stage is moving.")
@@ -86,10 +81,6 @@ class _Stage:
         """Return True if the stage has been referenced (homed)."""
         return bool(self.controller.is_homed(self.stage_id))
 
-    def is_loop_closed(self) -> bool:
-        """Servo loop state; the SMC100PP stepper driver always reports True."""
-        return bool(self.controller.is_loop_closed())
-
     def is_moving(self) -> bool:
         """Return True if the stage is currently moving."""
         return "MOVING" in self.controller.get_state(self.stage_id)
@@ -101,10 +92,10 @@ class _Stage:
     def stop(self) -> None:
         """Halt motion on this stage.
         """
-        # The SMC100PP doesn't have a separate "halt" command; this will be implemented 
+        # The SMC100PP doesn't have a separate "halt" command; this will be implemented
         # once the driver supports it. For now, just log a warning.
         self.daemon.logger.warning("Halt command not implemented for stage %d", self.stage_id)
-        
+
     def _hard_limits(self) -> tuple:
         limits = self.controller.get_limits()
         entry = limits.get(str(self.stage_id))
@@ -173,9 +164,6 @@ class AdcDaemon(HispecDaemon):  # pylint: disable=W0223
         self.keyword_registry.bool("isreferenced",
                                    getter=lambda: all(s.is_referenced() for s in self.stages),
                                    description="Both ADC rotator stages are referenced.")
-        self.keyword_registry.bool("isloopclosed",
-                                   getter=lambda: all(s.is_loop_closed() for s in self.stages),
-                                   description="Both ADC rotator stage servo loops are closed.")
         self.keyword_registry.bool("ismoving",
                                    getter=lambda: any(s.is_moving() for s in self.stages),
                                    description="Either ADC rotator stage is moving.")
