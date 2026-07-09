@@ -1,13 +1,13 @@
-# HISPEC CAL RED FilterWheel1 — Thor labs fw 102c contoller instance
+# HISPEC CAL BLUE FilterWheel2 — Thor labs fw 102c contoller instance
 #
 # Usage:
-#   daemons/generic/filterwheel -c config/hscal/hscal_red_fw1.yaml
+#   daemons/generic/filterwheel -c config/hscal/hscal_yjcalfwheel2.yaml
 
-peer_id: hscal_red_fw1
+peer_id: hscal_yjcalfwheel2
 group_id: hscal
 
 hardware:
-  ip_address: 192.168.29.130
+  ip_address: 192.168.29.153
   tcp_port: 10002
   units: filter_pos
   timeout_s: 30.0
@@ -29,4 +29,4 @@ named_positions:
 
 logging:
   level: INFO
-  file: /tmp/hscal_red_fw1.log
+  file: /tmp/hscal_yjcalfwheel2.log
