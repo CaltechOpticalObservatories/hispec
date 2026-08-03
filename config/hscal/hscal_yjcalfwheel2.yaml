@@ -1,0 +1,32 @@
+# HISPEC CAL BLUE FilterWheel2 — Thor labs fw 102c contoller instance
+#
+# Usage:
+#   daemons/generic/filterwheel -c config/hscal/hscal_yjcalfwheel2.yaml
+
+peer_id: hscal_yjcalfwheel2
+group_id: hscal
+
+hardware:
+  ip_address: 192.168.29.153
+  tcp_port: 10002
+  units: filter_pos
+  timeout_s: 30.0
+  retry_count: 3
+
+limits:
+  soft_min: 1
+  soft_max: 6
+  hard_min: 1
+  hard_max: 6
+
+named_positions:
+  empty: 1
+  OD1: 2
+  OD2: 3
+  OD4: 4
+  OD5: 5
+  empty2: 6
+
+logging:
+  level: INFO
+  file: /tmp/hscal_yjcalfwheel2.log
