@@ -18,10 +18,8 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
     topics = {}
 
     #voltage control parameters
-    V_MIN = -20
+    V_MIN = -25
     V_MAX = 150
-    DIGITAL_MIN = -32767
-    DIGITAL_MAX = 32767
 
     def __init__(self):
         """Initialize the Gimbal daemon."""
@@ -97,18 +95,30 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                         setter=self.keyword_wrapper(self.set_xpos, key="position"),
                         validator=self._check_soft_limits,
                         units=self.units,
-                        description="Set and get current position of GimbalMount.")
+                        description="set/get current position of GimbalMount.")
         self.keyword_registry.float("positionvaluey",
                         getter=self.keyword_wrapper(self.get_ypos, key="position"),
                         setter=self.keyword_wrapper(self.set_ypos, key="position"),
                         validator=self._check_soft_limits,
                         units=self.units,
-                        description="Set and get current position of GimbalMount.")
+                        description="set/get current position of GimbalMount.")
         self.keyword_registry.string("positionnamed",
                         getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
                         setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
                         validator=self._check_named,
-                        description="Set and get named position of GimbalMount.")
+                        description="set/get named position of GimbalMount.")
+        self.keyword_registry.float("voltagevaluex",
+                        getter=self.keyword_wrapper(self.get_xvolts, key="voltage"),
+                        setter=self.keyword_wrapper(self.set_xvolts, key="voltage"),
+                        validator=self._check_soft_limits,
+                        units="Volts",
+                        description="set/get voltage for open loop control of GimbalMount.")
+        self.keyword_registry.float("voltagevaluey",
+                        getter=self.keyword_wrapper(self.get_yvolts, key="voltage"),
+                        setter=self.keyword_wrapper(self.set_yvolts, key="voltage"),
+                        validator=self._check_soft_limits,
+                        units="Volts",
+                        description="set/get voltage for open loop control of GimbalMount.")
         self.keyword_registry.int("softmin",
                         getter=lambda: self._soft_min,
                         setter=lambda v: setattr(self, "_soft_min", int(v)),
@@ -268,6 +278,14 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         '''gets current Y position'''
         return self.get_pos(axis=1)
 
+    def get_xvolts(self):
+        '''gets current X voltage'''
+        return self.get_volts(axis=0)
+
+    def get_yvolts(self):
+        '''gets current Y voltage'''
+        return self.get_volts(axis=1)
+
     def get_pos(self, axis : int):
         '''gets current position'''
         if not self.dev.is_connected():
@@ -285,6 +303,27 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": str(e)}
         return {"ok":True, "position": position}
 
+    def get_volts(self, axis):
+        '''gets output voltage for open loop control'''
+        if not self.dev.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        if not self.state['enabled']:
+            return {"ok": False, "error": "Device not enabled"}
+        if self.state['isloopsclosed']:
+            return {"ok": False, "error": "Control loops are closed; cannot get volts"}
+        try:
+            axis = int(axis)
+            if axis not in [0,1]:
+                self.logger.error("Axis must be 0 (X) or 1 (Y)")
+                return {"ok": False, "error": "Axis must be 0 (X) or 1 (Y)"}
+            chan = axis + 1
+            voltage = self.dev.get_output_volts(channel=chan)
+            self.logger.debug("get_volts: %s",voltage)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("error: %s",e)
+            return {"ok": False, "error": str(e)}
+        return {"ok":True, "voltage": voltage}
+
     def set_xpos(self, pos: float):
         '''sets current X position'''
         if self.state['isloopsclosed']:
@@ -296,6 +335,14 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         if self.state['isloopsclosed']:
             return self.set_pos(axis=1, pos=pos)
         return self.set_volts(axis=1, volts=pos)
+
+    def set_xvolts(self, volts: float):
+        '''sets output voltage for open loop control'''
+        return self.set_volts(axis=0, volts=volts)
+
+    def set_yvolts(self, volts: float):
+        '''sets output voltage for open loop control'''
+        return self.set_volts(axis=1, volts=volts)
 
     def set_volts(self, axis: int, volts: float):
         '''sets output voltage for open loop control'''
@@ -311,11 +358,12 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             if axis not in [0,1]:
                 self.logger.error("Axis must be 0 (X) or 1 (Y)")
                 return {"ok": False, "error": "Axis must be 0 (X) or 1 (Y)"}
+            if not self.V_MIN <= volts <= self.V_MAX:
+                self.logger.error("Voltage must be between %s and %s", self.V_MIN, self.V_MAX)
+                return {"ok": False, "error": f"Voltage must be between {self.V_MIN} and {self.V_MAX}"}
             chan = axis + 1
             #convert volts to int between -32768 and 32,767 for PPC102
-            voltage_ratio = (volts - self.V_MIN) / (self.V_MAX - self.V_MIN)
-            volts_int = int(voltage_ratio*(self.DIGITAL_MAX-self.DIGITAL_MIN)+self.DIGITAL_MIN)
-            self.dev.set_output_volts(channel=chan, volts=volts_int)
+            self.dev.set_output_volts(channel=chan, volts=volts)
             self.logger.debug("set_volts: %s",volts)
             voltage = self.dev.get_status_update(channel=chan)[0]
         except Exception as e: # pylint: disable=W0718
