@@ -1,0 +1,82 @@
+# HISPEC FEI PIAA Deploy — two single axis Xeryon stages (blue and red)
+#
+# Usage:
+#   daemons/hsfei/xeryon_piaa_deploy -c config/hsfei/hsfei_piaadeploy.yaml
+
+peer_id: hsfei_piaadeploy
+group_id: hsfei
+
+controller:
+  # RSET is only sent on the first connect. Reconnects always use do_reset=False
+  # (the HISPEC mod) so the stages keep their reference position.
+  do_reset_on_first_connect: true
+
+  # Push settings_file to the controller on connect. Set false to leave whatever
+  # is already saved on the controller untouched.
+  send_settings: true
+
+  # Reference both stages automatically at startup. This MOVES the stages, so it
+  # is off by default; use the <stage>findindex keyword instead.
+  find_index_on_start: false
+
+  # The vendor library prints to stdout; keep it off so the daemon log is clean.
+  console_output: false
+
+  # true  -> setDPOS blocks until the move completes (library default)
+  # false -> sets DISABLE_WAITING, moves return immediately and completion is
+  #          tracked with the <stage>ispositionreached keyword
+  block_on_move: true
+
+# Two stages sharing a tcp address AND port are put on one controller as two
+# axes; different endpoints get their own controller. Set them to match how the
+# stages are actually wired.
+stages:
+  blue:
+    # TODO: fill in the controller address for the blue stage
+    tcp: null
+    port: 10001
+    axis_letter: X
+    # Must match a member of Stage in Xeryon_HISPEC.py, e.g. XLS_312, XLS_1250,
+    # XLA_312. TODO: confirm the installed stage model.
+    stage: XLS_312
+    # A member of Units in Xeryon_HISPEC.py: mm, mu, nm, inch, minch, enc, deg,
+    # rad, mrad. Linear stages default to mm in the library.
+    units: mm
+    settings_file: config/settings_FEI_XD24494_20250828.txt
+
+    # How close, in the units above, the stage must be to a named position for
+    # <stage>positionnamed to report that name.
+    named_position_tolerance: 0.01
+
+    # Travel limits in the units above. null disables the check. The controller's
+    # own LLIM/HLIM are always enforced on top of these and are readable through
+    # the bluehardmin / bluehardmax keywords.
+    limits:
+      soft_min: null
+      soft_max: null
+
+    # TODO: fill in the deployed and retracted positions before deploying.
+    # Names are matched case-insensitively; positions with no value are skipped.
+    named_positions:
+      deployed:
+      retracted:
+
+  red:
+    # TODO: fill in the controller address for the red stage
+    tcp: null
+    port: 10001
+    axis_letter: X
+    stage: XLS_312
+    units: mm
+    settings_file: config/settings_FEI_XD24494_20250828.txt
+    named_position_tolerance: 0.01
+    limits:
+      soft_min: null
+      soft_max: null
+    named_positions:
+      deployed:
+      retracted:
+
+logging:
+  level: INFO
+  file: /tmp/hsfei_piaadeploy.log

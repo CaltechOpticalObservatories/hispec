@@ -1,0 +1,741 @@
+#!/usr/bin/env python3
+'''Module for the PIAA Deploy Daemon
+
+Monitors and controls two single-axis Xeryon stages, 'blue' and 'red', through
+the HISPEC-patched vendor library (tcp_xeryon.TcpXeryon + Xeryon_HISPEC.Axis).
+
+Notes on the library contract that shape this daemon:
+  * There is no is_connected(). Connection state is inferred from the
+    Communication object's socket and its background thread.
+  * Axes must be added with addAxis() BEFORE TcpXeryon.start(), and must not be
+    added again on reconnect, so they are built once in on_start().
+  * Axis.setDPOS() BLOCKS until the position is reached and returns True/False.
+    See the block_on_move config option.
+  * Axis.findIndex() returns True, False, or None (None when the encoder is not
+    yet valid and waiting is disabled), so its result is verified against
+    isEncoderValid() rather than trusted directly.
+  * Absolute moves are meaningless until the index has been found, so set_pos
+    refuses to move an unindexed stage.
+  * start(do_reset=False) is the HISPEC modification that lets the daemon
+    reconnect without forcing the stage to be re-referenced.
+
+Stages that share a TCP endpoint are grouped onto one TcpXeryon object as two
+axes; stages on different endpoints each get their own controller. That is
+decided from the config, so either wiring works without a code change.
+'''
+import argparse
+import sys
+from functools import partial
+from typing import Optional
+
+from hispec.daemon import HispecDaemon #pylint: disable = E0611
+from hispec.driver.xeryon import Xeryon_HISPEC as xeryon_lib #pylint: disable = E0611
+from hispec.driver.xeryon.Xeryon_HISPEC import Stage, Units #pylint: disable = E0611
+from hispec.driver.xeryon.tcp_xeryon import TcpXeryon #pylint: disable = E0611
+
+DEFAULT_TCP_PORT = 10001
+DEFAULT_AXIS_LETTER = "X"
+DEFAULT_UNITS = "mm"
+DEFAULT_NAMED_TOL = 0.01   # in stage units
+
+
+class XeryonStage: #pylint: disable=R0902
+    '''Config and runtime handles for one single axis Xeryon stage'''
+
+    def __init__(self, name):
+        self.name = name
+        self.host = None
+        self.port = DEFAULT_TCP_PORT
+        self.axis_letter = DEFAULT_AXIS_LETTER
+        self.stage_type = None
+        self.units = None            # Units enum member
+        self.units_name = DEFAULT_UNITS
+        self.settings_file = None
+        self.soft_min = None
+        self.soft_max = None
+        self.named_positions = {}
+        self.named_tol = DEFAULT_NAMED_TOL
+        self.controller = None       # TcpXeryon
+        self.axis = None             # Axis
+
+    @property
+    def endpoint(self):
+        '''TCP endpoint used to group stages onto controllers'''
+        return (self.host, self.port)
+
+    def __str__(self):
+        return f"{self.name} ({self.host}:{self.port} axis {self.axis_letter})"
+
+
+class PIAADeploy(HispecDaemon): #pylint: disable = W0223
+    '''Daemon for controlling the blue and red PIAA deploy stages'''
+
+    def __init__(self):
+        """Initialize the PIAA Deploy daemon.
+
+        Args: come from the hsfei configuration file
+        """
+        super().__init__()
+
+        self.stages = {}
+        self.controllers = {}
+        self._connected_once = False
+        self._do_reset = True
+        self._send_settings = True
+        self._index_on_start = False
+        self.daemon_desc = "PIAA Deploy Daemon"
+
+        # Daemon state
+        self.state = {
+            'error': ''
+        }
+
+    def on_start(self, libby): #pylint: disable=W0613
+        '''Starts up daemon and initializies the hardware devices'''
+        self.daemon_desc = self.get_config("peer_id") or self.daemon_desc
+        self._do_reset = self._opt_bool(
+            self.get_config("controller.do_reset_on_first_connect"), True)
+        self._send_settings = self._opt_bool(
+            self.get_config("controller.send_settings"), True)
+        self._index_on_start = self._opt_bool(
+            self.get_config("controller.find_index_on_start"), False)
+
+        # The vendor library prints straight to stdout and blocks on moves.
+        # Both are module level globals, so they are set once, here.
+        xeryon_lib.OUTPUT_TO_CONSOLE = self._opt_bool(
+            self.get_config("controller.console_output"), False)
+        xeryon_lib.DISABLE_WAITING = not self._opt_bool(
+            self.get_config("controller.block_on_move"), True)
+
+        self.stages = self._load_stages()
+        if not self.stages:
+            self.logger.error("No stages defined in the config for %s", self.daemon_desc)
+            self.state['error'] = 'No stages defined'
+            return
+
+        # Axes have to exist before start() is called, and must only ever be
+        # added once, so this happens here and not in connect().
+        if not self._build_controllers():
+            return
+
+        # Registered before connecting so the error keyword stays readable
+        # even when the hardware is unavailable.
+        self._register_keywords()
+
+        if not self.connect(True).get("ok"):
+            self.logger.warning("Daemon will start but hardware is not available")
+            return
+        self.logger.info("Daemon started successfully and connected to hardware")
+
+        self.initialize()
+        self.logger.info("Initialized %s", self.daemon_desc)
+
+    def on_stop(self, libby) -> None: #pylint: disable=W0222,W0613
+        '''Stops the daemon and disconnects from the hardware devices'''
+        if self.connect(False).get("ok"):
+            self.logger.info("Disconnected %s", self.daemon_desc)
+        else:
+            self.logger.error("Disconnect %s:: Failed ", self.daemon_desc)
+
+    def initialize(self):
+        """handles initialization"""
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        indexed = {}
+        for name, stage in self.stages.items():
+            try:
+                valid = bool(stage.axis.isEncoderValid())
+            except Exception as e: # pylint: disable=W0718
+                return self._fail(f"{name}: {e}")
+
+            if valid:
+                self.logger.info("%s stage is referenced", name)
+            elif self._index_on_start:
+                self.logger.info("%s stage is not referenced, finding index", name)
+                result = self.find_index(name)
+                valid = bool(result.get("ok") and result.get("isindexed"))
+            else:
+                self.logger.warning(
+                    "%s stage is not referenced, absolute moves are refused until "
+                    "the %sfindindex keyword is set", name, name)
+            indexed[name] = valid
+
+        return {"ok": True, "isindexed": indexed}
+
+    def _register_keywords(self):
+        """Register keywords for the daemon."""
+        self.keyword_registry.bool("isconnected",
+                        getter=self.is_connected,
+                        setter=self.keyword_wrapper(self.connect, key="isconnected"),
+                        description="Check if daemon can talk to the Xeryon controllers.")
+        self.keyword_registry.string("error",
+                        getter=lambda: self.state['error'],
+                        description="Get the current error message.")
+
+        # One identical block of keywords per stage, prefixed with the stage
+        # name, so adding a third stage is a config change only.
+        for name, stage in self.stages.items():
+            self._register_stage_keywords(name, stage)
+
+    def _register_stage_keywords(self, name, stage):
+        """Register the per stage keywords, prefixed with the stage name."""
+        self.keyword_registry.float(f"{name}positionvalue",
+                        getter=self.keyword_wrapper(partial(self.get_pos, name),
+                                                    key="position"),
+                        setter=self.keyword_wrapper(partial(self.set_pos, name),
+                                                    key="position"),
+                        validator=partial(self._check_limits, name),
+                        units=stage.units_name,
+                        description=f"Set and get the {name} PIAA stage position.")
+        self.keyword_registry.float(f"{name}positiondesired",
+                        getter=self.keyword_wrapper(partial(self.get_dpos, name),
+                                                    key="position"),
+                        units=stage.units_name,
+                        description=f"Get the commanded position (DPOS) of the {name} stage.")
+        self.keyword_registry.string(f"{name}positionnamed",
+                        getter=self.keyword_wrapper(partial(self.cur_named_position, name),
+                                                    key="named_pos"),
+                        setter=self.keyword_wrapper(partial(self.goto_named_pos, name),
+                                                    key="named_pos"),
+                        validator=partial(self._check_named, name),
+                        description=f"Set and get the named position of the {name} stage.")
+        self.keyword_registry.bool(f"{name}isindexed",
+                        getter=partial(self.is_indexed, name),
+                        description=f"Check if the {name} stage encoder is referenced.")
+        self.keyword_registry.bool(f"{name}findindex",
+                        setter=self.keyword_wrapper(partial(self.find_index, name),
+                                                    key="isindexed"),
+                        description=f"Reference the {name} stage (blocking).")
+        self.keyword_registry.bool(f"{name}ispositionreached",
+                        getter=partial(self.is_position_reached, name),
+                        description=f"Check if the {name} stage has reached its target.")
+        self.keyword_registry.bool(f"{name}stop",
+                        setter=self.keyword_wrapper(partial(self.halt, name),
+                                                    key="stopped"),
+                        description=f"Immediately stop motion of the {name} stage.")
+        self.keyword_registry.float(f"{name}speed",
+                        getter=self.keyword_wrapper(partial(self.get_speed, name),
+                                                    key="speed"),
+                        setter=self.keyword_wrapper(partial(self.set_speed, name),
+                                                    key="speed"),
+                        units=f"{stage.units_name}/s",
+                        description=f"Set and get the {name} stage speed (SSPD).")
+        self.keyword_registry.float(f"{name}softmin",
+                        getter=lambda s=stage: s.soft_min,
+                        setter=lambda v, s=stage: setattr(s, "soft_min", self._opt_float(v)),
+                        units=stage.units_name,
+                        description=f"Software lower limit for the {name} stage.")
+        self.keyword_registry.float(f"{name}softmax",
+                        getter=lambda s=stage: s.soft_max,
+                        setter=lambda v, s=stage: setattr(s, "soft_max", self._opt_float(v)),
+                        units=stage.units_name,
+                        description=f"Software upper limit for the {name} stage.")
+        self.keyword_registry.float(f"{name}hardmin",
+                        getter=partial(self.get_hard_min, name),
+                        units=stage.units_name,
+                        description=f"Controller lower limit (LLIM) for the {name} stage.")
+        self.keyword_registry.float(f"{name}hardmax",
+                        getter=partial(self.get_hard_max, name),
+                        units=stage.units_name,
+                        description=f"Controller upper limit (HLIM) for the {name} stage.")
+
+    def _load_stages(self) -> dict:
+        """Build the stage objects from the config."""
+        stages = {}
+        for name, cfg in (self.get_config("stages") or {}).items():
+            name = str(name).strip().lower()
+            cfg = cfg or {}
+            stage = XeryonStage(name)
+
+            stage.host = self._opt_str(cfg.get("tcp"))
+            if stage.host is None:
+                self.logger.error("Stage '%s' has no tcp address, skipping", name)
+                continue
+            stage.port = self._opt_int(cfg.get("port")) or DEFAULT_TCP_PORT
+            stage.axis_letter = self._opt_str(cfg.get("axis_letter")) or DEFAULT_AXIS_LETTER
+            stage.settings_file = self._opt_str(cfg.get("settings_file"))
+
+            stage_name = self._opt_str(cfg.get("stage"))
+            try:
+                stage.stage_type = Stage[stage_name]
+            except KeyError:
+                self.logger.error("Stage '%s' has an unknown stage type '%s', skipping",
+                                  name, stage_name)
+                continue
+
+            stage.units_name = self._opt_str(cfg.get("units")) or DEFAULT_UNITS
+            try:
+                stage.units = Units[stage.units_name]
+            except KeyError:
+                self.logger.error("Stage '%s' has unknown units '%s', skipping",
+                                  name, stage.units_name)
+                continue
+
+            limits = cfg.get("limits") or {}
+            stage.soft_min = self._opt_float(limits.get("soft_min"))
+            stage.soft_max = self._opt_float(limits.get("soft_max"))
+            stage.named_tol = self._opt_float(cfg.get("named_position_tolerance"))
+            if stage.named_tol is None:
+                stage.named_tol = DEFAULT_NAMED_TOL
+            stage.named_positions = self._load_named_positions(name, cfg.get("named_positions"))
+
+            stages[name] = stage
+            self.logger.info("Configured stage %s", stage)
+        return stages
+
+    def _load_named_positions(self, name, config_positions) -> dict:
+        """Read named positions for one stage, keyed lowercase, in stage units."""
+        positions = {}
+        for pos_name, value in (config_positions or {}).items():
+            target = self._opt_float(value)
+            if target is None:
+                self.logger.warning("Stage '%s': named position '%s' has no value, skipping",
+                                    name, pos_name)
+                continue
+            positions[str(pos_name).strip().lower()] = target
+        return positions
+
+    def _build_controllers(self) -> bool:
+        """Create one TcpXeryon per TCP endpoint and add each stage's axis to it."""
+        try:
+            for stage in self.stages.values():
+                controller = self.controllers.get(stage.endpoint)
+                if controller is None:
+                    controller = TcpXeryon(tcp_address=stage.host, tcp_port=stage.port)
+                    self.controllers[stage.endpoint] = controller
+                    self.logger.info("Created controller for %s:%s", stage.host, stage.port)
+                stage.controller = controller
+                stage.axis = controller.addAxis(stage.stage_type, stage.axis_letter)
+                stage.axis.setUnits(stage.units)
+        except Exception as e: # pylint: disable=W0718
+            self._fail(f"Failed to build controllers: {e}")
+            return False
+        return True
+
+    def is_connected(self) -> bool:
+        """True when every controller has a live socket and comms thread."""
+        if not self.controllers:
+            return False
+        return all(self._controller_connected(c) for c in self.controllers.values())
+
+    def _controller_connected(self, controller) -> bool:
+        """The library exposes no connection flag, so inspect the Communication object."""
+        try:
+            comm = controller.getCommunication()
+        except Exception: # pylint: disable=W0718
+            return False
+        if getattr(comm, "socket", None) is None:
+            return False
+        if getattr(comm, "stop_thread", True):
+            return False
+        thread = getattr(comm, "thread", None)
+        # The comms thread dies on socket errors, which is the only signal we get.
+        return thread is None or thread.is_alive()
+
+    def connect(self, connect):
+        """handles connection"""
+        connect = bool(connect)
+        try:
+            if connect:
+                # Only reset on the very first connect. Resetting on reconnect
+                # would throw away the reference position.
+                do_reset = self._do_reset and not self._connected_once
+                for endpoint, controller in self.controllers.items():
+                    settings = self._settings_file_for(endpoint)
+                    controller.start(external_settings_default=settings,
+                                     do_reset=do_reset,
+                                     send_settings=self._send_settings)
+                    self.logger.info("Started controller %s:%s (do_reset=%s)",
+                                     endpoint[0], endpoint[1], do_reset)
+            else:
+                for controller in self.controllers.values():
+                    controller.stop(isPrintEnd=False)
+
+            result = self.is_connected()
+            if result != connect:
+                raise ConnectionError("Failed to Handle Connection Request")
+            if connect:
+                self._connected_once = True
+            self.logger.info("isconnected: %s", result)
+        except Exception as e: # pylint: disable=W0718
+            # Communication.start() masks its own error with a TypeError, so the
+            # message here can be unhelpful. Check the controller IP and port.
+            self.logger.error("Failed to execute: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+        self.state['error'] = ''
+        return {"ok": True, "isconnected": result}
+
+    def _settings_file_for(self, endpoint) -> Optional[str]:
+        """Return the settings file configured for the stages on this endpoint."""
+        for stage in self.stages.values():
+            if stage.endpoint == endpoint and stage.settings_file:
+                return stage.settings_file
+        return None
+
+    def status(self):
+        """handles status"""
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        try:
+            status = {"connected": True, "error": self.state['error'], "stages": {}}
+            for name, stage in self.stages.items():
+                axis = stage.axis
+                named = self.cur_named_position(name)
+                status["stages"][name] = {
+                    "position": self._round(axis.getEPOS()),
+                    "position_desired": self._round(axis.getDPOS()),
+                    "named_pos": named.get("named_pos"),
+                    "units": stage.units_name,
+                    "isindexed": bool(axis.isEncoderValid()),
+                    "ispositionreached": bool(axis.isPositionReached()),
+                    "ismotoron": bool(axis.isMotorOn()),
+                    "isclosedloop": bool(axis.isClosedLoop()),
+                    "atleftend": bool(axis.isAtLeftEnd()),
+                    "atrightend": bool(axis.isAtRightEnd()),
+                    "encodererror": bool(axis.isEncoderError()),
+                    "errorlimit": bool(axis.isErrorLimit()),
+                    "thermal": bool(axis.isThermalProtection1()
+                                    or axis.isThermalProtection2()),
+                    "soft_min": stage.soft_min,
+                    "soft_max": stage.soft_max,
+                    "hard_min": self.get_hard_min(name),
+                    "hard_max": self.get_hard_max(name),
+                }
+            self.logger.debug("status: %s", status)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(str(e))
+        return {"ok": True, "status": status}
+
+    def get_pos(self, name):
+        '''gets the current encoder position (EPOS) of a stage'''
+        stage = self._stage(name)
+        if stage is None:
+            return self._fail(f"unknown stage '{name}'")
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            position = self._round(stage.axis.getEPOS())
+            self.logger.debug("get_pos %s: %s", name, position)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(f"{name}: {e}")
+        return {"ok": True, "position": position}
+
+    def get_dpos(self, name):
+        '''gets the commanded position (DPOS) of a stage'''
+        stage = self._stage(name)
+        if stage is None:
+            return self._fail(f"unknown stage '{name}'")
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            position = self._round(stage.axis.getDPOS())
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(f"{name}: {e}")
+        return {"ok": True, "position": position}
+
+    def set_pos(self, name, pos):
+        '''moves a stage to an absolute position, in the stage units'''
+        stage = self._stage(name)
+        if stage is None:
+            return self._fail(f"unknown stage '{name}'")
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            pos = float(pos)
+        except (TypeError, ValueError):
+            return self._fail(f"{name}: position '{pos}' is not a number")
+
+        message = self._check_limits(name, pos)
+        if message:
+            return self._fail(f"{name}: {message}")
+
+        # An absolute move on an unreferenced encoder goes somewhere arbitrary.
+        if not stage.axis.isEncoderValid():
+            return self._fail(f"{name}: stage is not referenced, "
+                              f"set {name}findindex first")
+
+        try:
+            # setDPOS blocks until the position is reached unless block_on_move
+            # is false, and reports failure by returning False.
+            if not stage.axis.setDPOS(pos, outputToConsole=False):
+                raise RuntimeError(f"move to {pos} {stage.units_name} did not complete")
+            self.logger.debug("set_pos %s: %s", name, pos)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(f"{name}: {e}")
+        return {"ok": True, "position": pos}
+
+    def find_index(self, name, value=True):
+        '''references a stage by finding its encoder index'''
+        stage = self._stage(name)
+        if stage is None:
+            return self._fail(f"unknown stage '{name}'")
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        if not value:
+            return {"ok": True, "isindexed": bool(stage.axis.isEncoderValid())}
+
+        try:
+            self.logger.info("Finding index for the %s stage", name)
+            stage.axis.findIndex()
+            # findIndex can return None, so the encoder flag is the real answer.
+            indexed = bool(stage.axis.isEncoderValid())
+            if not indexed:
+                raise RuntimeError("index was not found")
+            self.logger.info("%s stage is referenced", name)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(f"{name}: {e}")
+        return {"ok": True, "isindexed": indexed}
+
+    def halt(self, name, value=True):
+        '''immediately stops motion on a stage'''
+        stage = self._stage(name)
+        if stage is None:
+            return self._fail(f"unknown stage '{name}'")
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        if not value:
+            return {"ok": True, "stopped": False}
+
+        try:
+            stage.axis.sendCommand("STOP=0")
+            # Matches what stopMovements() does, so the next step() uses EPOS.
+            stage.axis.was_valid_DPOS = False
+            self.logger.warning("Stopped the %s stage", name)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(f"{name}: {e}")
+        return {"ok": True, "stopped": True}
+
+    def get_speed(self, name):
+        '''gets the configured stage speed (SSPD)'''
+        stage = self._stage(name)
+        if stage is None:
+            return self._fail(f"unknown stage '{name}'")
+        speed = self._opt_float(stage.axis.getSetting("SSPD"))
+        if speed is None:
+            return self._fail(f"{name}: controller has not reported SSPD")
+        return {"ok": True, "speed": speed}
+
+    def set_speed(self, name, speed):
+        '''sets the stage speed (SSPD)'''
+        stage = self._stage(name)
+        if stage is None:
+            return self._fail(f"unknown stage '{name}'")
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            speed = float(speed)
+            if speed <= 0:
+                raise ValueError("speed must be positive")
+            stage.axis.setSpeed(speed)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(f"{name}: {e}")
+        return {"ok": True, "speed": speed}
+
+    def is_indexed(self, name) -> bool:
+        """True when the stage encoder has been referenced."""
+        stage = self._stage(name)
+        if stage is None or not self.is_connected():
+            return False
+        return bool(stage.axis.isEncoderValid())
+
+    def is_position_reached(self, name) -> bool:
+        """True when the stage reports its target position as reached."""
+        stage = self._stage(name)
+        if stage is None or not self.is_connected():
+            return False
+        return bool(stage.axis.isPositionReached())
+
+    def get_hard_min(self, name):
+        """Controller lower limit (LLIM), converted into the stage units."""
+        return self._limit_from_settings(name, "LLIM")
+
+    def get_hard_max(self, name):
+        """Controller upper limit (HLIM), converted into the stage units."""
+        return self._limit_from_settings(name, "HLIM")
+
+    def _limit_from_settings(self, name, tag) -> Optional[float]:
+        """Read a controller limit setting and convert it out of encoder units."""
+        stage = self._stage(name)
+        if stage is None or stage.axis is None:
+            return None
+        raw = self._opt_float(stage.axis.getSetting(tag))
+        if raw is None:
+            return None
+        try:
+            return self._round(stage.axis.convertEncoderUnitsToUnits(raw, stage.units))
+        except Exception as e: # pylint: disable=W0718
+            self.logger.warning("Could not convert %s for %s: %s", tag, name, e)
+            return None
+
+    def get_named_positions(self, name):
+        """Get the named positions for a stage, in stage units."""
+        stage = self._stage(name)
+        return {} if stage is None else stage.named_positions
+
+    def get_named_position(self, name, pos_name):
+        """Get one named position value for a stage, or None if not found."""
+        return self.get_named_positions(name).get(str(pos_name).strip().lower())
+
+    def cur_named_position(self, name):
+        """Get the name of the current position, if it matches a named position."""
+        stage = self._stage(name)
+        if stage is None:
+            return self._fail(f"unknown stage '{name}'")
+
+        result = self.get_pos(name)
+        if not result.get("ok"):
+            return result
+        current = result["position"]
+        for pos_name, target in stage.named_positions.items():
+            if abs(current - target) <= stage.named_tol:
+                return {"ok": True, "named_pos": pos_name, "position": current}
+        # Sitting between named positions is a normal state, not an error.
+        return {"ok": True, "named_pos": "unknown", "position": current}
+
+    def goto_named_pos(self, name, pos_name):
+        '''moves a stage to one of its named positions'''
+        goal = self.get_named_position(name, pos_name)
+        if goal is None:
+            return self._fail(f"{name}: unknown named position '{pos_name}'; "
+                              f"available: {sorted(self.get_named_positions(name))}")
+
+        result = self.set_pos(name, goal)
+        if not result.get("ok"):
+            return result
+        self.logger.debug("goto_named_pos %s: %s -> %s", name, pos_name, goal)
+        return {"ok": True, "named_pos": str(pos_name).strip().lower(), "position": goal}
+
+    def _stage(self, name) -> Optional[XeryonStage]:
+        """Look up a configured stage by name."""
+        return self.stages.get(str(name).strip().lower())
+
+    def _check_limits(self, name, pos) -> Optional[str]:
+        """Returns an error message if the position is outside the stage limits."""
+        stage = self._stage(name)
+        if stage is None:
+            return f"unknown stage '{name}'"
+        try:
+            pos = float(pos)
+        except (TypeError, ValueError):
+            return f"value '{pos}' must be a number"
+
+        for label, limit in (("hard min", self.get_hard_min(name)),
+                             ("soft min", stage.soft_min)):
+            if limit is not None and pos < limit:
+                return f"position {pos} below {label} {limit} {stage.units_name}"
+        for label, limit in (("hard max", self.get_hard_max(name)),
+                             ("soft max", stage.soft_max)):
+            if limit is not None and pos > limit:
+                return f"position {pos} above {label} {limit} {stage.units_name}"
+        return None
+
+    def _check_named(self, name, pos_name) -> Optional[str]:
+        """Returns an error message if the name is not a configured position."""
+        if not pos_name:
+            return "value must be a non-empty string"
+        if str(pos_name).strip().lower() not in self.get_named_positions(name):
+            return (f"unknown named position '{pos_name}'; "
+                    f"available: {sorted(self.get_named_positions(name))}")
+        return None
+
+    def _fail(self, message):
+        """Log an error, record it in daemon state, and build the error return."""
+        self.logger.error("Error: %s", message)
+        self.state['error'] = message
+        return {"ok": False, "error": message}
+
+    @staticmethod
+    def _round(value, digits=6):
+        """Round a position for reporting, tolerating None."""
+        return None if value is None else round(float(value), digits)
+
+    def _opt_str(self, value) -> Optional[str]:
+        """Normalize a config value to a string, or None when it is unset."""
+        if value is None:
+            return None
+        text = str(value).strip()
+        # Tolerates 'None'/'null' written as bare strings in the YAML.
+        if not text or text.lower() in ("none", "null", "~"):
+            return None
+        return text
+
+    def _opt_float(self, value) -> Optional[float]:
+        """Normalize a config value to a float, or None when unset/invalid."""
+        text = self._opt_str(value)
+        if text is None:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            self.logger.warning("Config value '%s' is not a number, ignoring", value)
+            return None
+
+    def _opt_int(self, value) -> Optional[int]:
+        """Normalize a config value to an int, or None when unset/invalid."""
+        number = self._opt_float(value)
+        return None if number is None else int(number)
+
+    def _opt_bool(self, value, default=False) -> bool:
+        """Normalize a config value to a bool, falling back to a default."""
+        text = self._opt_str(value)
+        if text is None:
+            return default
+        return text.lower() in ("1", "true", "t", "yes", "y", "on")
+
+    def keyword_wrapper(self, func, key=None):
+        """Wrap a daemon method for use as a keyword getter/setter."""
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+            if not result.get("ok"):
+                message = result.get("error", f"Unknown error in {self._name(func)}")
+                self.logger.error("keyword_wrapper [%s]: %s", self._name(func), message)
+                raise RuntimeError(message)
+            if key:
+                return result[key]
+            return {k: v for k, v in result.items() if k != "ok"}
+        return wrapper
+
+    @staticmethod
+    def _name(func) -> str:
+        """Best effort name for a plain function or a functools.partial."""
+        target = getattr(func, "func", func)
+        return getattr(target, "__name__", repr(target))
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(
+        description='PIAA Deploy Daemon'
+    )
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+    parser.add_argument('-d', '--daemon-id', type=str,
+                        help='Daemon ID (required for subsystem configs with multiple daemons)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        print(f"Starting PIAA Deploy Daemon with config: {args.config} "
+              f"and daemon ID: {args.daemon_id}")
+        daemon = PIAADeploy.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e: #pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
