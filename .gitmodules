@@ -53,3 +53,7 @@
 	path = etc/camera-interface
 	url = https://github.com/CaltechOpticalObservatories/camera-interface
 	branch = main
+[submodule "src/hispec/driver/pdu"]
+	path = src/hispec/driver/pdu
+	url = https://github.com/COO-Utilities/pdu
+	branch = main
