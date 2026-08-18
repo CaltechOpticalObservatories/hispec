@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 '''Module for Gimbal mount Daemon'''
 import argparse
+import json
 import sys
 from typing import Dict, Any,  Optional #pylint: disable = W0611
 
@@ -35,11 +36,12 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         self._soft_max = None
         self._hard_min = None
         self._hard_max = None
-        self.named_positions = None
+        self.named_positions = {}
 
         # Daemon state
         self.state = {
             'error': '',
+            'connected': False,
             'enabled': False,
             'isloopsclosed': False
         }
@@ -56,26 +58,28 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         self._soft_max = self.get_config("limits.open_loop.soft_max")
         self._hard_min = self.get_config("limits.open_loop.hard_min")
         self._hard_max = self.get_config("limits.open_loop.hard_max")
-        self.named_positions = self.get_config("named_positions")
+        self.named_positions = self.get_config("named_positions") or {}
 
         # Initialize hardware connection
-        if not(self.host and self.port):
-            self.logger.error("No IP address or port specified for Filter Wheel controller")
+        if not (self.host and self.port):
+            self.logger.error("No IP address or port specified for Gimbal Mount controller")
             self.state['error'] = 'No IP address or port specified'
             return
 
-        try:
-            self._register_keywords()
-            connection = self.connect(True)
-            if not connection.get("ok"):
-                raise ConnectionError(connection.get("error"))
-            self.initialize()
+        # Keywords register regardless of hardware availability so the daemon
+        # is usable (and inspectable) even while the gimbal is unreachable.
+        self._register_keywords()
 
-            self.logger.info("Daemon started successfully and connected to hardware")
-            self.logger.info("Initialized %s", self.daemon_desc)
-        except ConnectionRefusedError as e:
-            self.logger.error("Failed to connect to hardware: %s", e)
-            self.logger.warning("Daemon will start but hardware is not available")
+        try:
+            connection = self.connect(True)
+            if not connection.get("is_connected"):
+                self.logger.warning("Gimbal not reachable at %s:%s; daemon up, hardware offline",
+                                    self.host, self.port)
+            else:
+                self.initialize()
+                self.logger.info("Initialized %s", self.daemon_desc)
+        except (ConnectionRefusedError, OSError) as e:
+            self.logger.warning("Failed to connect to hardware: %s", e)
             self.state['error'] = str(e)
 
         self.logger.info("Starting %s Daemon", self.daemon_desc)
@@ -83,11 +87,14 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
     def _register_keywords(self):
         """Registers keywords for the daemon."""
         self.keyword_registry.bool("is_connected",
-                        getter=self.dev.is_connected(),
+                        getter=self.dev.is_connected,
                         setter=self.keyword_wrapper(self.connect, key="is_connected"),
                         description="Check if daemon can talk to the GimbalMount controller.")
+        self.keyword_registry.string("error",
+                        getter=lambda: self.state['error'],
+                        description="Get the current error message.")
         self.keyword_registry.bool("isloopsclosed",
-                        getter=self.dev.is_loop_closed,
+                        getter=self.keyword_wrapper(self.is_loops_closed, key="isloopsclosed"),
                         setter=self.keyword_wrapper(self.set_loops, key="isloopsclosed"),
                         description="Check if gimbal loops are closed.")
         self.keyword_registry.float("positionvaluex",
@@ -110,13 +117,13 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         self.keyword_registry.float("voltagevaluex",
                         getter=self.keyword_wrapper(self.get_xvolts, key="voltage"),
                         setter=self.keyword_wrapper(self.set_xvolts, key="voltage"),
-                        validator=self._check_soft_limits,
+                        validator=self._check_voltage_limits,
                         units="Volts",
                         description="set/get voltage for open loop control of GimbalMount.")
         self.keyword_registry.float("voltagevaluey",
                         getter=self.keyword_wrapper(self.get_yvolts, key="voltage"),
                         setter=self.keyword_wrapper(self.set_yvolts, key="voltage"),
-                        validator=self._check_soft_limits,
+                        validator=self._check_voltage_limits,
                         units="Volts",
                         description="set/get voltage for open loop control of GimbalMount.")
         self.keyword_registry.int("softmin",
@@ -138,7 +145,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                         units=self.units,
                         description="Hardware upper limit for gimbal position.")
         self.keyword_registry.string("status",
-                        getter=self.keyword_wrapper(self.status,key="status"),
+                        getter=self.keyword_wrapper(self.status_json, key="status"),
                         description="Grabs status of gimbal mount")
         self.keyword_registry.trigger("cleanup",
                         action=self.clean_up_gimbal,
@@ -155,45 +162,51 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             self.dev.set_enable(channel = 2, enable = 1)
             self.state['enabled'] = True
             self.logger.debug("Initialized %s", self.daemon_desc)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("error: %s",e)
-            return {"ok":False , "error": str(e)}
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
         return {"ok": True}
 
-    def on_stop(self, libby) -> None: #pylint: disable=W0222
+    def on_stop(self, libby=None) -> None: #pylint: disable=W0222
         '''Stops the daemon and disconnects from hardware device'''
         try:
             self.connect(False)
             self.logger.info("Disconnected %s", self.daemon_desc)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Disconnect %s:: Failed ", self.daemon_desc)
-            self.logger.error("Error: %s",e)
+        except (OSError, ValueError) as e:
+            self.logger.error("Disconnect %s failed: %s", self.daemon_desc, e)
 
     def connect(self, connect):
         """handles connection"""
         try:
             if connect:
                 self.dev.connect(host = self.host, port = self.port)
-                self.logger.info("")
             else:
                 self.dev.disconnect()
             result = self.dev.is_connected()
-            self.logger.info("Connected %s", self.daemon_desc)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Failed to Connect or Disconnect with Hardware: %s",e)
+            self.state['connected'] = result
+            self.logger.info("is_connected: %s", result)
+        except (OSError, ValueError) as e:
+            self.logger.error("Failed to connect/disconnect with hardware: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "is_connected": result}
 
     def clean_up_gimbal(self):
         '''Cleans up gimbal settings'''
+        if not self.dev.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
         try:
             self.dev.set_loop(channel=0, loop=1)  # Open loops
             self.dev.set_enable(channel=0, enable=1)  # Device can stay enabled
             self.dev.set_output_volts(channel=1, volts=0)  # Set output voltages to 0
             self.dev.set_output_volts(channel=2, volts=0)
+            self.state['isloopsclosed'] = False
             self.logger.info("Cleaned up %s", self.daemon_desc)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("error during cleanup: %s",e)
+        except (OSError, ValueError) as e:
+            self.logger.error("error during cleanup: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "message": "Gimbal cleaned up"}
 
@@ -219,11 +232,19 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                 "enabled": enabled,
                 "isloopsclosed": self.dev.is_loop_closed()
             }
-            self.logger.debug("status: %s",status)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("error: %s",e)
+            self.logger.debug("status: %s", status)
+        except (OSError, ValueError, TypeError, IndexError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "status": status}
+
+    def status_json(self):
+        """Keyword-friendly status: the status dict serialized as a JSON string."""
+        result = self.status()
+        if not result.get("ok"):
+            return result
+        return {"ok": True, "status": json.dumps(result["status"])}
 
     def is_loops_closed(self):
         '''checks if loops are closed'''
@@ -232,14 +253,19 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
 
         try:
             closed = self.dev.is_loop_closed()
-            self.logger.debug("is_loops_closed: %s",closed)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("error: %s",e)
+            self.state['isloopsclosed'] = closed
+            self.logger.debug("is_loops_closed: %s", closed)
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok":True, "isloopsclosed": closed}
+        return {"ok": True, "isloopsclosed": closed}
 
     def set_loops(self, loops: bool):
         '''sets control loops'''
+        if not self.dev.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
         try:
             if loops:
                 self.dev.set_loop(channel=0, loop=2)
@@ -262,13 +288,16 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                 self._soft_max = self.get_config("limits.open_loop.soft_max")
                 self._hard_min = self.get_config("limits.open_loop.hard_min")
                 self._hard_max = self.get_config("limits.open_loop.hard_max")
-            if result != loops:
-                raise RuntimeError("Failed to execute set loops")
             self.state['isloopsclosed'] = result
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("error: %s",e)
+            if result != bool(loops):
+                return {"ok": False,
+                        "error": f"Failed to execute set loops: requested {bool(loops)}, "
+                                 f"hardware reports {result}"}
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok":True, "isloopsclosed": result}
+        return {"ok": True, "isloopsclosed": result}
 
     def get_xpos(self):
         '''gets current X position'''
@@ -297,11 +326,12 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         try:
             pos = self.dev.get_pos(channel=axis+1)
             position = float(pos)
-            self.logger.debug("get_pos: %s",position)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("error: %s",e)
+            self.logger.debug("get_pos: %s", position)
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok":True, "position": position}
+        return {"ok": True, "position": position}
 
     def get_volts(self, axis):
         '''gets output voltage for open loop control'''
@@ -313,16 +343,17 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Control loops are closed; cannot get volts"}
         try:
             axis = int(axis)
-            if axis not in [0,1]:
+            if axis not in [0, 1]:
                 self.logger.error("Axis must be 0 (X) or 1 (Y)")
                 return {"ok": False, "error": "Axis must be 0 (X) or 1 (Y)"}
             chan = axis + 1
-            voltage = self.dev.get_output_volts(channel=chan)
-            self.logger.debug("get_volts: %s",voltage)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("error: %s",e)
+            voltage = float(self.dev.get_output_volts(channel=chan))
+            self.logger.debug("get_volts: %s", voltage)
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok":True, "voltage": voltage}
+        return {"ok": True, "voltage": voltage}
 
     def set_xpos(self, pos: float):
         '''sets current X position'''
@@ -355,21 +386,23 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         try:
             volts = float(volts)
             axis = int(axis)
-            if axis not in [0,1]:
+            if axis not in [0, 1]:
                 self.logger.error("Axis must be 0 (X) or 1 (Y)")
                 return {"ok": False, "error": "Axis must be 0 (X) or 1 (Y)"}
-            if not self.V_MIN <= volts <= self.V_MAX:
-                self.logger.error("Voltage must be between %s and %s", self.V_MIN, self.V_MAX)
-                return {"ok": False, "error": f"Voltage must be between {self.V_MIN} and {self.V_MAX}"}
+            problem = self._check_voltage_limits(volts)
+            if problem:
+                self.logger.error("%s", problem)
+                return {"ok": False, "error": problem}
             chan = axis + 1
             #convert volts to int between -32768 and 32,767 for PPC102
             self.dev.set_output_volts(channel=chan, volts=volts)
-            self.logger.debug("set_volts: %s",volts)
+            self.logger.debug("set_volts: %s", volts)
             voltage = self.dev.get_status_update(channel=chan)[0]
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("error: %s",e)
+        except (OSError, ValueError, TypeError, IndexError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok":True, "voltage": voltage}
+        return {"ok": True, "voltage": voltage}
 
     def set_pos(self, axis, pos):
         '''sets current position'''
@@ -382,17 +415,34 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         try:
             pos = float(pos)
             axis = int(axis)
-            if axis not in [0,1]:
+            if axis not in [0, 1]:
                 self.logger.error("Axis must be 0 (X) or 1 (Y)")
                 return {"ok": False, "error": "Axis must be 0 (X) or 1 (Y)"}
+            problem = self._check_soft_limits(pos)
+            if problem:
+                self.logger.error("%s", problem)
+                return {"ok": False, "error": problem}
             chan = axis + 1
             self.dev.set_pos(channel=chan, pos=pos)
-            self.logger.debug("set_pos: %s",pos)
+            self.logger.debug("set_pos: %s", pos)
             position = self.dev.get_pos(channel=chan)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("error: %s",e)
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok":True, "position": position}
+        return {"ok": True, "position": position}
+
+    def get_named_positions(self):
+        """Get named positions from config (e.g., home, deployed, science)."""
+        return self.named_positions or {}
+
+    def get_named_position(self, name: str):
+        """Get a specific named position pair, or None if not found."""
+        wanted = str(name).strip().lower()
+        for key, pos in self.get_named_positions().items():
+            if str(key).strip().lower() == wanted:
+                return pos
+        return None
 
     def goto_named_pos(self, name):
         '''moves to named position'''
@@ -400,17 +450,23 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            str_goal = name.lower()
-            goal = self.named_positions.get(str_goal)
-            if goal is not None:
-                self.set_pos(axis=0, pos=float(goal[0]))
-                self.set_pos(axis=1, pos=float(goal[1]))
-            self.logger.debug("goto_named_pos: %s -> %s",name,goal)
+            goal = self.get_named_position(name)
+            if goal is None:
+                return {"ok": False,
+                        "error": f"unknown named position '{name}'; "
+                                 f"available: {list(self.get_named_positions())}"}
+            # Propagate axis failures instead of reporting a move that never happened.
+            for axis, target in enumerate((goal[0], goal[1])):
+                result = self.set_pos(axis=axis, pos=float(target))
+                if not result.get("ok"):
+                    return result
+            self.logger.debug("goto_named_pos: %s -> %s", name, goal)
             cur_pos = (self.dev.get_pos(channel=1), self.dev.get_pos(channel=2))
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
+        except (OSError, ValueError, TypeError, IndexError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok": True, "named_pos": str_goal, "position": cur_pos}
+        return {"ok": True, "named_pos": name, "position": cur_pos}
 
     def cur_named_position(self):
         """Get the name of the current position, if it matches a named position."""
@@ -423,42 +479,56 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                 float(self.dev.get_pos(channel=2))
                 )
 
-            for name, pos in self.named_positions.items():
+            for name, pos in self.get_named_positions().items():
                 dx = abs(float(pos[0]) - float(current_pos[0]))
                 dy = abs(float(pos[1]) - float(current_pos[1]))
                 if dx <= 0.01 and dy <= 0.01:
                     return {"ok": True, "named_pos": name, "position": current_pos}
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
+        except (OSError, ValueError, TypeError, IndexError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok": True, "named_pos": "unknown", "position": current_pos} #pylint: disable = C0301
+        # Sitting between named positions is a normal state, not an error.
+        return {"ok": True, "named_pos": "unknown", "position": current_pos}
 
-
-    def _check_soft_limits(self, pos: int) -> bool:
-        """Returns True if position is within soft limits."""
+    def _check_soft_limits(self, pos: float) -> Optional[str]:
+        """Validate a requested position against the configured soft limits."""
+        try:
+            pos = float(pos)
+        except (TypeError, ValueError):
+            return f"position '{pos}' is not a number"
         if self._soft_min is not None and pos < self._soft_min:
-            raise ValueError(f"Position {pos} below soft min {self._soft_min}")
+            return f"position {pos} below soft min {self._soft_min}"
         if self._soft_max is not None and pos > self._soft_max:
-            raise ValueError(f"Position {pos} above soft max {self._soft_max}")
+            return f"position {pos} above soft max {self._soft_max}"
+        return None
+
+    def _check_voltage_limits(self, volts: float) -> Optional[str]:
+        """Validate a requested voltage against the controller's absolute range."""
+        try:
+            volts = float(volts)
+        except (TypeError, ValueError):
+            return f"voltage '{volts}' is not a number"
+        if not self.V_MIN <= volts <= self.V_MAX:
+            return f"voltage must be between {self.V_MIN} and {self.V_MAX}"
+        if not self._soft_min <= volts <= self._soft_max:
+            return f"voltage must be between {self._soft_min} and {self._soft_max}"
         return None
 
     def _check_named(self, name: str) -> Optional[str]:
+        """Validate a requested position name against the configured set."""
         if not name:
             return "value must be a non-empty string"
-        if name not in self.named_positions:
+        if self.get_named_position(name) is None:
             return (f"unknown named position '{name}'; "
-                    f"available: {list(self.named_positions)}")
+                    f"available: {list(self.get_named_positions())}")
         return None
 
     @staticmethod
     def keyword_wrapper(func, key=None):
         """Wrap a daemon method for use as a keyword getter/setter."""
         def wrapper(*args, **kwargs):
-            try:
-                result = func(*args, **kwargs)
-            except Exception as e:
-                print(f"DEBUG keyword_wrapper [{func.__name__}]: exception={e}")
-                raise
+            result = func(*args, **kwargs)
             if not result.get("ok"):
                 raise RuntimeError(result.get("error", f"Unknown error in {func.__name__}"))
             if key:
@@ -470,7 +540,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
 def main():
     """Main entry point for the daemon."""
     parser = argparse.ArgumentParser(
-        description='FilterWheel Daemon'
+        description='PIAA Gimbal Mount Daemon'
     )
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (YAML or JSON)')
