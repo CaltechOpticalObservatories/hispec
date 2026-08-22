@@ -1,113 +1,75 @@
+===========================================
 Build Setup for hsdev FEI
-=========================
+===========================================
 
 System Requirements
 -------------------
 
-- OS: Ubuntu 24.04 LTS
-- Linux: Current Kernel version Linux 6.8.0 (-59 Ubuntu)
-- Python: 3.12 (required)
+- **OS:** Ubuntu 24.04 LTS
+- **Linux Kernel:** 6.8.0 (-59 Ubuntu)
+- **Python:** 3.12 (required)
 
+Initial OS User & Hostname Setup
+--------------------------------
 
-User and Hostname Setup
------------------------
+The target machine is initially provisioned during OS installation with the primary administrative user:
 
-Create a development user ``hsdev`` and facility user ``hispecfei``:
+- **Primary User:** ``hispecfei`` (with sudo privileges)
+
+Configure hostname and network loopback resolution:
 
 .. code-block:: bash
 
-   # Create users
-   sudo adduser hsdev
-   sudo adduser hispecfei
-
-   # Add users to sudo group
-   sudo usermod -aG sudo hsdev
-   sudo usermod -aG sudo hispecfei
-
-   # Add serial access group
-   sudo usermod -aG dialout hsdev
-   sudo usermod -aG dialout hispecfei
-
-   # Set new hostname
+   # Set static hostname
    sudo hostnamectl set-hostname hispecfei
-   sudo vim /etc/hosts
 
-In ``/etc/hosts`` (opened with ``vim``), change the line:
-
-.. code-block:: text
-
-   127.0.1.1   old-hostname
-
-to:
+Edit ``/etc/hosts`` to map the local loopback entry to the new hostname:
 
 .. code-block:: text
 
    127.0.1.1   hispecfei
 
-Save and exit with ``:wq``.
-
-Verify hostname:
+Verify the active hostname:
 
 .. code-block:: bash
 
    hostnamectl
 
-Expected output (example):
+Development User & Group Setup
+------------------------------
 
-.. code-block:: text
-
-   Static hostname: hispecfei
-
-Notes
------
-
-- On reboot, the hostname will be set properly.  
-- Changes with ``usermod`` require logout/login to take effect.  
-
-
-
-Group and Account Setup
------------------------
-
-Create required groups for HISPEC development:
+Create required groups for HISPEC FEI engineering and development:
 
 .. code-block:: bash
 
-   sudo groupadd hispec
-   sudo groupadd instr
+   sudo groupadd -f hispecfei
+   sudo groupadd -f eng
 
-Add development user ``hsdev`` to these groups:
-
-.. code-block:: bash
-
-   sudo usermod -aG hispec hsdev
-   sudo usermod -aG instr hsdev
-
-Create standard HISPEC accounts (if not already provisioned):
+Set up the secondary development user ``hsdev`` and assign appropriate group memberships:
 
 .. code-block:: bash
 
-   sudo adduser hispec
-   sudo adduser hispecbld
-   sudo adduser hispeceng
-   sudo adduser hispecrun
+   sudo adduser hsdev
+   sudo usermod -aG sudo,dialout,hispecfei,eng hsdev
 
-   # Batch create numbered accounts hispec1 through hispec9
-   for i in $(seq 1 9); do
-       sudo adduser hispec$i
+.. note::
+   The following block provisions service accounts non-interactively. Since ``hispecfei`` is created during initial OS installation and ``hsdev`` is created above, the script gracefully skips pre-existing accounts while ensuring required target accounts exist.
+
+.. code-block:: bash
+
+   for u in hispecfei hsdev; do
+       sudo useradd -m -s /bin/bash "$u" 2>/dev/null || true
    done
 
-- Instant change in group for current terminal session:
-
-  .. code-block:: bash
-
-     newgrp dialout
-
+.. note::
+   - On reboot, the new hostname takes effect system-wide.
+   - User group modifications (via ``usermod``) require logging out and back in to take effect.
+   - To force an immediate group update for the current session, run ``newgrp dialout``.
 
 System Package Installation
 ---------------------------
 
-Update package list and install the essential build tools:
+Update package list and install core build tools, development libraries, and utilities:
 
 .. code-block:: bash
 
@@ -141,22 +103,10 @@ Update package list and install the essential build tools:
        net-tools \
        htop
 
-Disable unnecessary services:
+KROOT Specific Packages (Optional / Machine Dependent)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: bash
-
-   sudo systemctl disable cups.service                # printing
-   sudo systemctl disable cups-browsed.service        # printing
-   sudo systemctl disable ModemManager.service
-   sudo systemctl disable apt-daily.timer             # automatic updates
-   sudo systemctl disable apt-daily-upgrade.timer     # automatic updates
-   sudo systemctl disable avahi-daemon.service        # zeroconf mDNS
-
-
-KROOT Specific Packages
-~~~~~~~~~~~~~~~~~~~~~~~
-
-These packages are needed for KROOT environments:
+Install packages required for KROOT environment build dependencies:
 
 .. code-block:: bash
 
@@ -173,105 +123,101 @@ These packages are needed for KROOT environments:
        libpam-dev \
        pandoc groff rst2pdf \
        python3-dev python3-docutils \
-       python3.12-venv \
+       python3-venv \
        python3-ephem \
        pyqt5-dev-tools \
        make m4 autoconf \
        xorg-dev xaw3dg-dev \
        libmotif-dev \
-       lib32c-dev \
+       libc6-dev-i386 \
        libcfitsio-dev \
        snmp \
        flex flex-doc bison bison-doc
 
-
-Python 3.12 Installation
+Python Environment Setup
 ------------------------
 
-Ubuntu 24.04 ships with Python 3.12.3. Double check version is at least 3.12.3 and not newer than 3.13.
+Global Shared Virtual Environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Check version:
+Create a centralized, read-only-for-engineers virtual environment under ``/opt/hispecfei/env``. 
+This environment houses the official deployed packages used across the instrument framework.
 
-.. code-block:: bash
-
-   python3 --version
-   # Expected: Python 3.12.3 => must be < Python 3.13
-
-If you need to install Python, build from source:
+Execute as the primary ``hispecfei`` user:
 
 .. code-block:: bash
 
-   cd /usr/src
-   sudo wget https://www.python.org/ftp/python/3.12.3/Python-3.12.3.tgz
-   sudo tar xzf Python-3.12.3.tgz
-   cd Python-3.12.3
-   sudo ./configure --enable-optimizations
-   sudo make -j $(nproc)
-   sudo make altinstall  # Installs as python3.12
+   # Create global directory and virtual environment
+   sudo mkdir -p /opt/hispecfei
+   sudo python3 -m venv /opt/hispecfei/env
 
+   # Set ownership: owned by 'hispecfei', group-accessible by 'eng'
+   sudo chown -R hispecfei:eng /opt/hispecfei
+   sudo chmod -R 775 /opt/hispecfei
 
-Python Package Installation
----------------------------
+   # Install canonical deployed packages into global environment
+   /opt/hispecfei/env/bin/pip install --upgrade pip
+   /opt/hispecfei/env/bin/pip install numpy matplotlib pipython serial pandas PyQt5 cmake
 
-Install required Python packages using pip:
-
-.. code-block:: bash
-
-   python3.12 -m pip install --upgrade pip
-   python3.12 -m pip install numpy matplotlib pipython serial panda QT5.2 cmake
-
-Verify installation:
+To make the global environment active by default for all session shells, add the activation hook to system or user bash profiles:
 
 .. code-block:: bash
 
-   python3.12 --version
-   pip3.12 list
+   echo 'source /opt/hispecfei/env/bin/activate' >> /home/hsdev/.bashrc
 
+Local Engineer Virtual Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Optional: Virtual Environment
------------------------------
+Engineers working under ``hsdev`` (or individual local accounts) can spin up isolated, lightweight local virtual environments for feature development.
 
-Create and activate a virtual environment:
+Option A: Inherit Deployed Global Packages
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To inherit all pre-installed packages from the global environment while allowing local testing:
 
 .. code-block:: bash
 
-   # Inside /home/hsdev
-   python3.12 -m venv fei-venv
+   python3 -m venv --system-site-packages ~/fei-venv
    source ~/fei-venv/bin/activate
-   pip install numpy matplotlib pipython
 
+Option B: Isolated Sandbox
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Download Needed Drivers (and Software)
---------------------------------------
+To build an isolated sandbox independent of the deployed environment:
 
-**Physik Instrumente**
+.. code-block:: bash
 
-Go to the PI website, fill out the form, and download the latest driver package for your OS.  
-For Linux, you can find it here: https://www.physikinstrumente.com/en/products/software-suite
+   python3 -m venv ~/fei-venv_sandbox
+   source ~/fei-venv_sandbox/bin/activate
+   pip install --upgrade pip
 
-   i. Unpack the downloaded archive  
-   ii. In a terminal window, navigate to the unpacked directory  
-   iii. Run the installation script:
+Hardware Drivers & Specialized Subsystems
+-----------------------------------------
+
+Physik Instrumente (PI) Driver
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Download the latest Linux driver package from `Physik Instrumente Software Suite <https://www.physikinstrumente.com/en/products/software-suite>`_.
+2. Extract the archive, open terminal in the target directory, and launch the installer:
 
    .. code-block:: bash
 
       cd <path_to_unpacked_PI_driver>
       sudo ./INSTALL
 
-   iv. Follow the on-screen instructions to complete the installation.  
-   v. Specific answers to questions during installation:
-      - **Do you agree to the General Software License Agreement? [yn]:** y
-      - **{shows full License Agreement}** q
-      - **Install the PI ${PI_PRODUCT_NAME} high level GCS library? [ynq]:** y
-      - **To enable the access rights to a user group now press 'y'** y
-      - **Enable the access rights to a user group now? [ynq]:** y
-      - **{shows full License Agreement}** n
-      - **Install ${PIPython} now? [ynq]:** n
-      - **Install ${PI Terminal} now? [ynq]:** y
-      - **Please enter the name of the user group ...:** dialout
+3. Installation Prompt Responses:
+   - **Do you agree to the General Software License Agreement? [yn]:** ``y``
+   - **{shows full License Agreement}** press ``q`` to exit pager
+   - **Install the PI ${PI_PRODUCT_NAME} high level GCS library? [ynq]:** ``y``
+   - **To enable the access rights to a user group now press 'y'** ``y``
+   - **Enable the access rights to a user group now? [ynq]:** ``y``
+   - **{shows full License Agreement}** ``n``
+   - **Install ${PIPython} now? [ynq]:** ``n``
+   - **Install ${PI Terminal} now? [ynq]:** ``y``
+   - **Please enter the name of the user group ...:** ``dialout``
 
-
-**SPI Driver lib4222**
+SPI Driver (libft4222)
+~~~~~~~~~~~~~~~~~~~~~~
 
 1. Extract the archive:
 
@@ -305,29 +251,20 @@ For Linux, you can find it here: https://www.physikinstrumente.com/en/products/s
    ``/usr/local/lib`` and ``/usr/local/include`` respectively. It also creates a 
    version-independent symbolic link, ``libft4222.so``.
 
-3. Detailed build instructions:
-
-   i. Change to the examples directory:
+3. Compile test executable from examples:
 
    .. code-block:: bash
 
       cd examples
 
-   ii. Build an executable:
-
-   For **dynamic library**:
-
-   .. code-block:: bash
-
+   # Dynamic library build:
       sudo cc get-version.c -lft4222 -Wl,-rpath,/usr/local/lib
 
-   For **static library**:
-
-   .. code-block:: bash
-
+   # Static library build:
       sudo cc -static get-version.c -lft4222 -Wl,-rpath,/usr/local/lib -ldl -lpthread -lrt -lstdc++
 
-   If your ``ld`` version is too old, static build may fail. To resolve:
+.. note::
+   If static compilation fails due to an outdated linker, update binutils:
 
    .. code-block:: bash
 
@@ -335,21 +272,20 @@ For Linux, you can find it here: https://www.physikinstrumente.com/en/products/s
       sudo apt-get install binutils-2.26
       export PATH="/usr/lib/binutils-2.26/bin:$PATH"
 
-   iii. Run the executable:
+4. Execute binary test:
 
    .. code-block:: bash
 
       sudo ./a.out
 
-   You should see output similar to:
+Expected output:
 
    .. code-block:: text
 
       Chip version: 42220400, LibFT4222 version: 010404E8
 
-   If you see:
-
-   - **"No devices connected"** or **"No FT4222H detected"**:
+SPI FTDI 4222 udev Configuration (Non-Root USB Access)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
      
      - There may be no FT4222H connected. Run ``lsusb`` and check for something like:
 
@@ -364,31 +300,22 @@ For Linux, you can find it here: https://www.physikinstrumente.com/en/products/s
 
 **SPI FTDI 4222 udev Configuration (Non-root Access)**
 
-1. Create the udev rules file:
+1. Create a udev rules file at ``/etc/udev/rules.d/99_HISPEC_spi_ftdi_4222.rules``:
 
-   ::
+.. code-block:: text
 
-      /etc/udev/rules.d/99_HISPEC_spi_ftdi_4222.rules
+   SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", OWNER="hsdev", MODE="0660", GROUP="dialout"
 
-2. Add the following rule:
-
-   ::
-
-      SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", OWNER="hsdev", MODE="0660", GROUP="dialout"
-
-3. Reload and apply the udev rules:
+2. Reload rules:
 
    .. code-block:: bash
 
       sudo udevadm control --reload-rules
       sudo udevadm trigger
 
-4. Verify device permissions:
+3. Verify ownership on reconnected board:
 
-   After reconnecting the SPI board, confirm that the USB device permissions are set
-   correctly:
-
-   ::
+.. code-block:: bash
 
       ls -l /dev/bus/usb/*/* | grep 0403
 
@@ -397,112 +324,122 @@ For Linux, you can find it here: https://www.physikinstrumente.com/en/products/s
 
 Once verified, the SPI board should be accessible without requiring root privileges.
 
+CameraD Installation
+~~~~~~~~~~~~~~~~~~~~
 
-**CameraD Installation**
+Clone and build the camera interface repository with specific controller and instrument definitions:
 
 .. code-block:: bash
 
    cd ~
    git clone https://github.com/CaltechOpticalObservatories/camera-interface.git
-   cd camera-interface
-   cd build
-   rm -rf ./*  # Clean any previous contents
-   cmake ..
+   cd camera-interface/build
+   rm -rf ./*
+   cmake .. -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera
    make
 
+Archon & Network Setup
+~~~~~~~~~~~~~~~~~~~~~~
 
-**Archon + GUI Installation**
+Refer to the primary Archon GUI documentation: `archongui.rst <archongui.rst>`_
 
-LINK to Archon GUI Installation instructions: `archongui.rst <archongui.rst>`_
+1. Open Ubuntu Network Settings.
+2. Select Ethernet controller **enp202s0f0np0** gear icon $\rightarrow$ IPv4 tab.
+3. Configure **Manual** IPv4 address:
+   - **Address:** ``10.0.0.10``
+   - **Netmask:** ``255.255.255.0``
+   - **Gateway:** ``10.0.0.1``
+4. Add host entry in ``/etc/hosts``:
 
-- Configure Archon  
-  1. Open Ubuntu settings  
-  2. Click "Network"  
-  3. Look for “Ethernet enp202s0f0np0” and click the gear icon  
-  4. Go to the IPV4 tab  
-  5. Change the IPV4 Method to "Manual"  
-  6. Set the address to ``10.0.0.10``, netmask to ``255.255.255.0`` and the gateway to ``10.0.0.1``  
-  7. Hit the "Apply" button  
-  8. Add ``10.0.0.2 archon`` to ``/etc/hosts``
+.. code-block:: text
 
-- NOTE: Archon must be plugged into the correct fiber port (labeled "archon").
+   10.0.0.2 archon
 
-- Test Archon connection:
+5. Connect Archon hardware to the fiber port labeled **archon** and verify link:
 
   .. code-block:: bash
 
      ping archon
 
-  You should see replies from the Archon.
+System & Real-Time Optimizations
+--------------------------------
 
+Services Management
+~~~~~~~~~~~~~~~~~~~
 
-Troubleshooting
----------------
-
-- If Ubuntu doesn’t find Qt5 or if you previously had Qt4 installed, run:
+Disable unnecessary background daemons and automatic updates:
 
   .. code-block:: bash
 
-     sudo apt install qt5-default
+   sudo systemctl disable cups.service
+   sudo systemctl disable cups-browsed.service
+   sudo systemctl disable ModemManager.service
+   sudo systemctl disable apt-daily.timer
+   sudo systemctl disable apt-daily-upgrade.timer
+   sudo systemctl disable avahi-daemon.service
 
+Real-Time Scheduling
+~~~~~~~~~~~~~~~~~~~~
 
-OS Optimization Notes (07/09/2025)
-----------------------------------
-
-**Real-Time Scheduling and Process Prioritization**
-
-- Use ``chrt`` to assign real-time priorities to time-critical processes.
-- Allow ``chrt`` to be run without sudo for selected processes by modifying security policies (e.g., with setcap or via sudoers).
-- Commonly used priority: FIFO scheduling with priority 60.
+Allow non-root processes to use FIFO real-time priority scheduling:
 
 .. code-block:: bash
 
    sudo setcap 'cap_sys_nice=eip' <path/to/chrt>
    chrt -f 60 ./<executable file>
 
-**CPU Isolation**
+CPU Core Isolation & Isolation Profile
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- Install and use cset (CPUSET) for isolating CPU cores:
+Reserve dedicated physical CPU cores for time-critical processing (e.g., CameraD):
+
+1. Install cpuset management utility:
 
   .. code-block:: bash
 
      sudo apt install cset
 
-- Dedicated physical CPU cores (no SMT/hyperthreading):  
-  - Total cores: 16  
-  - Isolated cores for CameraD: 11–15  
-  - Remaining cores (0–10): Available for other system tasks  
-  - Disable hyperthreading/SMT in BIOS for deterministic performance.
+2. Configure bootloader parameters in ``/etc/default/grub`` to isolate physical cores 11–15:
 
-**GRUB Boot Optimization**
+.. code-block:: text
 
-- Edit ``/etc/default/grub`` to add kernel boot parameters:
+   GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=11-15 nohz_full=11-15 rcu_nocbs=11-15 rcu_nocb_poll"
+
+3. Apply GRUB configuration:
+
+.. code-block:: bash
+
+   sudo update-grub
+
+BIOS Configuration Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Reboot system and enter BIOS utility (typically ``F2``, ``Del``, or ``Esc``).
+2. Locate CPU settings (e.g., *Intel Hyper-Threading*, *SMT*, or *Logical Processors*).
+3. Set option to **Disabled** to ensure deterministic execution per physical core.
+
+Troubleshooting
+---------------
+
+- **Qt5 Discovery:** If Ubuntu fails to detect Qt5 or defaults to an older Qt4 installation, run:
 
   .. code-block:: bash
 
-     GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=11-15 nohz_full=11-15 rcu_nocbs=11-15 rcu_nocb_poll"
-     sudo update-grub
+     sudo apt install qt5-default
 
-**BIOS Changes**
-
-- Save any work and restart the machine  
-- Press BIOS key during initial logo screen (typically Esc, F2, or Del)  
-- Navigate to BIOS menu (use Enter to select, Esc to go back)
-
-  **Changes:**
-  - Look for Intel Hyper-Threading, SMT, or Logical Processor  
-  - Set to Disabled
-
-.. note::
-
-   For CameraD, change to FIFO process scheduling for those threads.
-
+- **FT4222 USB Access Failures:**
+  - Verify USB connection via ``lsusb`` looking for Vendor ID ``0403:601c``.
+  - Check program invocation privileges (must have udev rules configured or run with ``sudo``).
+- **FT4222 ABI Mismatch:** Ensure system ``glibc`` version is $\ge 2.10$.
+- **SPI Master Mode:** Verify the Slave Select (SS) line is pulled high.
 
 Final Step
 ----------
 
-**RESTART/REBOOT** the server to complete driver installation and apply CPU/OS optimization changes.
+Reboot the machine to apply kernel parameter changes, BIOS optimizations, service disablement, and udev rule updates:
 
+.. code-block:: bash
+
+   sudo reboot
 
 Done!
------

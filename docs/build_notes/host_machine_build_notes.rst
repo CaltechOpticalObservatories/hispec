@@ -5,55 +5,46 @@ Build Setup for hsdev User
 System Requirements
 -------------------
 
-- OS: Ubuntu 24.04 LTS
-- Python: 3.12 (default system version)
+- OS: Ubuntu 24.04 LTS (Noble Numbat)
+- Python: 3.12 (Default system version)
 
-User Setup
-----------
+Initial OS User
+---------------
 
-Create a development user ``hsdev``:
+The target machine is initially provisioned during the OS installation with the primary administrative user:
+
+- **Primary User:** ``hispec`` (with sudo privileges)
+
+Development User & Group Setup
+------------------------------
+
+Create required groups for HISPEC engineering and development:
+
+.. code-block:: bash
+
+   sudo groupadd -f hispec
+   sudo groupadd -f eng
+
+Set up the secondary development user ``hsdev`` and assign appropriate group memberships:
 
 .. code-block:: bash
 
    sudo adduser hsdev
-   sudo usermod -aG sudo hsdev
-   sudo usermod -aG dialout hsdev  # Add serial access group
+   sudo usermod -aG sudo,dialout,hispec,eng hsdev
 
-Group and Account Setup
------------------------
-
-Create required groups for HISPEC development:
+.. note::
+   The following block provisions secondary accounts non-interactively. Since ``hispec`` is created during initial OS installation and ``hsdev`` is created above, the script gracefully skips pre-existing accounts while ensuring any missing target accounts are safely created.
 
 .. code-block:: bash
 
-   sudo groupadd hispec
-   sudo groupadd instr
-
-Add development user ``hsdev`` to these groups:
-
-.. code-block:: bash
-
-   sudo usermod -aG hispec hsdev
-   sudo usermod -aG instr hsdev
-
-Create standard HISPEC accounts (if not already provisioned):
-
-.. code-block:: bash
-
-   sudo adduser hispec
-   sudo adduser hispecbld
-   sudo adduser hispeceng
-   sudo adduser hispecrun
-
-   # Batch create numbered accounts hispec1 through hispec9
-   for i in $(seq 1 9); do
-       sudo adduser hispec$i
+   for u in hispec hsdev; do
+       sudo useradd -m -s /bin/bash "$u" 2>/dev/null || true
    done
 
 System Package Installation
 ---------------------------
 
-Update package list and install the essential build tools:
+Update package list and install essential build tools and dependencies:
 
 .. code-block:: bash
 
@@ -87,7 +78,7 @@ Update package list and install the essential build tools:
      make m4 autoconf \
      xorg-dev xaw3dg-dev \
      libmotif-dev \
-     lib32c-dev \
+     libc6-dev-i386 \
      snmp \
      flex flex-doc bison bison-doc \
      pandoc groff rst2pdf
@@ -95,7 +86,7 @@ Update package list and install the essential build tools:
 KROOT Specific Packages
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-These packages are needed for KROOT environments:
+Packages required for KROOT environments:
 
 .. code-block:: bash
 
@@ -120,93 +111,87 @@ Additional Instrument Development Packages
      libccfits-dev \
      libcfitsio-dev
 
-Python Package Installation
----------------------------
+Python Environment Setup
+------------------------
 
-Use Python 3.12 (default) and install required Python packages:
+Global Shared Virtual Environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: bash
+Create a centralized, read-only-for-engineers virtual environment under ``/opt/hispec/env``. 
+This environment houses the official deployed packages used across the instrument framework.
 
-   python3 -m pip install --upgrade pip
-   python3 -m pip install numpy matplotlib pipython
-
-Verify installation:
-
-.. code-block:: bash
-
-   python3 --version
-   pip3 list
-
-Optional: Virtual Environment
------------------------------
-
-Create and activate a virtual environment:
+Execute as the primary ``hispec`` user:
 
 .. code-block:: bash
 
-   python3 -m venv ~/env
+   # Create global directory and virtual environment
+   sudo mkdir -p /opt/hispec
+   sudo python3 -m venv /opt/hispec/env
+
+   # Set ownership: owned by 'hispec', group-accessible by 'eng'
+   sudo chown -R hispec:eng /opt/hispec
+   sudo chmod -R 775 /opt/hispec
+
+   # Install canonical deployed packages into global environment
+   /opt/hispec/env/bin/pip install --upgrade pip
+   /opt/hispec/env/bin/pip install numpy matplotlib pipython
+
+To make the global environment active by default for all session shells, add the activation hook to system or user bash profiles:
+
+.. code-block:: bash
+
+   echo 'source /opt/hispec/env/bin/activate' >> /home/hsdev/.bashrc
+
+Local Engineer Virtual Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Engineers working under ``hsdev`` (or individual local accounts) can spin up isolated, lightweight local virtual environments for feature development.
+
+Option A: Inherit Deployed Global Packages
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To inherit all pre-installed packages from the global environment while allowing local testing:
+
+.. code-block:: bash
+
+   python3 -m venv --system-site-packages ~/env
    source ~/env/bin/activate
-   pip install numpy matplotlib pipython
 
-Directory Structure
--------------------
+Option B: Isolated Sandbox
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The following directory structure is recommended:
-
-::
-
-   /home/hsdev/
-   ├── external/   # Third-party development-only software (not instrument delivery)
-   └── svn/        # SVN working copy for KROOT
-
-Create the directories:
+To build an isolated sandbox independent of the deployed environment:
 
 .. code-block:: bash
 
-   mkdir -p /home/hsdev/external
-   mkdir -p /home/hsdev/svn
-   chown -R hsdev:hsdev /home/hsdev/external /home/hsdev/svn
-
-External Development Libraries
-------------------------------
-
-For third-party libraries, build and install them under ``/home/hsdev/external``:
-
-.. code-block:: bash
-
-   cd /home/hsdev/external
-   wget http://example.com/3rdparty.tar.gz
-   tar -xzvf 3rdparty.tar.gz
-   cd 3rdparty
-   ./configure --prefix=/home/hsdev/external/3rdparty
-   make && make install
-
+   python3 -m venv ~/env_sandbox
+   source ~/env_sandbox/bin/activate
+   pip install --upgrade pip
 Update Hosts File
 -----------------
 
-The private network for HISPEC is ``192.168.29.x``.
-Edit the ``/etc/hosts`` file and add the following entries:
+Edit ``/etc/hosts`` to include the private network entries for HISPEC, ordered numerically by IP address:
 
-.. code-block:: bash
+.. code-block:: text
 
-  192.168.29.102  feieaton1
-  192.168.29.105  feieaton2
-  192.168.29.106  feieaton3
-  192.168.29.104  feilakeshore
-  192.168.29.100  feilantronix
-  192.168.29.101  switch
-  192.168.29.120  feiinficon
-  192.168.29.125  blueinficon
-  192.168.29.150  blueettemp
-  192.168.29.151  blueeaton1
-  192.168.29.152  blueeaton2
-  192.168.29.153  bluelantronix
-  192.168.29.154  hs1wireblue
+   192.168.29.100 feilantronix
+   192.168.29.101 switch
+   192.168.29.102 feieaton1
+   192.168.29.104 feilakeshore
+   192.168.29.105 feieaton2
+   192.168.29.106 feieaton3
+   192.168.29.120 feiinficon
+   192.168.29.125 blueinficon
+   192.168.29.150 blueettemp
+   192.168.29.151 blueeaton1
+   192.168.29.152 blueeaton2
+   192.168.29.153 bluelantronix
+   192.168.29.154 hs1wireblue
 
 Disable Unnecessary Services
 ----------------------------
 
-To reduce background system noise or services not needed in headless/dev setups:
+Disable unused background services in headless/development setups:
 
 .. code-block:: bash
 
@@ -220,4 +205,4 @@ To reduce background system noise or services not needed in headless/dev setups:
 Done!
 -----
 
-System is now prepared for development under the ``hsdev`` user.
+System setup prepared for ``Ubuntu 24.04 LTS`` under user ``hsdev``.
