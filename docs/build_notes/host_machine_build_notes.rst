@@ -1,5 +1,5 @@
 ===========================================
-Build Setup for hsdev User
+Build Setup for HISPEC and HSDEV User
 ===========================================
 
 System Requirements
