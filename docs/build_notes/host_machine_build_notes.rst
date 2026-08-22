@@ -134,13 +134,60 @@ Execute as the primary ``hispec`` user:
 
    # Install canonical deployed packages into global environment
    /opt/hispec/env/bin/pip install --upgrade pip
-   /opt/hispec/env/bin/pip install numpy matplotlib pipython
+   /opt/hispec/env/bin/pip install numpy matplotlib pipython serial pandas PyQt5 cmake
+
+Clone and Install HISPEC Control Package
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Clone the main repository, check out nested submodules, and perform an editable development installation into the global environment:
+
+.. code-block:: bash
+
+   # 1. Clone repository to /opt/hispec
+   cd /opt/hispec
+   sudo -u hispec git clone https://github.com/CaltechOpticalObservatories/hispec.git
+   cd hispec
+
+   # 2. Sync and check out all nested submodules
+   sudo -u hispec git submodule sync --recursive
+   sudo -u hispec git submodule update --init --recursive
+
+   # 3. Install package with development dependencies into shared environment
+   sudo -u hispec /opt/hispec/env/bin/pip install -e ".[dev]"
 
 To make the global environment active by default for all session shells, add the activation hook to system or user bash profiles:
 
 .. code-block:: bash
 
    echo 'source /opt/hispec/env/bin/activate' >> /home/hsdev/.bashrc
+
+Updating the Global HISPEC Package
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To pull the latest changes, update all recursive submodules, and refresh the environment:
+
+Execute as the primary ``hispec`` user:
+
+.. code-block:: bash
+
+   cd /opt/hispec/hispec
+
+   # 1. Pull the latest commits on current branch
+   sudo -u hispec git pull
+
+   # 2. Sync and update recursive submodules to pinned SHAs
+   sudo -u hispec git submodule sync --recursive
+   sudo -u hispec git submodule update --init --recursive
+
+   # 3. Refresh environment dependencies (if dependencies changed)
+   sudo -u hispec /opt/hispec/env/bin/pip install -e ".[dev]"
+
+.. note::
+   If you explicitly need to update all submodules to the head of their tracked remote branches (e.g., ``main``) rather than their pinned SHAs:
+
+   .. code-block:: bash
+
+      sudo -u hispec git submodule update --remote --merge --recursive
 
 Local Engineer Virtual Environments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -150,7 +197,7 @@ Engineers working under ``hsdev`` (or individual local accounts) can spin up iso
 Option A: Inherit Deployed Global Packages
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To inherit all pre-installed packages from the global environment while allowing local testing:
+To inherit all pre-installed packages (including the ``hispec`` package) from the global environment while allowing local testing:
 
 .. code-block:: bash
 
@@ -160,13 +207,22 @@ To inherit all pre-installed packages from the global environment while allowing
 Option B: Isolated Sandbox
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To build an isolated sandbox independent of the deployed environment:
+To build an isolated sandbox and install a custom branch of the ``hispec`` repository independent of the deployed environment:
 
 .. code-block:: bash
 
+   # Create and activate environment
    python3 -m venv ~/env_sandbox
    source ~/env_sandbox/bin/activate
    pip install --upgrade pip
+
+   # Clone and install locally
+   cd ~
+   git clone https://github.com/CaltechOpticalObservatories/hispec.git hispec_sandbox
+   cd hispec_sandbox
+   git submodule sync --recursive
+   git submodule update --init --recursive
+   pip install -e ".[dev]"
 Update Hosts File
 -----------------
 
