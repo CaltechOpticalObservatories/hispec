@@ -1,12 +1,13 @@
-==========================================================
-HISPEC Pseudo-RTC Build: Headless Real-Time FEI Server
-==========================================================
+==============================================================
+HISPEC RTC Build: Headless Real-time Ubuntu 24.04 FEI Server
+==============================================================
 
 :Authors: Elijah A-B, Dan Ech
 :Date: 2026-08-22
 :Hostname: ``hispecfei``
 :Primary User: ``hsfei``
 :Engineering User: ``hsdev``
+:OS: Real-time Ubuntu 24.04 LTS (PREEMPT_RT via Ubuntu Pro)
 :Supersedes: ``fei_server_build_notes.rst``, ``rtc_buildnote.rst``
 
 .. contents:: Table of Contents
@@ -19,15 +20,31 @@ HISPEC Pseudo-RTC Build: Headless Real-Time FEI Server
 ============================
 
 This document merges the FEI server build notes and the TCC / real-time kernel
-build notes into a single **headless pseudo-RTC** recipe.
+build notes into a single **headless RTC** recipe.
 
-**Pseudo-RTC** here means: a stock ``x86_64`` server running the Ubuntu Pro
-real-time kernel with hard CPU shielding, TCC enabled in BIOS, and background
-services stripped — deterministic enough for camera/controller loops, without
-a dedicated RTOS.
+The OS is **Real-time Ubuntu 24.04 LTS** — Ubuntu with Canonical's
+``PREEMPT_RT`` kernel, deployed through an **Ubuntu Pro** subscription
+(§5). This is a genuine real-time operating system, not a tuned generic
+kernel: ``PREEMPT_RT`` replaces the default scheduler with a fully preemptible
+priority-based one, converts spinlocks to sleeping rt-mutexes with priority
+inheritance, and forces IRQ handlers into schedulable kernel threads. It
+provides a bounded upper limit on execution time.
+
+What "RTC" scopes here: a COTS ``x86_64`` server running that RT kernel with
+hard CPU shielding, Intel TCC enabled in firmware, and background services
+stripped — dedicated to the camera/controller loop.
+
+.. note::
+   Real-time Ubuntu 24.04 is based on upstream kernel v6.8 with the
+   ``PREEMPT_RT`` patchset applied, on ``amd64`` and ``arm64``. Ubuntu Pro is
+   free for personal and small-scale commercial use on up to 5 machines;
+   Caltech/COO deployments should use the institutional subscription.
 
 Design rules applied throughout:
 
+#. **The RT kernel is the foundation, not an optimization.** Every tuning step
+   in §6, §7 and §12 assumes ``PREEMPT_RT`` is already running. Do not treat
+   §5 as optional.
 #. **No desktop environment.** Ubuntu **Server** 24.04.1 LTS, no GNOME, no
    display manager, no snaps beyond the base set.
 #. **Install only what the instrument needs.** Every package group below is
@@ -306,35 +323,121 @@ Refer to ``archongui.rst`` for Archon-side configuration.
 
 ----
 
-5. Real-Time Kernel
-===================
+5. Deploy the Real-Time OS (Real-time Ubuntu)
+=============================================
 
-The RT kernel requires an **Ubuntu Pro** subscription (``elijahab`` account).
+This is the step that makes the machine an RTC. Everything after it is tuning.
+
+5.1 What You Get
+----------------
+
+Canonical's ``realtime-kernel`` is Ubuntu 24.04 with the upstream
+``PREEMPT_RT`` patchset on kernel v6.8:
+
+* **Fully preemptible kernel** — priority-based scheduling replaces the default
+  CFS behaviour for RT tasks; kernel code itself becomes preemptible.
+* **Threaded IRQ handlers** — hardware interrupts run as schedulable kernel
+  threads that an RT task can preempt, rather than blocking arbitrarily.
+* **Priority inheritance rt-mutexes** — spinlocks become sleeping locks with PI,
+  bounding priority inversion.
+* **High-resolution timers** — precise wakeups instead of tick-granular ones.
+
+The practical result is a *bounded worst-case* latency, which is the property
+the camera loop needs. Throughput is slightly lower than the generic kernel —
+that trade is intentional.
+
+5.2 Attach Ubuntu Pro
+---------------------
+
+The RT kernel is delivered only through Ubuntu Pro (``elijahab`` account).
 
 .. code-block:: bash
 
-   # Attach Ubuntu Pro
-   sudo pro attach [USER_TOKEN]
-
-   # Enable the real-time kernel
-   sudo pro enable realtime-kernel
-
-**[reboot]** then verify:
-
-.. code-block:: bash
-
-   uname -a                      # expect PREEMPT_RT in the version string
-   pro status | grep realtime
+   sudo pro attach          # interactive - prompts for the token
+   pro status
 
 .. warning::
-   Do **not** paste the Pro token into this document or into shell history.
-   Use ``sudo pro attach`` interactively, or ``HISTCONTROL=ignorespace`` with a
-   leading space.
+   Do **not** paste the Pro token into this document, a script, or shell
+   history. Run ``sudo pro attach`` with no argument so it prompts, or use
+   ``HISTCONTROL=ignorespace`` with a leading space. If a token has ever been
+   echoed into a shared file, rotate it.
+
+5.3 Choose the Kernel Variant
+-----------------------------
+
+Two variants matter here. **Pick before enabling** — switching later means
+another kernel install and reboot.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 78
+
+   * - Variant
+     - Use when
+   * - *(default)*
+     - Generic ``PREEMPT_RT`` for ``amd64``/``arm64``. Vendor-neutral.
+   * - ``intel-iotg``
+     - Intel platform, and you want Intel **TCC** and **TSN** support built in.
+       Validated on Intel Atom® X6000E and 11th/12th/13th Gen Intel® Core™.
+
+.. important::
+   **This build enables TCC Mode in BIOS (§6), so ``intel-iotg`` is very likely
+   the correct variant.** The Intel-optimized kernel is what carries the TCC and
+   TSN enablement; on the generic RT kernel you get the firmware-level TCC
+   benefits but not the kernel-side feature support.
+
+   Confirm the CPU generation against the supported list before committing::
+
+      lscpu | grep -i 'model name'
+
+List what your Pro subscription actually offers, then enable:
+
+.. code-block:: bash
+
+   # Generic real-time kernel
+   sudo pro enable realtime-kernel
+
+   # -- OR -- Intel IOTG optimized (TCC / TSN enabled)
+   sudo pro enable realtime-kernel --variant=intel-iotg
+
+Accept the prompt to install and switch the default boot kernel.
 
 .. note::
-   Baseline from the FEI build was Ubuntu 24.04 LTS / kernel 6.8.0-59. Once the
-   RT kernel is enabled the running kernel becomes the ``-realtime`` flavour.
-   Record ``uname -r`` in the as-built log; driver rebuilds are kernel-specific.
+   The variant flag is only accepted at *enable* time. To change variants
+   afterwards, ``sudo pro disable realtime-kernel`` first.
+
+5.4 Verify **[reboot]**
+-----------------------
+
+.. code-block:: bash
+
+   sudo reboot
+
+   # After boot:
+   uname -a                     # expect PREEMPT_RT (and -realtime flavour)
+   uname -r
+   pro status | grep realtime   # expect: realtime-kernel   enabled
+   cat /sys/kernel/realtime 2>/dev/null   # expect: 1
+
+Confirm the RT scheduling classes are live:
+
+.. code-block:: bash
+
+   chrt -m                      # SCHED_FIFO / SCHED_RR priority ranges
+   grep -c . /proc/pressure/cpu # PSI available
+
+.. warning::
+   **Record ``uname -r`` in the as-built log now.** Out-of-tree drivers
+   (FT4222 helpers, any DKMS module) are built against a specific kernel. When
+   Pro ships an RT kernel update, those modules must be rebuilt and the
+   ``cyclictest`` baseline (§13) re-measured before the machine goes back on
+   sky.
+
+.. tip::
+   To roll back to the generic kernel for debugging, see Canonical's
+   `switch from real-time to generic kernel
+   <https://documentation.ubuntu.com/real-time/latest/how-to/switch-from-realtime-to-generic-kernel/>`_.
+   Keep a generic kernel entry in the GRUB menu as an escape hatch.
 
 ----
 
@@ -351,7 +454,10 @@ timer tick. Edit ``/etc/default/grub``:
 
 .. code-block:: text
 
-   GRUB_CMDLINE_LINUX_DEFAULT="quiet clocksource=tsc tsc=reliable nmi_watchdog=0 nosoftlockup isolcpus=domain,0-5 rcu_nocbs=0-5 nohz_full=0-5 irqaffinity=0"
+   GRUB_CMDLINE_LINUX_DEFAULT="quiet clocksource=tsc tsc=reliable nmi_watchdog=0 nosoftlockup isolcpus=domain,0-5 rcu_nocbs=0-5 nohz_full=0-5 irqaffinity=6-15 kthread_cpus=6-15"
+
+Adjust ``6-15`` to your actual housekeeping range —
+``cat /sys/devices/system/cpu/present`` gives the total.
 
 Parameter rationale:
 
@@ -373,20 +479,30 @@ Parameter rationale:
      - Offloads RCU callbacks off the isolated cores
    * - ``nohz_full=0-5``
      - Stops the 1 kHz tick when one task is runnable
-   * - ``irqaffinity=0``
-     - Confines device IRQs — **see the warning below**
+   * - ``irqaffinity=6-15``
+     - Directs all hardware IRQs to housekeeping cores — **corrected, see below**
+   * - ``kthread_cpus=6-15``
+     - Restricts kernel threads to housekeeping cores
 
 .. warning::
-   **Review ``irqaffinity=0`` before deploying.** As written it directs device
-   IRQs to core **0**, which is *inside* the shielded set ``0-5`` — partially
-   defeating the isolation. Unless there is a deliberate reason, point IRQs at
-   a housekeeping core instead, e.g. on a 16-core part::
+   **``irqaffinity=0`` in the original RTC note is a copy-paste bug — corrected
+   above.**
 
-      irqaffinity=6-15
+   Canonical's Intel TCC tutorial uses ``isolcpus=3 … irqaffinity=0``: core 3 is
+   isolated and IRQs are sent to core **0**, which is a *housekeeping* core.
+   The original note copied that line but widened the isolated set to ``0-5``
+   while leaving ``irqaffinity=0`` unchanged — which now points every hardware
+   interrupt **into** the shielded set, at the one core the RT threads most
+   depend on.
 
-   Measure both ways with ``cyclictest`` (:ref:`section-verify`) and keep
-   whichever wins. Note also that ``splash`` was dropped — it is meaningless
-   headless.
+   The rule is simply that the ``irqaffinity`` range and the ``isolcpus`` range
+   must not overlap. Canonical states this directly: *"isolate one or more CPUs
+   to run the real-time application and the others to handle the IRQs and
+   kthreads."*
+
+.. note::
+   ``splash`` was also dropped from the original line — it is meaningless on a
+   headless server.
 
 Apply and reboot:
 
@@ -402,6 +518,56 @@ Verify after boot:
    cat /proc/cmdline
    cat /sys/devices/system/cpu/isolated       # expect 0-5
    cat /sys/devices/system/cpu/nohz_full      # expect 0-5
+   cat /sys/devices/system/cpu/present        # total core count
+
+Confirm no IRQ is still bound to a shielded core:
+
+.. code-block:: bash
+
+   # Any line showing only cores 0-5 in the affinity list is a problem
+   for i in /proc/irq/[0-9]*; do
+       printf '%-8s %s\n' "$(basename "$i")" "$(cat "$i"/smp_affinity_list 2>/dev/null)"
+   done | sort -k2
+
+Stray IRQs can be re-pointed at runtime (not persistent across reboot):
+
+.. code-block:: bash
+
+   echo 6-15 | sudo tee /proc/irq/<IRQ-NUMBER>/smp_affinity_list
+
+.. warning::
+   Never set an IRQ's affinity mask to zero — every IRQ must be handled by at
+   least one CPU.
+
+Disable irqbalance
+------------------
+
+``irqbalance`` actively redistributes interrupts across all cores at runtime,
+which silently undoes the ``irqaffinity`` boot parameter. It must be off.
+
+.. code-block:: bash
+
+   sudo systemctl disable --now irqbalance
+   systemctl status irqbalance
+
+Confine systemd Services to Housekeeping Cores
+----------------------------------------------
+
+Set a global default affinity so every systemd-managed service — present and
+future — stays off the shielded cores. Edit ``/etc/systemd/system.conf``:
+
+.. code-block:: ini
+
+   [Manager]
+   CPUAffinity=6-15
+
+.. code-block:: bash
+
+   sudo systemctl daemon-reexec     # or reboot
+
+This is broader and more reliable than per-unit ``CPUAffinity=``, and it covers
+the VNC unit in §10.3 automatically. Keep the per-unit setting anyway as
+defence in depth.
 
 BIOS Configuration Checklist
 ----------------------------
@@ -409,11 +575,53 @@ BIOS Configuration Checklist
 #. Reboot and enter BIOS (``F2``, ``Del``, or ``Esc``).
 #. **Hyper-Threading / SMT / Logical Processors → Disabled.**
    Deterministic execution requires one thread per physical core.
-#. **TCC Mode (Time Coordinated Computing) → Enabled.**
-#. Disable C-states deeper than C1, and set the power profile to
-   *Maximum Performance* / disable SpeedStep-style frequency scaling.
+#. **TCC Mode → Enabled.** On Intel reference BIOS this lives under
+   *Intel® Advanced Menu ‣ Time Coordinated Computing*. If the option is not
+   present, the board vendor may have hidden it — consult the vendor or set the
+   underlying options manually per Intel's TCC User Guide.
 #. **Perform a double reboot** — TCC settings are not fully applied until the
    second POST.
+
+.. note::
+   **TCC Mode subsumes the manual C-state work.** Enabling it disables C-states
+   and their sub-options, and optimizes power-state and frequency-transition
+   handling. Canonical measured average scheduling jitter dropping from ~100 µs
+   to sub-10 µs on an isolated core purely from this one firmware knob.
+
+   The mechanism matters for this instrument: an isolated core running a
+   periodic task that finishes early *idles* for the remainder of the cycle,
+   and the Linux idle subsystem then drops it into a deep C-state with a long
+   exit latency. That exit latency is the jitter. If TCC Mode is unavailable on
+   this board, disable C-states below C1 manually and set the power profile to
+   *Maximum Performance*.
+
+Inspect C-state configuration from the OS:
+
+.. code-block:: bash
+
+   for cpu in /sys/devices/system/cpu/cpu*/cpuidle/state*; do
+       echo -n "$cpu: "; cat "$cpu"/name
+       echo -n "  Target residency: "; cat "$cpu"/residency
+       echo -n "  Exit latency: ";     cat "$cpu"/latency
+       echo -n "  Disabled [1=yes]: "; cat "$cpu"/disable
+   done
+
+Further Intel Optimizations (optional)
+--------------------------------------
+
+If the ``cyclictest`` baseline in §13 is not tight enough, two further Intel
+features are worth evaluating:
+
+* **Cache Allocation Technology (CAT)** — partitions last-level cache so
+  best-effort workloads on housekeeping cores cannot evict the RT task's
+  working set. Directly relevant when large frame buffers move through the
+  machine.
+* **Speed Shift / HWP** — tunes frequency-transition responsiveness on the
+  isolated cores.
+
+See Canonical's `Optimizing real-time performance on Intel CPUs
+<https://documentation.ubuntu.com/real-time/latest/tutorial/intel-tcc/>`_
+tutorial.
 
 .. tip::
    With shielding active, pin instrument threads to cores 0–5 using ``taskset``,
@@ -434,6 +642,7 @@ copy-pasteable.
 .. code-block:: bash
 
    for svc in \
+       irqbalance.service \
        cups.service cups-browsed.service \
        ModemManager.service \
        avahi-daemon.service avahi-daemon.socket \
@@ -1075,9 +1284,15 @@ Run this after the final reboot. Record the results as the as-built baseline.
    * - RT kernel
      - ``uname -a``
      - contains ``PREEMPT_RT``
+   * - RT flag
+     - ``cat /sys/kernel/realtime``
+     - ``1``
    * - Ubuntu Pro
      - ``pro status``
      - ``realtime-kernel: enabled``
+   * - Kernel variant
+     - ``uname -r``
+     - ``-realtime`` (or ``-intel-iotg``)
    * - Kernel cmdline
      - ``cat /proc/cmdline``
      - matches §6
@@ -1087,9 +1302,21 @@ Run this after the final reboot. Record the results as the as-built baseline.
    * - Tickless cores
      - ``cat /sys/devices/system/cpu/nohz_full``
      - ``0-5``
+   * - IRQ affinity
+     - ``cat /proc/irq/*/smp_affinity_list``
+     - no entry confined to 0–5
+   * - irqbalance off
+     - ``systemctl is-enabled irqbalance``
+     - ``disabled`` / not-found
+   * - systemd affinity
+     - ``grep CPUAffinity /etc/systemd/system.conf``
+     - ``6-15``
    * - SMT disabled
      - ``lscpu | grep 'Thread(s) per core'``
      - ``1``
+   * - C-states (TCC)
+     - ``cat /sys/devices/system/cpu/cpu0/cpuidle/state*/disable``
+     - deep states ``1``
    * - Clocksource
      - ``cat /sys/devices/system/clocksource/clocksource0/current_clocksource``
      - ``tsc``
@@ -1188,9 +1415,18 @@ scheduled on the isolated cores — recheck ``irqaffinity`` (§6) first.
    * - ``import serial`` fails
      - Install ``pyserial``, not ``serial`` (§9).
    * - Latency spikes under load
-     - Check ``irqaffinity`` overlap with the shielded set (§6); confirm SMT
-       and C-states are disabled in BIOS; look for unpinned VNC/build jobs
-       (§12.3).
+     - Work the list in order: (1) ``irqaffinity`` overlapping the shielded set
+       (§6) — the most common cause; (2) ``irqbalance`` still running and
+       undoing it; (3) C-states not disabled / TCC Mode not enabled — look for
+       jitter on an *idle* isolated core specifically; (4) SMT still on;
+       (5) unpinned VNC or build jobs (§12.3); (6) cache contention → evaluate
+       Intel CAT.
+   * - RT kernel not booting after a Pro update
+     - Select the previous kernel from the GRUB menu. Out-of-tree modules need
+       rebuilding against the new ``uname -r`` (§5.4).
+   * - ``chrt`` returns "Operation not permitted"
+     - ``cap_sys_nice`` or the ``limits.d`` rtprio grant is missing (§12.1);
+       re-login required after editing limits.
    * - Locked out after ``netplan apply``
      - Physical console required. Always use ``netplan try`` first (§4).
    * - Group membership not taking effect
@@ -1207,8 +1443,10 @@ scheduled on the isolated cores — recheck ``irqaffinity`` (§6) first.
   Revisit the ``/usr``-on-second-drive layout at the same time (§2).
 * [ ] **Static IP** — confirm ``192.168.29.107`` is applied and reserved on the
   site network (§4); the previous build was still on DHCP.
-* [ ] **``irqaffinity`` decision** — benchmark ``0`` vs. a housekeeping range
-  and lock in the winner (§6).
+* [ ] **Kernel variant** — confirm whether ``--variant=intel-iotg`` applies to
+  this CPU and re-enable if the generic RT kernel was installed first (§5.3).
+* [ ] **Intel CAT / Speed Shift** — evaluate if the §13 latency baseline is not
+  tight enough (§6).
 * [ ] **Patching policy** — ``unattended-upgrades`` is disabled (§7); define a
   manual maintenance window.
 * [ ] **Backups** — no backup strategy defined for ``/opt/hispecfei`` or
@@ -1231,3 +1469,48 @@ rules, then work through §13.
    sudo reboot
 
 Done.
+
+----
+
+17. References
+==============
+
+Real-time Ubuntu
+----------------
+
+* `Real-time Ubuntu documentation <https://documentation.ubuntu.com/real-time/latest/>`_ — top level
+* `How to enable Real-time Ubuntu <https://documentation.ubuntu.com/real-time/latest/how-to/enable-real-time-ubuntu/>`_
+* `Ubuntu Pro Client: enable realtime-kernel <https://documentation.ubuntu.com/pro/pro-client/enable_realtime_kernel/>`_
+* `Switch from real-time to generic kernel <https://documentation.ubuntu.com/real-time/latest/how-to/switch-from-realtime-to-generic-kernel/>`_
+* `Real-time Ubuntu releases <https://documentation.ubuntu.com/real-time/latest/reference/releases/>`_
+
+Tuning
+------
+
+* `Configure CPUs for real-time processing <https://documentation.ubuntu.com/real-time/latest/how-to/cpu-boot-configs/>`_
+* `Tune IRQ affinity <https://documentation.ubuntu.com/real-time/latest/how-to/tune-irq-affinity/>`_ — basis for the §6 correction
+* `Isolate CPUs with cpusets <https://documentation.ubuntu.com/real-time/latest/how-to/isolate-workload-cpusets/>`_
+* `Kernel boot parameters reference <https://documentation.ubuntu.com/real-time/latest/reference/kernel-boot-parameters/>`_
+* `Modify kernel boot parameters <https://documentation.ubuntu.com/real-time/latest/how-to/modify-kernel-boot-parameters/>`_
+
+Intel TCC
+---------
+
+* `Optimizing real-time performance on Intel CPUs <https://documentation.ubuntu.com/real-time/latest/tutorial/intel-tcc/>`_
+* `TCC mode <https://documentation.ubuntu.com/real-time/latest/tutorial/intel-tcc/tcc-mode/>`_
+* `Cache Allocation Technology <https://documentation.ubuntu.com/real-time/latest/tutorial/intel-tcc/intel-cat/>`_
+* `Intel TCC User Guide <https://www.intel.com/content/www/us/en/content-details/851159/public-intel-time-coordinated-compute-tcc-user-guide.html>`_
+* `Real-time Ubuntu on Intel SoCs <https://canonical.com/blog/real-time-industrial-systems>`_
+
+Measurement
+-----------
+
+* `Measure maximum latency <https://documentation.ubuntu.com/real-time/latest/how-to/measure-maximum-latency/>`_
+* `Tools for measuring real-time metrics <https://documentation.ubuntu.com/real-time/latest/reference/real-time-metrics-tools/>`_
+
+Instrument
+----------
+
+* ``archongui.rst`` — Archon GUI and controller configuration
+* `camera-interface <https://github.com/CaltechOpticalObservatories/camera-interface>`_
+* `Physik Instrumente Software Suite <https://www.physikinstrumente.com/en/products/software-suite>`_
