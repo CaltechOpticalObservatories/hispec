@@ -24,13 +24,14 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self._soft_max = None
         self._hard_min = None
         self._hard_max = None
-        self.named_positions = None
+        self.named_positions = {}
         self.daemon_desc = "Filter Wheel Daemon"
         self.units = "position units"  # Set appropriate units for your filter wheel
 
         # Daemon state
         self.state = {
-            'error': ''
+            'error': '',
+            'connected': False,
         }
 
     def on_start(self, libby):
@@ -43,25 +44,31 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self._soft_max = self.get_config("limits.soft_max")
         self._hard_min = self.get_config("limits.hard_min")
         self._hard_max = self.get_config("limits.hard_max")
-        self.named_positions = self.get_config("named_positions")
+        self.named_positions = self.get_config("named_positions") or {}
 
         # Initialize hardware connection
-        if not(self.host and self.port):
+        if not (self.host and self.port):
             self.logger.error("No IP address or port specified for Filter Wheel controller")
             self.state['error'] = 'No IP address or port specified'
             return
+
+        # Keywords register regardless of hardware availability so the daemon
+        # is usable (and inspectable) even while the wheel is unreachable.
+        self._register_keywords()
+
         try:
-            self._register_keywords()
             connection = self.connect(True)
-            if not connection.get("ok"):
-                raise ConnectionError(connection.get("Error"))
-            self.logger.info("Daemon started successfully and connected to hardware")
-            self.initialize()
-            self.logger.info("Initialized %s", self.daemon_desc)
-        except ConnectionRefusedError as e:
-            self.logger.error("Failed to connect to hardware: %s", e)
-            self.logger.warning("Daemon will start but hardware is not available")
+            if not connection.get("isconnected"):
+                self.logger.warning("Wheel not reachable at %s:%s; daemon up, hardware offline",
+                                    self.host, self.port)
+            else:
+                self.initialize()
+                self.logger.info("Initialized %s", self.daemon_desc)
+        except (ConnectionRefusedError, OSError) as e:
+            self.logger.warning("Failed to connect to hardware: %s", e)
             self.state['error'] = str(e)
+
+        self.logger.info("Starting %s Daemon", self.daemon_desc)
 
     def initialize(self):
         """handles initialization"""
@@ -69,10 +76,11 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
         try:
             self.dev.initialize()
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
+            self.logger.debug("Initialized %s", self.daemon_desc)
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
             self.state['error'] = str(e)
-            return {"ok":False , "error": str(e)}
+            return {"ok": False, "error": str(e)}
         return {"ok": True}
 
     def _register_keywords(self):
@@ -116,28 +124,39 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
 
     def get_named_positions(self):
         """Get named positions from config (e.g., home, deployed, science)."""
-        return self._config.get("named_positions", {})
+        return self.named_positions or {}
 
     def get_named_position(self, name: str):
         """Get a specific named position value, or None if not found."""
-        return self.get_named_positions().get(name)
+        wanted = str(name).strip().lower()
+        for key, pos in self.get_named_positions().items():
+            if str(key).strip().lower() == wanted:
+                return pos
+        return None
 
     def cur_named_position(self):
-        """Get the name of the current position, if it matches a named position."""
-        current_pos = self.dev.get_pos()
+        """Get the name of the current position, or '' if it matches no named position."""
+        if not self.dev.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        try:
+            current_pos = self.dev.get_pos()
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
         for name, pos in self.get_named_positions().items():
             if str(pos) == str(current_pos):
                 return {"ok": True, "named_pos": name, "position": current_pos}
-        return {"ok": False, "error": "Current position does not match any named position", "position": current_pos} #pylint: disable = C0301
+        # Sitting between named positions is a normal state, not an error.
+        return {"ok": True, "named_pos": "", "position": current_pos}
 
-    def on_stop(self, libby) -> None: #pylint: disable=W0222
+    def on_stop(self, libby=None) -> None: #pylint: disable=W0222, W0613
         '''Stops the daemon and disconnects from hardware device'''
         try:
             self.connect(False)
             self.logger.info("Disconnected %s", self.daemon_desc)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Disconnect %s:: Failed ", self.daemon_desc)
-            self.logger.error("Error: %s",e)
+        except (OSError, ValueError) as e:
+            self.logger.error("Disconnect %s failed: %s", self.daemon_desc, e)
 
     def connect(self, connect):
         """handles connection"""
@@ -147,16 +166,18 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             else:
                 self.dev.disconnect()
             result = self.dev.is_connected()
-            if result != connect:
-                raise ConnectionError("Failed to Handle Connection Request")
+            self.state['connected'] = result
             self.logger.info("isconnected: %s", result)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Failed to execute: %s",e)
+        except (OSError, ValueError) as e:
+            self.logger.error("Failed to connect/disconnect with hardware: %s", e)
+            self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "isconnected": result}
 
     def status(self):
         """handles status"""
+        if not self.dev.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
         try:
             limits = self.dev.get_limits()
             position = self.cur_named_position()
@@ -167,9 +188,9 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                 "min_limit": limits.get("1")[0],
                 "max_limit": limits.get("1")[1],
             }
-            self.logger.debug("status: %s",status)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
+            self.logger.debug("status: %s", status)
+        except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
+            self.logger.error("error: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "status": status}
@@ -180,13 +201,13 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            position = self.dev.get_pos()
-            self.logger.debug("get_pos: %s",position)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
+            position = int(self.dev.get_pos())
+            self.logger.debug("get_pos: %s", position)
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok":True, "position": int(position)}
+        return {"ok": True, "position": position}
 
     def set_pos(self, pos):
         '''sets current position'''
@@ -195,11 +216,13 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
 
         try:
             pos = int(pos)
-            self._check_soft_limits(pos)
+            problem = self._check_soft_limits(pos)
+            if problem:
+                return {"ok": False, "error": problem}
             self.dev.set_pos(pos)
-            self.logger.debug("set_pos: %d",pos)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
+            self.logger.debug("set_pos: %d", pos)
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "position": int(pos)}
@@ -210,41 +233,45 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            goal = self.get_named_position(name.lower())
-            if goal is not None:
-                self.dev.set_pos(int(goal))
-            self.logger.debug("goto_named_pos: %s -> %s",name,goal)
-        except Exception as e: # pylint: disable=W0718
-            self.logger.error("Error: %s",e)
+            goal = self.get_named_position(name)
+            if goal is None:
+                return {"ok": False,
+                        "error": f"unknown named position '{name}'; "
+                                 f"available: {list(self.get_named_positions())}"}
+            self.dev.set_pos(int(goal))
+            self.logger.debug("goto_named_pos: %s -> %s", name, goal)
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "named_pos": name, "position": goal}
 
-    def _check_soft_limits(self, pos: int) -> bool:
-        """Returns True if position is within soft limits."""
+    def _check_soft_limits(self, pos: int) -> Optional[str]:
+        """Validate a requested position against the configured soft limits."""
+        try:
+            pos = int(pos)
+        except (TypeError, ValueError):
+            return f"position '{pos}' is not an integer"
         if self._soft_min is not None and pos < self._soft_min:
-            raise ValueError(f"Position {pos} below soft min {self._soft_min}")
+            return f"position {pos} below soft min {self._soft_min}"
         if self._soft_max is not None and pos > self._soft_max:
-            raise ValueError(f"Position {pos} above soft max {self._soft_max}")
+            return f"position {pos} above soft max {self._soft_max}"
         return None
 
     def _check_named(self, name: str) -> Optional[str]:
+        """Validate a requested position name against the configured set."""
         if not name:
             return "value must be a non-empty string"
-        if name not in self.named_positions:
+        if self.get_named_position(name) is None:
             return (f"unknown named position '{name}'; "
-                    f"available: {list(self.named_positions)}")
+                    f"available: {list(self.get_named_positions())}")
         return None
 
     @staticmethod
     def keyword_wrapper(func, key=None):
         """Wrap a daemon method for use as a keyword getter/setter."""
         def wrapper(*args, **kwargs):
-            try:
-                result = func(*args, **kwargs)
-            except Exception as e:
-                print(f"DEBUG keyword_wrapper [{func.__name__}]: exception={e}")
-                raise
+            result = func(*args, **kwargs)
             if not result.get("ok"):
                 raise RuntimeError(result.get("error", f"Unknown error in {func.__name__}"))
             if key:
@@ -269,7 +296,6 @@ def main():
         sys.exit(2)
 
     try:
-        print(f"Starting FilterWheel Daemon with config: {args.config} and daemon ID: {args}")
         daemon = Filterwheel.from_config_file(args.config, daemon_id=args.daemon_id)
         daemon.serve()
     except KeyboardInterrupt:
