@@ -1,9 +1,9 @@
 ---
-# "Python Package Installation": Use Python 3.12 (default) and install
-# required packages system-wide.
+# "Python Package Installation": Use Python 3.14 (default on 26.04) and
+# install required packages system-wide.
 #
-# Ubuntu 24.04 marks the system interpreter "externally managed" (PEP 668),
-# so plain `pip install` refuses to run. hispec_pip_break_system_packages
+# Ubuntu's system interpreter has been "externally managed" (PEP 668) since
+# 23.04, so plain `pip install` refuses to run. hispec_pip_break_system_packages
 # reproduces the doc's literal `python3 -m pip install ...` by overriding
 # that guard; set it false (and use hispec_create_venv instead) to leave
 # system Python untouched.
