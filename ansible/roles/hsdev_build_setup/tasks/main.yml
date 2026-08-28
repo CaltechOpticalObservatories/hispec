@@ -1,0 +1,24 @@
+---
+- name: Preflight OS check
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: User and group setup
+  ansible.builtin.import_tasks: users.yml
+
+- name: System package installation
+  ansible.builtin.import_tasks: packages.yml
+
+- name: Python package installation
+  ansible.builtin.import_tasks: python.yml
+
+- name: HISPEC directory structure
+  ansible.builtin.import_tasks: directories.yml
+
+- name: Optional external development libraries
+  ansible.builtin.import_tasks: external_libraries.yml
+
+- name: Update hosts file
+  ansible.builtin.import_tasks: hosts.yml
+
+- name: Disable unnecessary services
+  ansible.builtin.import_tasks: services.yml

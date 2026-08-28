@@ -1,0 +1,22 @@
+---
+# "Disable Unnecessary Services": reduce background noise on headless/dev
+# hosts. Not every unit is guaranteed to be installed on every image (e.g.
+# minimal server installs may lack cups/ModemManager), so check the unit
+# exists before asking systemd to disable it.
+- name: Check which optional service units exist on this host  # noqa: command-instead-of-module (systemd module can't query "does this unit exist")
+  ansible.builtin.command: "systemctl list-unit-files {{ item }}"
+  loop: "{{ hispec_services_to_disable }}"
+  register: hispec_service_unit_check
+  changed_when: false
+  failed_when: false
+  tags: [services]
+
+- name: Disable unnecessary services that are present
+  ansible.builtin.systemd:
+    name: "{{ item.item }}"
+    enabled: false
+  loop: "{{ hispec_service_unit_check.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.item in item.stdout
+  tags: [services]

@@ -1,0 +1,169 @@
+---
+# Variables for the hsdev_build_setup role.
+# Source: docs/build_notes/host_machine_build_notes.rst
+
+# --- System Requirements -----------------------------------------------
+hispec_expected_distribution: Ubuntu
+hispec_expected_distribution_version: "24.04"
+
+# --- User Setup ----------------------------------------------------------
+hsdev_user: hsdev
+# "sudo usermod -aG sudo hsdev" + "-aG dialout hsdev  # Add serial access group"
+hsdev_user_groups:
+  - sudo
+  - dialout
+
+# --- Group and Account Setup ---------------------------------------------
+# "sudo groupadd hispec" / "sudo groupadd instr"
+hispec_groups:
+  - hispec
+  - instr
+
+# "sudo usermod -aG hispec hsdev" / "sudo usermod -aG instr hsdev"
+hsdev_extra_groups:
+  - hispec
+  - instr
+
+# "sudo adduser hispec / hispecbld / hispeceng / hispecrun"
+hispec_service_accounts:
+  - hispec
+  - hispecbld
+  - hispeceng
+  - hispecrun
+
+# "for i in $(seq 1 9); do sudo adduser hispec$i; done"
+hispec_numbered_account_prefix: hispec
+hispec_numbered_account_range: "{{ range(1, 10) | list }}"
+
+# --- System Package Installation -----------------------------------------
+hispec_base_packages:
+  - software-properties-common
+  - build-essential
+  - libffi-dev
+  - libssl-dev
+  - zlib1g-dev
+  - libbz2-dev
+  - libreadline-dev
+  - libsqlite3-dev
+  - wget
+  - curl
+  - llvm
+  - libncursesw5-dev
+  - xz-utils
+  - tk-dev
+  - libxml2-dev
+  - libxmlsec1-dev
+  - liblzma-dev
+  - git
+  - python3-pip
+  - python3-venv
+  - python3-dev
+  - python3-docutils
+  - python3-tk
+  - python3-pil.imagetk
+  - pyqt5-dev-tools
+  - make
+  - m4
+  - autoconf
+  - xorg-dev
+  - xaw3dg-dev
+  - libmotif-dev
+  - lib32c-dev
+  - snmp
+  - flex
+  - flex-doc
+  - bison
+  - bison-doc
+  - pandoc
+  - groff
+  - rst2pdf
+
+# "KROOT Specific Packages" subsection - toggle if not doing KROOT work
+hispec_install_kroot_packages: true
+hispec_kroot_packages:
+  - openconnect
+  - subversion
+  - cvs
+  - at
+  - libxt-dev
+  - libncurses-dev
+  - tcl
+  - tcl-dev
+  - tcl-thread
+  - tcllib
+  - tk
+  - tk-dev
+  - expect
+  - tclx
+  - tcl-fitstcl
+  - libpq-dev
+  - g++
+  - gfortran
+  - libpam-dev
+  - python3-ephem
+
+# "Additional Instrument Development Packages" subsection
+hispec_install_instrument_packages: true
+hispec_instrument_packages:
+  - libboost-all-dev
+  - libopencv-dev
+  - libccfits-dev
+  - libcfitsio-dev
+
+# --- Python Package Installation -----------------------------------------
+hispec_pip_packages:
+  - numpy
+  - matplotlib
+  - pipython
+
+# Ubuntu 24.04's system Python is "externally managed" (PEP 668) and refuses
+# plain `pip install`. Set false if you'd rather not touch system Python at
+# all and instead rely solely on hispec_create_venv below.
+hispec_pip_break_system_packages: true
+
+# --- Optional: Virtual Environment ----------------------------------------
+# Off by default - the build notes list this as an alternative/optional path,
+# not the primary one.
+hispec_create_venv: false
+hispec_venv_path: "/home/{{ hsdev_user }}/env"
+
+# --- Directory Structure ---------------------------------------------------
+hispec_hsdev_directories:
+  - "/home/{{ hsdev_user }}/external"
+  - "/home/{{ hsdev_user }}/svn"
+
+# --- External Development Libraries ----------------------------------------
+# The build notes only give a generic wget/configure/make example
+# (http://example.com/3rdparty.tar.gz) - left empty here on purpose. Populate
+# per-host/group to actually fetch and build real third-party sources, e.g.:
+#   hispec_external_libraries:
+#     - name: 3rdparty
+#       url: https://example.org/3rdparty-1.2.3.tar.gz
+#       configure_opts: ""
+hispec_external_libraries: []
+
+# --- Update Hosts File -------------------------------------------------
+# Private network for HISPEC is 192.168.29.x
+hispec_hosts_entries:
+  - { ip: "192.168.29.102", name: feieaton1 }
+  - { ip: "192.168.29.105", name: feieaton2 }
+  - { ip: "192.168.29.106", name: feieaton3 }
+  - { ip: "192.168.29.104", name: feilakeshore }
+  - { ip: "192.168.29.100", name: feilantronix }
+  - { ip: "192.168.29.101", name: switch }
+  - { ip: "192.168.29.120", name: feiinficon }
+  - { ip: "192.168.29.125", name: blueinficon }
+  - { ip: "192.168.29.150", name: blueettemp }
+  - { ip: "192.168.29.151", name: blueeaton1 }
+  - { ip: "192.168.29.152", name: blueeaton2 }
+  - { ip: "192.168.29.153", name: bluelantronix }
+  - { ip: "192.168.29.154", name: hs1wireblue }
+
+# --- Disable Unnecessary Services ----------------------------------------
+hispec_services_to_disable:
+  - cups.service              # Printing
+  - cups-browsed.service      # Printing browsing
+  - ModemManager.service      # Modem management
+  - apt-daily.timer           # Automatic updates
+  - apt-daily-upgrade.timer   # Background upgrades
+  - avahi-daemon.service      # Zeroconf mDNS
