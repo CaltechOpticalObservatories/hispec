@@ -1,0 +1,11 @@
+---
+# "Directory Structure": /home/hsdev/{external,svn}, owned by hsdev
+- name: Create HISPEC directory structure under hsdev's home
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ hsdev_user }}"
+    group: "{{ hsdev_user }}"
+    mode: "0755"
+  loop: "{{ hispec_hsdev_directories }}"
+  tags: [directories]

@@ -1,0 +1,15 @@
+---
+# "System Requirements: OS: Ubuntu 24.04 LTS, Python: 3.12 (default system version)"
+# This is descriptive in the source doc, so we warn rather than hard-fail -
+# package names/availability may simply differ on other releases.
+- name: Warn if target host is not the expected OS/version
+  ansible.builtin.debug:
+    msg: >-
+      This playbook was written for
+      {{ hispec_expected_distribution }} {{ hispec_expected_distribution_version }}
+      but the target reports {{ ansible_distribution }} {{ ansible_distribution_version }}.
+      Package names/availability may differ.
+  when: >-
+    ansible_distribution != hispec_expected_distribution or
+    ansible_distribution_version != hispec_expected_distribution_version
+  tags: [preflight]

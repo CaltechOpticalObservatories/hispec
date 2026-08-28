@@ -1,0 +1,9 @@
+---
+# hsdev_build_setup is a project-specific role for this repo only (it
+# automates docs/build_notes/host_machine_build_notes.rst), not a generic
+# role published for arbitrary reuse. Its variables intentionally use
+# domain prefixes (hispec_/hsdev_) that match this repo's own conventions
+# (e.g. config/hsfei_*.yaml, config/hscal_*.yaml) rather than the generic
+# "<role_name>_" prefix ansible-lint's var-naming rule expects.
+skip_list:
+  - var-naming[no-role-prefix]

@@ -1,0 +1,25 @@
+---
+- name: Update apt package cache
+  ansible.builtin.apt:
+    update_cache: true
+  tags: [packages]
+
+- name: Install core build/development packages
+  ansible.builtin.apt:
+    name: "{{ hispec_base_packages }}"
+    state: present
+  tags: [packages]
+
+- name: Install KROOT-specific packages
+  ansible.builtin.apt:
+    name: "{{ hispec_kroot_packages }}"
+    state: present
+  when: hispec_install_kroot_packages | bool
+  tags: [packages, kroot]
+
+- name: Install additional instrument development packages
+  ansible.builtin.apt:
+    name: "{{ hispec_instrument_packages }}"
+    state: present
+  when: hispec_install_instrument_packages | bool
+  tags: [packages, instrument]

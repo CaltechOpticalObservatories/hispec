@@ -1,0 +1,46 @@
+---
+# "External Development Libraries": build/install third-party sources under
+# /home/hsdev/external. The doc only shows a generic placeholder example
+# (wget http://example.com/3rdparty.tar.gz), so hispec_external_libraries is
+# empty by default and this file is a no-op until you populate it - see
+# ansible/README.md for the expected item shape.
+- name: Download third-party library archives
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "/home/{{ hsdev_user }}/external/{{ item.name }}.tar.gz"
+    owner: "{{ hsdev_user }}"
+    group: "{{ hsdev_user }}"
+    mode: "0644"
+  loop: "{{ hispec_external_libraries }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [external]
+
+- name: Extract third-party library archives
+  ansible.builtin.unarchive:
+    src: "/home/{{ hsdev_user }}/external/{{ item.name }}.tar.gz"
+    dest: "/home/{{ hsdev_user }}/external/"
+    owner: "{{ hsdev_user }}"
+    group: "{{ hsdev_user }}"
+    remote_src: true
+    creates: "/home/{{ hsdev_user }}/external/{{ item.name }}"
+  loop: "{{ hispec_external_libraries }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [external]
+
+- name: Configure, build and install third-party libraries
+  ansible.builtin.shell: |
+    set -e
+    ./configure --prefix=/home/{{ hsdev_user }}/external/{{ item.name }} {{ item.configure_opts | default('') }}
+    make
+    make install
+  args:
+    chdir: "/home/{{ hsdev_user }}/external/{{ item.name }}"
+    creates: "/home/{{ hsdev_user }}/external/{{ item.name }}/bin"
+  become: true
+  become_user: "{{ hsdev_user }}"
+  loop: "{{ hispec_external_libraries }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [external]

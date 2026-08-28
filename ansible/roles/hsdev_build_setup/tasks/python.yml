@@ -1,0 +1,61 @@
+---
+# "Python Package Installation": Use Python 3.12 (default) and install
+# required packages system-wide.
+#
+# Ubuntu 24.04 marks the system interpreter "externally managed" (PEP 668),
+# so plain `pip install` refuses to run. hispec_pip_break_system_packages
+# reproduces the doc's literal `python3 -m pip install ...` by overriding
+# that guard; set it false (and use hispec_create_venv instead) to leave
+# system Python untouched.
+- name: Ensure pip is up to date (system-wide)  # noqa: package-latest (doc literally says `pip install --upgrade pip`)
+  ansible.builtin.pip:
+    name: pip
+    state: latest
+    executable: pip3
+    extra_args: "{{ '--break-system-packages' if hispec_pip_break_system_packages else '' }}"
+  tags: [python]
+
+- name: Install required Python packages system-wide
+  ansible.builtin.pip:
+    name: "{{ hispec_pip_packages }}"
+    executable: pip3
+    extra_args: "{{ '--break-system-packages' if hispec_pip_break_system_packages else '' }}"
+  tags: [python]
+
+- name: Verify installation - python3 --version
+  ansible.builtin.command: python3 --version
+  register: hispec_python_version
+  changed_when: false
+  tags: [python, verify]
+
+- name: Verify installation - pip3 list
+  ansible.builtin.command: pip3 list
+  register: hispec_pip_list
+  changed_when: false
+  tags: [python, verify]
+
+- name: Show verification output
+  ansible.builtin.debug:
+    msg:
+      - "{{ hispec_python_version.stdout }}"
+      - "{{ hispec_pip_list.stdout_lines }}"
+  tags: [python, verify]
+
+# "Optional: Virtual Environment" - off by default, see hispec_create_venv.
+- name: Create optional per-user virtual environment
+  ansible.builtin.command:
+    cmd: "python3 -m venv {{ hispec_venv_path }}"
+    creates: "{{ hispec_venv_path }}/bin/activate"
+  become: true
+  become_user: "{{ hsdev_user }}"
+  when: hispec_create_venv | bool
+  tags: [python, venv]
+
+- name: Install Python packages into the optional virtual environment
+  ansible.builtin.pip:
+    name: "{{ hispec_pip_packages }}"
+    virtualenv: "{{ hispec_venv_path }}"
+  become: true
+  become_user: "{{ hsdev_user }}"
+  when: hispec_create_venv | bool
+  tags: [python, venv]

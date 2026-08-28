@@ -1,0 +1,8 @@
+---
+# Provision a host per docs/build_notes/host_machine_build_notes.rst
+- name: Build setup for hsdev user
+  hosts: hsdev_hosts
+  become: true
+
+  roles:
+    - hsdev_build_setup

@@ -1,0 +1,56 @@
+---
+# "User Setup": create hsdev and grant sudo + serial (dialout) access
+- name: Create the hsdev development user
+  ansible.builtin.user:
+    name: "{{ hsdev_user }}"
+    shell: /bin/bash
+    create_home: true
+    state: present
+  tags: [users]
+
+- name: Add hsdev to sudo and dialout groups
+  ansible.builtin.user:
+    name: "{{ hsdev_user }}"
+    groups: "{{ hsdev_user_groups }}"
+    append: true
+  tags: [users]
+
+# "Group and Account Setup": HISPEC-specific groups, created before any user
+# that needs to reuse one of them as a primary group (see the hispec user
+# task below).
+- name: Create required HISPEC groups
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ hispec_groups }}"
+  tags: [users, groups]
+
+- name: Add hsdev to the HISPEC groups
+  ansible.builtin.user:
+    name: "{{ hsdev_user }}"
+    groups: "{{ hsdev_extra_groups }}"
+    append: true
+  tags: [users, groups]
+
+- name: Create standard HISPEC service accounts
+  ansible.builtin.user:
+    name: "{{ item }}"
+    shell: /bin/bash
+    create_home: true
+    state: present
+    # The "hispec" account collides with the "hispec" group created above.
+    # Reuse it as the primary group; otherwise useradd tries (and fails) to
+    # create a second group of the same name. Every other account gets its
+    # usual auto-created user-private group.
+    group: "{{ 'hispec' if item == 'hispec' else omit }}"
+  loop: "{{ hispec_service_accounts }}"
+  tags: [users]
+
+- name: Create numbered HISPEC accounts (hispec1..hispec9)
+  ansible.builtin.user:
+    name: "{{ hispec_numbered_account_prefix }}{{ item }}"
+    shell: /bin/bash
+    create_home: true
+    state: present
+  loop: "{{ hispec_numbered_account_range }}"
+  tags: [users]
