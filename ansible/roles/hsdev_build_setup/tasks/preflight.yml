@@ -1,7 +1,8 @@
 ---
-# "System Requirements: OS: Ubuntu 24.04 LTS, Python: 3.12 (default system version)"
-# This is descriptive in the source doc, so we warn rather than hard-fail -
-# package names/availability may simply differ on other releases.
+# "System Requirements: OS: Ubuntu 26.04 LTS (Resolute Raccoon), Python: 3.14
+# (default system version)". This is descriptive in the source doc, so we
+# warn rather than hard-fail - package names/availability may simply differ
+# on other releases.
 - name: Warn if target host is not the expected OS/version
   ansible.builtin.debug:
     msg: >-

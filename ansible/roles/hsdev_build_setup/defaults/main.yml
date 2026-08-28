@@ -3,8 +3,10 @@
 # Source: docs/build_notes/host_machine_build_notes.rst
 
 # --- System Requirements -----------------------------------------------
+# Ubuntu 26.04 LTS "Resolute Raccoon" (released 2026-04-23). Default system
+# Python moved from 3.12 (24.04) to 3.14.
 hispec_expected_distribution: Ubuntu
-hispec_expected_distribution_version: "24.04"
+hispec_expected_distribution_version: "26.04"
 
 # --- User Setup ----------------------------------------------------------
 hsdev_user: hsdev
@@ -48,7 +50,9 @@ hispec_base_packages:
   - wget
   - curl
   - llvm
-  - libncursesw5-dev
+  - libncurses-dev  # was libncursesw5-dev in the build notes; that name doesn't
+                    # exist on 24.04 or 26.04 - libncurses-dev now pulls in
+                    # wide-char (libncursesw6) support on its own
   - xz-utils
   - tk-dev
   - libxml2-dev
@@ -68,7 +72,7 @@ hispec_base_packages:
   - xorg-dev
   - xaw3dg-dev
   - libmotif-dev
-  - lib32c-dev
+  - lib32c-dev  # virtual package -> resolves to libc6-dev-i386 on 24.04/26.04
   - snmp
   - flex
   - flex-doc
@@ -86,7 +90,7 @@ hispec_kroot_packages:
   - cvs
   - at
   - libxt-dev
-  - libncurses-dev
+  - libncurses-dev  # also in hispec_base_packages; harmless if both install
   - tcl
   - tcl-dev
   - tcl-thread
@@ -116,9 +120,10 @@ hispec_pip_packages:
   - matplotlib
   - pipython
 
-# Ubuntu 24.04's system Python is "externally managed" (PEP 668) and refuses
-# plain `pip install`. Set false if you'd rather not touch system Python at
-# all and instead rely solely on hispec_create_venv below.
+# Ubuntu's system Python has been "externally managed" (PEP 668) since 23.04,
+# and remains so on 24.04/26.04 - plain `pip install` refuses to run. Set
+# false if you'd rather not touch system Python at all and instead rely
+# solely on hispec_create_venv below.
 hispec_pip_break_system_packages: true
 
 # --- Optional: Virtual Environment ----------------------------------------

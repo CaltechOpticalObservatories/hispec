@@ -2,8 +2,13 @@
 
 Ansible playbook that automates
 [`docs/build_notes/host_machine_build_notes.rst`](../docs/build_notes/host_machine_build_notes.rst):
-provisioning a fresh **Ubuntu 24.04 LTS** host for HISPEC development under the
-`hsdev` user.
+provisioning a fresh **Ubuntu 26.04 LTS ("Resolute Raccoon")** host for HISPEC
+development under the `hsdev` user.
+
+> The source doc still describes Ubuntu 24.04 / Python 3.12 - this playbook
+> now targets 26.04 / Python 3.14 instead. Set
+> `hispec_expected_distribution_version: "24.04"` (see defaults below) if you
+> still need to provision 24.04 hosts.
 
 ## Layout
 
@@ -16,7 +21,7 @@ ansible/
     ├── defaults/main.yml        # every tunable (users, packages, hosts entries, ...)
     └── tasks/
         ├── main.yml             # imports the files below, in doc order
-        ├── preflight.yml        # warn if OS != Ubuntu 24.04
+        ├── preflight.yml        # warn if OS != Ubuntu 26.04
         ├── users.yml            # hsdev user, hispec/instr groups, service accounts
         ├── packages.yml         # apt update + build tools + KROOT + instrument libs
         ├── python.yml           # pip packages, optional venv, version verification
@@ -83,13 +88,14 @@ overridden with `-e`, `group_vars/`, or `host_vars/`.
 
 ## Notes / caveats
 
-- **PEP 668 (externally-managed environment):** Ubuntu 24.04's system Python
-  refuses plain `pip install` by default. The doc's system-wide
-  `python3 -m pip install ...` step is reproduced with
-  `--break-system-packages` (controlled by `hispec_pip_break_system_packages`,
-  default `true`) so the playbook actually succeeds out of the box. If you'd
-  rather keep the system interpreter untouched, set that to `false` and turn
-  on `hispec_create_venv: true` instead.
+- **PEP 668 (externally-managed environment):** Ubuntu's system Python
+  refuses plain `pip install` by default (true of 24.04 and still true of
+  26.04). The doc's system-wide `python3 -m pip install ...` step is
+  reproduced with `--break-system-packages` (controlled by
+  `hispec_pip_break_system_packages`, default `true`) so the playbook
+  actually succeeds out of the box. If you'd rather keep the system
+  interpreter untouched, set that to `false` and turn on
+  `hispec_create_venv: true` instead.
 - **User creation sets no passwords.** Accounts (`hsdev`, `hispec`,
   `hispecbld`, `hispeceng`, `hispecrun`, `hispec1`-`hispec9`) are created
   locked, matching `adduser`'s "no password yet" state before you interactively
@@ -102,6 +108,11 @@ overridden with `-e`, `group_vars/`, or `host_vars/`.
 - **Service-disable tasks check the unit exists first**, so the playbook
   doesn't fail on minimal server images that never installed `cups` or
   `ModemManager` in the first place.
-- Package name spelling (e.g. `lib32c-dev`) is copied verbatim from the build
-  notes and hasn't been independently re-verified against Ubuntu 24.04's
-  repos — if `apt` rejects a name, fix it in the source `.rst` and here.
+- **Package names were checked against Ubuntu 26.04 ("resolute") on
+  packages.ubuntu.com.** One was actually broken and got fixed:
+  `libncursesw5-dev` (from the build notes) doesn't exist on *either* 24.04 or
+  26.04 - it's now `libncurses-dev` (which pulls in wide-char support via
+  `libncursesw6` on its own). Everything else in the package lists
+  (`lib32c-dev`, `pyqt5-dev-tools`, `xaw3dg-dev`, `tcl-fitstcl`,
+  `libmotif-dev`, etc.) was confirmed present on 26.04 at the time of writing.
+  `apt` is still the ground truth if a name ever drifts after a point release.
