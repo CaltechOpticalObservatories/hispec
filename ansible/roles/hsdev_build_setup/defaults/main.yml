@@ -74,6 +74,8 @@ hispec_base_packages:
   - libmotif-dev
   - lib32c-dev  # virtual package -> resolves to libc6-dev-i386 on 24.04/26.04
   - snmp
+  - net-tools
+  - ssh  # metapackage -> openssh-client + openssh-server
   - flex
   - flex-doc
   - bison
