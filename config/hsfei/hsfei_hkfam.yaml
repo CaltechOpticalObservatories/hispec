@@ -1,0 +1,56 @@
+
+#
+# Usage:
+#   daemons/hsfei/piaa-xeryonstage -c config/hsfei/hsfei_hkfam.yaml
+peer_id: hsfei_hkfam
+group_id: hsfei
+hardware:
+  # The library is USB/serial only today, a terminal server path is an
+  # outstanding mod request against the driver
+  com_port: /dev/ttyACM0
+  settings_file: /home/hsdev/dechever/settings_FEI_XD24508.txt
+  stage_type: XLS_5_3N
+  units: mm
+  # Keyword suffix to controller letter, letters come from the settings file
+  letters:
+    x: B
+    y: A
+    f: C
+  # Wait this long after start() before querying settings or encoders
+  start_settle: 2.0
+  # Give up waiting for a move or an index search after this long
+  move_timeout: 20.0
+  driver_logging: true
+limits:
+  # hard_min and hard_max are read from the controller (LLIM/HLIM) on connect
+  # and overwrite these, which only apply before the first connection
+  x:
+    soft_min: -9.5
+    soft_max: 9.5
+    hard_min: -10.0
+    hard_max: 10.0
+  y:
+    soft_min: -9.5
+    soft_max: 9.5
+    hard_min: -10.0
+    hard_max: 10.0
+  f:
+    soft_min: -4.5
+    soft_max: 4.5
+    hard_min: -5.0
+    hard_max: 5.0
+# Software tolerance for deciding whether the stage sits at a named position.
+# Unrelated to the controller PTOL/PTO2, which must be set in the settings file
+named_position_tolerance:
+  x: 0.005
+  y: 0.005
+  f: 0.010
+# Ordered [x, y, f]
+named_positions:
+  home: [0.0, 0.0, 0.0]
+  center: [0.0, 0.0, 0.0]
+  offset1: [1.0, 1.0, 0.5]
+  offset2: [-1.0, -1.0, -0.5]
+logging:
+  level: INFO
+ 
