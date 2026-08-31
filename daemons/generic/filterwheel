@@ -2,6 +2,7 @@
 '''Module for the Filter Wheel Daemon'''
 import argparse
 import sys
+import threading
 from typing import Dict, Any,  Optional #pylint: disable = W0611
 
 from hispec.daemon import HispecDaemon #pylint: disable = E0611
@@ -27,6 +28,8 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.named_positions = {}
         self.daemon_desc = "Filter Wheel Daemon"
         self.units = "position units"  # Set appropriate units for your filter wheel
+        self.io_timeout = 3.0
+        self._bringup_thread = None
 
         # Daemon state
         self.state = {
@@ -40,6 +43,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.port = self.get_config("hardware.tcp_port")
         self.daemon_desc = self.get_config("peer_id")
         self.units = self.get_config("units")
+        self.io_timeout = float(self.get_config("hardware.timeout", 2.0) or 2.0)
         self._soft_min = self.get_config("limits.soft_min")
         self._soft_max = self.get_config("limits.soft_max")
         self._hard_min = self.get_config("limits.hard_min")
@@ -56,6 +60,20 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         # is usable (and inspectable) even while the wheel is unreachable.
         self._register_keywords()
 
+        # Hardware bring-up runs on a background daemon thread. A driver read
+        # that never returns (wrong serial settings on the terminal server, or a
+        # reply terminator the driver isn't waiting for) must not be able to
+        # block on_start: that would stop libby from ever serving keywords and
+        # leave the process unkillable.
+        self._bringup_thread = threading.Thread(target=self._bringup,
+                                                name="fw-bringup",
+                                                daemon=True)
+        self._bringup_thread.start()
+
+        self.logger.info("Starting %s Daemon", self.daemon_desc)
+
+    def _bringup(self):
+        """Connect to and initialize the hardware, off the startup path."""
         try:
             connection = self.connect(True)
             if not connection.get("isconnected"):
@@ -68,7 +86,23 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.logger.warning("Failed to connect to hardware: %s", e)
             self.state['error'] = str(e)
 
-        self.logger.info("Starting %s Daemon", self.daemon_desc)
+    def _apply_io_timeout(self):
+        """Best-effort: bound blocking reads so hardware I/O can't hang forever.
+
+        The driver may expose its socket under one of several names; a timeout
+        raises socket.timeout, which subclasses OSError and so is caught by the
+        existing handlers below.
+        """
+        for attr in ("sock", "socket", "_sock", "conn", "_conn"):
+            sock = getattr(self.dev, attr, None)
+            if sock is not None and hasattr(sock, "settimeout"):
+                try:
+                    sock.settimeout(self.io_timeout)
+                    self.logger.debug("io timeout set to %ss on dev.%s", self.io_timeout, attr)
+                except OSError as e:
+                    self.logger.warning("Could not set io timeout: %s", e)
+                return
+        self.logger.warning("No socket found on driver; hardware reads are unbounded")
 
     def initialize(self):
         """handles initialization"""
@@ -163,6 +197,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         try:
             if connect:
                 self.dev.connect(host = self.host, port = self.port)
+                self._apply_io_timeout()
             else:
                 self.dev.disconnect()
             result = self.dev.is_connected()
