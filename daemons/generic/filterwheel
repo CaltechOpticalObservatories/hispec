@@ -28,6 +28,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.daemon_desc = "Filter Wheel Daemon"
         self.units = "position units"  # Set appropriate units for your filter wheel
         self.timeout_s = 30.0
+        self.nfilters = 0
 
         # Daemon state
         self.state = {
@@ -94,6 +95,10 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.keyword_registry.string("error",
                         getter=lambda: self.state['error'],
                         description="Get the current error message.")
+        self.keyword_registry.string("nfilters",
+                        getter=lambda: self.nfilters,
+                        setter=self.keyword_wrapper(self.set_nfilters, key="nfilters"),
+                        description="Get the number of filters in the wheel.")
         self.keyword_registry.int("positionvalue",
                         getter=self.keyword_wrapper(self.get_pos, key="position"),
                         setter=self.keyword_wrapper(self.set_pos, key="position"),
@@ -269,6 +274,20 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             return (f"unknown named position '{name}'; "
                     f"available: {list(self.get_named_positions())}")
         return None
+
+    def set_nfilters(self, nfilters):
+        """Set the number of filters in the wheel."""
+        try:
+            nfilters = int(nfilters)
+            if nfilters <= 0 or nfilters > 6:  # Assuming a maximum of 6 filters for this example
+                return {"ok": False, "error": "nfilters must be a positive integer and in hard limits"}
+            self.nfilters = nfilters
+            self.logger.debug("set_nfilters: %d", nfilters)
+        except (TypeError, ValueError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "nfilters": self.nfilters}
 
     @staticmethod
     def keyword_wrapper(func, key=None):
