@@ -27,6 +27,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.named_positions = {}
         self.daemon_desc = "Filter Wheel Daemon"
         self.units = "position units"  # Set appropriate units for your filter wheel
+        self.timeout_s = 30.0
 
         # Daemon state
         self.state = {
@@ -45,6 +46,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self._hard_min = self.get_config("limits.hard_min")
         self._hard_max = self.get_config("limits.hard_max")
         self.named_positions = self.get_config("named_positions") or {}
+        self.timeout_s = self.get_config("timeout_s") or 30.0
 
         # Initialize hardware connection
         if not (self.host and self.port):
@@ -97,7 +99,8 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                         setter=self.keyword_wrapper(self.set_pos, key="position"),
                         validator=self._check_soft_limits,
                         units=self.units,
-                        description="Set and get current position of FilterWheel.")
+                        description="Set and get current position of FilterWheel.",
+                        timeout_s=self.timeout_s)
         self.keyword_registry.string("positionnamed",
                         getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
                         setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
