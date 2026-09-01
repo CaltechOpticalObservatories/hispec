@@ -59,4 +59,4 @@
 	branch = main
 [submodule "src/hispec/driver/hispec-fiber-switcher"]
 	path = src/hispec/driver/hispec-fiber-switcher
-	url = git@github.com:COO-Utilities/hispec-fiber-switcher.git
+	url = https://github.com/COO-Utilities/hispec-fiber-switcher
