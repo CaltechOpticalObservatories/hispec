@@ -30,6 +30,8 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
         self.n_guages = None
         self.pressure1 = None
         self.pressure2 = None
+        self.units = None
+        self.error = None
         self.controller = InficonVGC502(log=True)
 
     def on_start(self, _libby):
@@ -47,13 +49,23 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
                                    description="ADC Pressure controller is connected.")
         self.keyword_registry.string("error",
                                      getter=self._error_string,
-                                     description="ADC error string for either rotator stage.")
-        self.keyword_registry.trigger("pressure1",
-                                      action=self._get_pressure1,
-                                      description="Pressure from gauge 1.")
-        self.keyword_registry.trigger("pressure2",
-                                      action=self._get_pressure2,
-                                      description="Pressure from gauge 2.")
+                                     description="Last error from the ATC Pressure controller.")
+        self.keyword_registry.float("pressure1",
+                                    getter=self._get_pressure1,
+                                    description="Pressure from gauge 1.")
+        self.keyword_registry.float("pressure2",
+                                    getter=self._get_pressure2,
+                                    description="Pressure from gauge 2.")
+        self.keyword_registry.float("temperature",
+                                    getter=self.controller.read_temperature,
+                                    description="Temperature from ATC Pressure controller.")
+        self.keyword_registry.string("units",
+                                     getter=self._get_pressure_units,
+                                     description="Pressure units.")
+        self.keyword_registry.int("units_code",
+                                  setter=self._set_pressure_units,
+                                  description="Pressure units code: 0 - mbar, 1 - Torr, 2 - Pascal,"
+                                              " 3 - Micron, 4 - hPascal, 5 - Volt.")
 
         if not (self.ip_address and self.tcp_port):
             self.logger.error("No IP address or port specified")
@@ -64,6 +76,7 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
             self.logger.info("Daemon started successfully and connected to hardware")
         except Exception as e:  # pylint: disable=W0718
             self.logger.error("Failed to connect to hardware: %s", e)
+            self.error = str(e)
             self.logger.warning("Daemon will start but hardware is not available")
 
     def on_stop(self, _libby=None):
@@ -74,6 +87,7 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
             self.logger.info("Disconnected from ATC Pressure controller")
         except Exception as e:  # pylint: disable=W0718
             self.logger.error("Error disconnecting: %s", e)
+            self.error = str(e)
 
     def _connect_hardware(self):
         self.logger.info("Connecting to ATC Pressure controller at %s:%s",
@@ -94,6 +108,7 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
             self.pressure1 = self.controller.read_pressure(gauge=1)
         except UnknownResponse as e:
             self.logger.error("Error reading pressure1: %s", e)
+            self.error = str(e)
         return self.pressure1
 
     def _get_pressure2(self):
@@ -102,16 +117,35 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
             self.pressure2 = self.controller.read_pressure(gauge=2)
         except UnknownResponse as e:
             self.logger.error("Error reading pressure2: %s", e)
+            self.error = str(e)
         return self.pressure2
 
-    def _error_string(self) -> str:
-        """Combine the last-error strings from both stages."""
+    def _get_pressure_units(self):
+        """Read the pressure units from the ATC Pressure controller"""
         try:
-            parts = [f"{s.stage_id}: {self.controller.get_last_error(s.stage_id)}"
-                     for s in self.stages]
-            return " | ".join(parts)
-        except Exception as e:  # pylint: disable=W0718
-            return f"error read failed: {e}"
+            _ = self.controller.get_pressure_unit()
+            self.units = self.controller.pressure_units
+        except UnknownResponse as e:
+            self.logger.error("Error reading pressure_units: %s", e)
+            self.error = str(e)
+        return self.units
+
+    def _set_pressure_units(self, code: int =1) -> None:
+        """Set the pressure units from the ATC Pressure controller
+
+        :parm code: The integer new pressure units code:
+            0 - mbar, 1 - Torr, 2 - Pascal, 3 - Micron, 4 - hPascal, 5 - Volt
+        """
+        try:
+            if self.controller.set_pressure_unit(code):
+                self.units = self.controller.pressure_units
+        except UnknownResponse as e:
+            self.logger.error("Error setting pressure_units: %s", e)
+            self.error = str(e)
+
+    def _error_string(self) -> str:
+        """Return last error string"""
+        return self.error
 
 
 def main():
