@@ -1,0 +1,17 @@
+# ATCPress — Inficon VGC502 pressure gauge
+#
+# Usage:
+#   daemons/hsfei/atcpress -c config/hsfei/hsfei_atcpress.yaml
+
+peer_id: hsfei_atcpress
+group_id: hsfei
+
+hardware:
+  ip_address: 192.168.29.120
+  tcp_port: 8000
+
+gauges:
+  n_gauges: 2
+
+logging:
+  level: INFO
