@@ -63,6 +63,9 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
                                   setter=self._set_pressure_units,
                                   description="Pressure units code: 0 - mbar, 1 - Torr, 2 - Pascal,"
                                               " 3 - Micron, 4 - hPascal, 5 - Volt.")
+        self.keyword_registry.trigger("shutdown",
+                                      action=self._shutdown,
+                                      description="Shutdown the daemon now.")
 
         if not (self.ip_address and self.tcp_port):
             self.logger.error("No IP address or port specified")
@@ -75,6 +78,11 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
             self.logger.error("Failed to connect to hardware: %s", e)
             self.error = str(e)
             self.logger.warning("Daemon will start but hardware is not available")
+
+    def _shutdown(self):
+        """Shutdown the daemon"""
+        self.logger.info("Shutting down")
+        sys.exit(0)
 
     def on_stop(self, _libby=None):
         """Cleanup when the daemon shuts down."""
