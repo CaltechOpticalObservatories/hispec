@@ -82,7 +82,8 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
     def _shutdown(self):
         """Shutdown the daemon"""
         self.logger.info("Shutting down")
-        sys.exit(0)
+        self.controller.disconnect()
+        self.request_stop()
 
     def on_stop(self, _libby=None):
         """Cleanup when the daemon shuts down."""
