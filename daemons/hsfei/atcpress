@@ -7,11 +7,8 @@ Exposes the Inficon pressure gauge commands as libby keywords.
 
 import argparse
 import sys
-import threading
-from typing import Any, Dict, List, Optional
 
-from hispec.util.inficon.inficonvgc502 import UnknownResponse
-from libby import KeywordRegistry
+from hispec.driver.inficon.inficonvgc502 import UnknownResponse
 
 from hispec import HispecDaemon
 from hispec.driver.inficon.inficonvgc502 import InficonVGC502
@@ -34,7 +31,7 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
         self.error = None
         self.controller = InficonVGC502(log=True)
 
-    def on_start(self, _libby):
+    def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
@@ -163,7 +160,7 @@ def main():
         sys.exit(2)
 
     try:
-        daemon = AdcDaemon.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon = AtcPressDaemon.from_config_file(args.config, daemon_id=args.daemon_id)
         daemon.serve()
     except KeyboardInterrupt:
         print("\nDaemon interrupted by user")
