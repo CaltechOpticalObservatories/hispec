@@ -1,0 +1,438 @@
+#!/usr/bin/env python3
+"""
+Module for the PDU (Power Distribution Unit) Daemon
+
+Wraps the COO-Utilities pdu EatonEMAT driver (Telnet/ASCII) for the Eaton
+EMAT-08/10 power distribution unit.
+
+Notes on the driver contract (pdu/src/emat08_10.py) that shape this daemon:
+  * connect()/disconnect(), outlet_on()/outlet_off(), set_outlet_name(),
+    set_autostart() and reset_statistics() swallow their own exceptions and
+    return a bool, so every call is checked for a falsy return.
+  * get_atomic_value(item) takes a device-level item name (e.g. "model") or
+    an outlet item name with the 1-based outlet number appended
+    (e.g. "current3"); it returns None on failure.
+  * initialize() must be called after connect() to populate outlet_count,
+    manufacturer, model, version and serial from the hardware, and is a
+    precondition for any per-outlet get_atomic_value() call.
+"""
+
+import argparse
+import json
+import sys
+from typing import Any, Dict, List, Optional
+
+from hispec.daemon import HispecDaemon #pylint: disable = E0611
+from hispec.driver.pdu.src.emat08_10 import EatonEMAT #pylint: disable = E0611
+from libby import KeywordRegistry
+
+MODEL_CAPABILITIES: Dict[str, Dict[str, bool]] = {
+    # kroot/util/kpdu/defs/eaton_emat0810.def
+    "eaton_emat0810": {
+        "has_outlet_draw": True,
+        "has_outlet_amps": True,
+        "has_outlet_pos": True,
+        "has_outlet_wh": True,
+        "has_strip_amps": False,
+        "has_strip_draw": False,
+        "has_hardware_ver": False,
+    },
+}
+
+
+def _model_capabilities(model: str) -> Dict[str, bool]:
+    """Look up the capability flags for a configured PDU model.
+
+    Raises a ValueError listing the known models if ``model`` isn't
+    recognized, so a typo in config fails loudly at startup rather than
+    silently omitting keywords.
+    """
+    try:
+        return MODEL_CAPABILITIES[model]
+    except KeyError:
+        raise ValueError(
+            f"unknown PDU model '{model}'; known models: {sorted(MODEL_CAPABILITIES)}"
+        ) from None
+
+
+class _Outlet:
+    """One PDU outlet and the keywords it exposes."""
+
+    def __init__(self, daemon: "Pdu", number: int, caps: Dict[str, bool]):
+        self.daemon = daemon
+        self.number = int(number)
+        self.caps = caps
+
+    @property
+    def dev(self) -> EatonEMAT:
+        """Convenience property to access the daemon's driver instance.
+        """
+        return self.daemon.dev
+
+    def register_keywords(self, registry: KeywordRegistry) -> None:
+        """Add this outlet's keywords to the given KeywordRegistry.
+        """
+        n = self.number
+        registry.bool(f"outletstate{n}",
+                      getter=self._get_state,
+                      setter=self._set_state,
+                      description=f"Outlet {n} power state; write true/false to switch on/off.")
+        registry.string(f"outletname{n}",
+                         getter=self._get_name,
+                         setter=self._set_name,
+                         description=f"Outlet {n} name, as configured on the PDU.")
+        registry.bool(f"outletswitchable{n}",
+                      getter=self._get_switchable,
+                      description=f"Whether outlet {n} can be switched (True) or is locked "
+                                  "in its current state (False).")
+
+        if self.caps.get("has_outlet_amps"):
+            registry.float(f"outletcurrent{n}",
+                            getter=lambda: self._get_float("current"),
+                            units="A",
+                            description=f"Outlet {n} instantaneous current draw.")
+        if self.caps.get("has_outlet_draw"):
+            registry.float(f"outletpower{n}",
+                            getter=lambda: self._get_float("active_power"),
+                            units="W",
+                            description=f"Outlet {n} instantaneous active power draw.")
+        if self.caps.get("has_outlet_pos"):
+            registry.int(f"outletautorestart{n}",
+                          getter=lambda: self._get_int("auto_restart"),
+                          setter=self._set_autorestart,
+                          description=(f"Outlet {n} power-up behavior after a PDU restart: "
+                                       "0=not powered, 1=powered, 2=last state."))
+        if self.caps.get("has_outlet_wh"):
+            registry.int(f"outletenergy{n}",
+                         getter=lambda: self._get_int("energy"),
+                         units="Wh",
+                         description=f"Outlet {n} cumulative energy since the last reset.")
+            registry.trigger(f"resetstatistics{n}",
+                              action=self._reset_statistics,
+                              description=f"Reset the energy statistics for outlet {n}.")
+
+    def _require_connected(self) -> None:
+        if not self.dev.is_connected():
+            raise RuntimeError("Not connected to hardware")
+
+    def _get_state(self) -> bool:
+        self._require_connected()
+        value = self.dev.get_atomic_value(f"outlet_status{self.number}")
+        if value is None:
+            raise RuntimeError(f"failed to read outlet {self.number} state")
+        return bool(value)
+
+    def _set_state(self, value: bool) -> None:
+        self._require_connected()
+        ok = self.dev.outlet_on(self.number) if value else self.dev.outlet_off(self.number)
+        if not ok:
+            state = "on" if value else "off"
+            raise RuntimeError(f"driver refused to switch outlet {self.number} {state}")
+
+    def _get_name(self) -> str:
+        self._require_connected()
+        value = self.dev.get_atomic_value(f"name{self.number}")
+        if value is None:
+            raise RuntimeError(f"failed to read outlet {self.number} name")
+        return str(value)
+
+    def _set_name(self, value: str) -> None:
+        self._require_connected()
+        if not self.dev.set_outlet_name(self.number, value):
+            raise RuntimeError(f"driver refused to rename outlet {self.number}")
+
+    def _get_switchable(self) -> bool:
+        self._require_connected()
+        value = self.dev.get_atomic_value(f"switchable{self.number}")
+        if value is None:
+            raise RuntimeError(f"failed to read outlet {self.number} switchable state")
+        return bool(value)
+
+    def _get_float(self, item: str) -> float:
+        self._require_connected()
+        value = self.dev.get_atomic_value(f"{item}{self.number}")
+        if value is None:
+            raise RuntimeError(f"failed to read outlet {self.number} {item}")
+        return float(value)
+
+    def _get_int(self, item: str) -> int:
+        self._require_connected()
+        value = self.dev.get_atomic_value(f"{item}{self.number}")
+        if value is None:
+            raise RuntimeError(f"failed to read outlet {self.number} {item}")
+        return int(value)
+
+    def _set_autorestart(self, value: int) -> None:
+        self._require_connected()
+        value = int(value)
+        if value not in (0, 1, 2):
+            raise ValueError("auto-restart must be 0 (not powered), 1 (powered) or 2 (last state)")
+        if not self.dev.set_autostart(self.number, value):
+            raise RuntimeError(f"driver refused to set outlet {self.number} auto-restart")
+
+    def _reset_statistics(self) -> None:
+        self._require_connected()
+        if not self.dev.reset_statistics(self.number):
+            raise RuntimeError(f"driver refused to reset outlet {self.number} statistics")
+
+    def status(self) -> Dict[str, Any]:
+        """Snapshot of this outlet's state, limited to this model's capabilities."""
+        out: Dict[str, Any] = {
+            "number": self.number,
+            "state": self._get_state(),
+            "name": self._get_name(),
+            "switchable": self._get_switchable(),
+        }
+        if self.caps.get("has_outlet_amps"):
+            out["current"] = self._get_float("current")
+        if self.caps.get("has_outlet_draw"):
+            out["power"] = self._get_float("active_power")
+        if self.caps.get("has_outlet_pos"):
+            out["auto_restart"] = self._get_int("auto_restart")
+        if self.caps.get("has_outlet_wh"):
+            out["energy"] = self._get_int("energy")
+        return out
+
+
+class Pdu(HispecDaemon): #pylint: disable = W0223
+    """Daemon for controlling an Eaton EMAT-08/10 PDU."""
+
+    def __init__(self):
+        """Initialize the PDU daemon.
+
+        Args: come from the daemon's configuration file
+        """
+        super().__init__()
+
+        self.host = None
+        self.port = 23
+        self.username = None
+        self.password = None
+        self.model = None
+        self.caps: Dict[str, bool] = {}
+        self.dev = EatonEMAT(log=True)
+        self.outlets: List[_Outlet] = []
+        self.daemon_desc = "PDU Daemon"
+
+        # Daemon state
+        self.state = {
+            'error': '',
+        }
+
+    def on_start(self, libby): #pylint: disable=W0613
+        """Starts up daemon and initializes the hardware device."""
+        self.host = self.get_config("hardware.ip_address")
+        self.port = self._opt_int(self.get_config("hardware.tcp_port")) or 23
+        self.username = self.get_config("hardware.username")
+        self.password = self.get_config("hardware.password")
+        self.daemon_desc = self.get_config("peer_id") or self.daemon_desc
+
+        self.model = self.get_config("hardware.model")
+        try:
+            self.caps = _model_capabilities(self.model)
+        except ValueError as e:
+            self.logger.error(str(e))
+            self.state['error'] = str(e)
+            return
+
+        outlet_count = self._opt_int(self.get_config("hardware.outlet_count"))
+        if not outlet_count or outlet_count < 1:
+            self.logger.error("hardware.outlet_count must be a positive integer")
+            self.state['error'] = 'hardware.outlet_count must be a positive integer'
+            return
+        self.outlets = [_Outlet(self, n, self.caps) for n in range(1, outlet_count + 1)]
+
+        # Keywords register regardless of hardware availability so the daemon
+        # is usable (and inspectable) even while the PDU is unreachable.
+        self._register_keywords()
+
+        if not (self.host and self.username and self.password):
+            self.logger.error(
+                "hardware.ip_address, hardware.username and hardware.password are all required")
+            self.state['error'] = 'missing PDU connection parameters'
+            return
+
+        if not self.connect(True).get("ok"):
+            self.logger.warning("Daemon will start but hardware is not available")
+            return
+        self.logger.info("Daemon started successfully and connected to hardware")
+
+        if not self.initialize().get("ok"):
+            self.logger.warning("Daemon will start but hardware is not initialized")
+            return
+        self.logger.info("Initialized %s", self.daemon_desc)
+
+    def on_stop(self, libby) -> None: #pylint: disable=W0222,W0613
+        """Stops the daemon and disconnects from hardware device."""
+        if self.connect(False).get("ok"):
+            self.logger.info("Disconnected %s", self.daemon_desc)
+        else:
+            self.logger.error("Disconnect %s failed", self.daemon_desc)
+
+    def _register_keywords(self):
+        """Register keywords for the daemon."""
+        self.keyword_registry.bool("isconnected",
+                        getter=self.is_connected,
+                        setter=self.keyword_wrapper(self.connect, key="isconnected"),
+                        description="Check if daemon can talk to the PDU.")
+        self.keyword_registry.string("error",
+                        getter=lambda: self.state['error'],
+                        description="Get the current error message.")
+        self.keyword_registry.string("model",
+                        getter=lambda: self._get_device_str("model"),
+                        description="PDU model number, as reported by the hardware.")
+        self.keyword_registry.string("manufacturer",
+                        getter=lambda: self._get_device_str("manufacturer"),
+                        description="PDU manufacturer, as reported by the hardware.")
+        self.keyword_registry.string("firmware",
+                        getter=lambda: self._get_device_str("version"),
+                        description="PDU firmware revision, as reported by the hardware.")
+        self.keyword_registry.string("serial",
+                        getter=lambda: self._get_device_str("serial_number"),
+                        description="PDU serial number, as reported by the hardware.")
+        self.keyword_registry.int("outletcount",
+                        getter=lambda: len(self.outlets),
+                        description="Number of outlets configured for this PDU.")
+        self.keyword_registry.string("status",
+                        getter=self.keyword_wrapper(self.status, key="status"),
+                        description="JSON status summary of the PDU and all outlets.")
+
+        for outlet in self.outlets:
+            outlet.register_keywords(self.keyword_registry)
+
+        for flag, label in (("has_strip_amps", "strip-wide current"),
+                             ("has_strip_draw", "strip-wide power draw"),
+                             ("has_hardware_ver", "hardware revision")):
+            if self.caps.get(flag):
+                self.logger.warning(
+                    "Model '%s' reports %s support, but the pdu driver has no "
+                    "accessor for it yet; no keyword registered", self.model, label)
+
+    def is_connected(self) -> bool:
+        """True when the driver holds an open Telnet session to the PDU."""
+        return bool(self.dev.is_connected())
+
+    def connect(self, connect):
+        """Handles connection."""
+        connect = bool(connect)
+        try:
+            if connect:
+                ok = self.dev.connect(self.host, self.port,
+                                      username=self.username, password=self.password)
+                if not ok:
+                    raise ConnectionError("Driver reported failure, see the driver log for details")
+            else:
+                self.dev.disconnect()
+            result = self.is_connected()
+            if result != connect:
+                raise ConnectionError("Failed to handle connection request")
+            self.logger.info("isconnected: %s", result)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Failed to execute: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+        self.state['error'] = ''
+        return {"ok": True, "isconnected": result}
+
+    def initialize(self):
+        """Handles initialization."""
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        try:
+            if not self.dev.initialize():
+                raise RuntimeError("Driver failed to initialize the PDU")
+            if self.dev.outlet_count and self.dev.outlet_count != len(self.outlets):
+                self.logger.warning(
+                    "Configured hardware.outlet_count (%d) does not match hardware (%d)",
+                    len(self.outlets), self.dev.outlet_count)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(str(e))
+        return {"ok": True}
+
+    def status(self):
+        """Handles status."""
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        try:
+            status = {
+                "connected": True,
+                "model": self._get_device_str("model"),
+                "manufacturer": self._get_device_str("manufacturer"),
+                "firmware": self._get_device_str("version"),
+                "serial": self._get_device_str("serial_number"),
+                "outlets": [outlet.status() for outlet in self.outlets],
+                "error": self.state['error'],
+            }
+            self.logger.debug("status: %s", status)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(str(e))
+        return {"ok": True, "status": json.dumps(status)}
+
+    def _get_device_str(self, item: str) -> str:
+        """Read a device-level (no outlet number) string item from the driver."""
+        if not self.is_connected():
+            raise RuntimeError("Not connected to hardware")
+        value = self.dev.get_atomic_value(item)
+        if value is None:
+            raise RuntimeError(f"failed to read '{item}' from PDU")
+        return str(value)
+
+    def _fail(self, message):
+        """Log an error, record it in daemon state, and build the error return."""
+        self.logger.error("Error: %s", message)
+        self.state['error'] = message
+        return {"ok": False, "error": message}
+
+    def _opt_int(self, value) -> Optional[int]:
+        """Normalize a config value to an int, or None when it is unset/invalid."""
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            self.logger.warning("Config value '%s' is not an integer, ignoring", value)
+            return None
+
+    def keyword_wrapper(self, func, key=None):
+        """Wrap a daemon method for use as a keyword getter/setter."""
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+            if not result.get("ok"):
+                message = result.get("error", f"Unknown error in {func.__name__}")
+                self.logger.error("keyword_wrapper [%s]: %s", func.__name__, message)
+                raise RuntimeError(message)
+            if key:
+                return result[key]
+            return {k: v for k, v in result.items() if k != "ok"}
+        return wrapper
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(
+        description='PDU Daemon'
+    )
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+    parser.add_argument('-d', '--daemon-id', type=str,
+                        help='Daemon ID (required for subsystem configs with multiple daemons)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        daemon = Pdu.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e: #pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
