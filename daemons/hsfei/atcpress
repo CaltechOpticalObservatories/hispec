@@ -24,7 +24,7 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
 
         self.ip_address = None
         self.tcp_port = None
-        self.n_guages = None
+        self.n_gauges = None
         self.pressure1 = None
         self.pressure2 = None
         self.units = None
@@ -36,9 +36,9 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
         self.tcp_port = self.get_config("hardware.tcp_port")
-        self.n_guages = self.get_config("gauges.n_guages")
+        self.n_gauges = self.get_config("gauges.n_gauges")
 
-        self.logger.info("Starting %s daemon with %d gauge(s)", self.peer_id, self.n_guages)
+        self.logger.info("Starting %s daemon with %d gauge(s)", self.peer_id, self.n_gauges)
 
         self.keyword_registry.bool("isconnected",
                                    getter=self.controller.is_connected,
