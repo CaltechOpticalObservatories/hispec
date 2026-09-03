@@ -22,37 +22,10 @@ import json
 import sys
 from typing import Any, Dict, List, Optional
 
+import pdu_capabilities
 from hispec.daemon import HispecDaemon #pylint: disable = E0611
 from hispec.driver.pdu.src.emat08_10 import EatonEMAT #pylint: disable = E0611
 from libby import KeywordRegistry
-
-MODEL_CAPABILITIES: Dict[str, Dict[str, bool]] = {
-    # kroot/util/kpdu/defs/eaton_emat0810.def
-    "eaton_emat0810": {
-        "has_outlet_draw": True,
-        "has_outlet_amps": True,
-        "has_outlet_pos": True,
-        "has_outlet_wh": True,
-        "has_strip_amps": False,
-        "has_strip_draw": False,
-        "has_hardware_ver": False,
-    },
-}
-
-
-def _model_capabilities(model: str) -> Dict[str, bool]:
-    """Look up the capability flags for a configured PDU model.
-
-    Raises a ValueError listing the known models if ``model`` isn't
-    recognized, so a typo in config fails loudly at startup rather than
-    silently omitting keywords.
-    """
-    try:
-        return MODEL_CAPABILITIES[model]
-    except KeyError:
-        raise ValueError(
-            f"unknown PDU model '{model}'; known models: {sorted(MODEL_CAPABILITIES)}"
-        ) from None
 
 
 class _Outlet:
@@ -83,8 +56,9 @@ class _Outlet:
                          description=f"Outlet {n} name, as configured on the PDU.")
         registry.bool(f"outletswitchable{n}",
                       getter=self._get_switchable,
+                      setter=self._set_switchable,
                       description=f"Whether outlet {n} can be switched (True) or is locked "
-                                  "in its current state (False).")
+                                  "in its current state (False); write to lock/unlock it.")
 
         if self.caps.get("has_outlet_amps"):
             registry.float(f"outletcurrent{n}",
@@ -147,6 +121,13 @@ class _Outlet:
         if value is None:
             raise RuntimeError(f"failed to read outlet {self.number} switchable state")
         return bool(value)
+
+    def _set_switchable(self, value: bool) -> None:
+        self._require_connected()
+        path = self.dev.get_outlet_commands["switchable"][0].format(n=self.number)
+        cmd = f"set {path} {1 if value else 0}"
+        if not self.dev._send_command(cmd):  # pylint: disable=protected-access
+            raise RuntimeError(f"driver refused to set outlet {self.number} switchable state")
 
     def _get_float(self, item: str) -> float:
         self._require_connected()
@@ -229,7 +210,7 @@ class Pdu(HispecDaemon): #pylint: disable = W0223
 
         self.model = self.get_config("hardware.model")
         try:
-            self.caps = _model_capabilities(self.model)
+            self.caps = pdu_capabilities.model_capabilities(self.model)
         except ValueError as e:
             self.logger.error(str(e))
             self.state['error'] = str(e)
