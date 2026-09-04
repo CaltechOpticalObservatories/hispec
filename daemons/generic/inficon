@@ -7,6 +7,7 @@ Exposes the Inficon pressure gauge commands as libby keywords.
 
 import argparse
 import sys
+import time
 
 from hispec.driver.inficon.inficonvgc502 import UnknownResponse
 
@@ -27,10 +28,13 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
         self.pressure2 = None
         self.units = None
         self.error = None
+        self.start_time = None
         self.controller = InficonVGC502(log=True)
 
     def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
+        self.start_time = time.monotonic()
+
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
         self.tcp_port = self.get_config("hardware.tcp_port")
@@ -46,6 +50,10 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Last error from the ATC Pressure controller.")
+        self.keyword_registry.int("uptime",
+                                  getter=self._get_uptime,
+                                  units="seconds",
+                                  description="Seconds since the daemon started.")
         self.keyword_registry.float("pressure1",
                                     getter=self._get_pressure1,
                                     description="Pressure from gauge 1.")
@@ -147,6 +155,12 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
         except UnknownResponse as e:
             self.logger.error("Error setting pressure_units: %s", e)
             self.error = str(e)
+
+    def _get_uptime(self) -> int:
+        """Return the number of seconds elapsed since the daemon started"""
+        if self.start_time is None:
+            return 0
+        return int(time.monotonic() - self.start_time)
 
     def _error_string(self) -> str:
         """Return last error string"""
