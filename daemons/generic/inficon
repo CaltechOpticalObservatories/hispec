@@ -14,10 +14,10 @@ from hispec.driver.inficon.inficonvgc502 import UnknownResponse
 from hispec import HispecDaemon
 from hispec.driver.inficon.inficonvgc502 import InficonVGC502
 
-
+# pylint: disable=too-many-instance-attributes
 class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
     """Daemon for controlling the Inficon pressure gauges via keywords."""
-    group_id = "hsfei"
+
     def __init__(self):
         super().__init__()
 
@@ -29,7 +29,9 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         self.units = None
         self.error = None
         self.start_time = None
+        self.peer_id = None
         self.controller = InficonVGC502(log=True)
+        self.daemon_description = "Inficon Pressure Daemon"
 
     def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
@@ -39,6 +41,7 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         self.ip_address = self.get_config("hardware.ip_address")
         self.tcp_port = self.get_config("hardware.tcp_port")
         self.n_gauges = self.get_config("gauges.n_gauges")
+        self.peer_id= self.get_config("peer_id")
 
         self.logger.info("Starting %s daemon with %d gauge(s)", self.peer_id, self.n_gauges)
 
@@ -91,7 +94,7 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         self.controller.disconnect()
         self.request_stop()
 
-    def on_stop(self, _libby=None):
+    def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:
@@ -153,10 +156,10 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
                 self.units = self.controller.pressure_units
                 self.error = ""
                 return True
-            else:
-                self.logger.error("Units code not set: %d", code)
-                self.error = "Units code not set"
-                return False
+
+            self.logger.error("Units code not set: %d", code)
+            self.error = "Units code not set"
+            return False
         except UnknownResponse as e:
             self.logger.error("Error setting pressure_units: %s", e)
             self.error = str(e)
