@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""
+HSFEI ATC Pressure Daemon
+
+Exposes the Inficon pressure gauge commands as libby keywords.
+"""
+
+import argparse
+import sys
+
+from hispec.driver.inficon.inficonvgc502 import UnknownResponse
+
+from hispec import HispecDaemon
+from hispec.driver.inficon.inficonvgc502 import InficonVGC502
+
+
+class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
+    """Daemon for controlling the ATC Inficon pressure gauges via keywords."""
+
+    def __init__(self):
+        super().__init__()
+
+        self.ip_address = None
+        self.tcp_port = None
+        self.n_gauges = None
+        self.pressure1 = None
+        self.pressure2 = None
+        self.units = None
+        self.error = None
+        self.controller = InficonVGC502(log=True)
+
+    def on_start(self, libby):
+        """Called when the daemon starts - register keywords and connect."""
+        # from_config populates _config after __init__, so read it here
+        self.ip_address = self.get_config("hardware.ip_address")
+        self.tcp_port = self.get_config("hardware.tcp_port")
+        self.n_gauges = self.get_config("gauges.n_gauges")
+        group_id = self.get_config("group_id")
+
+        self.logger.info("Starting %s daemon with %d gauge(s)", self.peer_id, self.n_gauges)
+
+        self.keyword_registry.bool("isconnected",
+                                   getter=self.controller.is_connected,
+                                   setter=self._set_connected,
+                                   description="ADC Pressure controller is connected.")
+        self.keyword_registry.string("error",
+                                     getter=self._error_string,
+                                     description="Last error from the ATC Pressure controller.")
+        self.keyword_registry.float("pressure1",
+                                    getter=self._get_pressure1,
+                                    description="Pressure from gauge 1.")
+        self.keyword_registry.float("pressure2",
+                                    getter=self._get_pressure2,
+                                    description="Pressure from gauge 2.")
+        self.keyword_registry.float("temperature",
+                                    getter=self.controller.read_temperature,
+                                    description="Temperature from ATC Pressure controller.")
+        self.keyword_registry.string("units",
+                                     getter=self._get_pressure_units,
+                                     description="Pressure units.")
+        self.keyword_registry.int("units_code",
+                                  setter=self._set_pressure_units,
+                                  description="Pressure units code: 0 - mbar, 1 - Torr, 2 - Pascal,"
+                                              " 3 - Micron, 4 - hPascal, 5 - Volt.")
+        self.keyword_registry.trigger("shutdown",
+                                      action=self._shutdown,
+                                      description="Shutdown the daemon now.")
+
+        if not (self.ip_address and self.tcp_port):
+            self.logger.error("No IP address or port specified")
+            return
+
+        try:
+            self._connect_hardware()
+            self.logger.info("Daemon started successfully and connected to hardware")
+        except Exception as e:  # pylint: disable=W0718
+            self.logger.error("Failed to connect to hardware: %s", e)
+            self.error = str(e)
+            self.logger.warning("Daemon will start but hardware is not available")
+
+    def _shutdown(self):
+        """Shutdown the daemon"""
+        self.logger.info("Shutting down")
+        self.controller.disconnect()
+        self.request_stop()
+
+    def on_stop(self, _libby=None):
+        """Cleanup when the daemon shuts down."""
+        self.logger.info("Shutting down %s daemon", self.peer_id)
+        try:
+            self.controller.disconnect()
+            self.logger.info("Disconnected from ATC Pressure controller")
+        except Exception as e:  # pylint: disable=W0718
+            self.logger.error("Error disconnecting: %s", e)
+            self.error = str(e)
+
+    def _connect_hardware(self):
+        self.logger.info("Connecting to ATC Pressure controller at %s:%s",
+                         self.ip_address, self.tcp_port)
+        self.controller.connect(host=self.ip_address, port=int(self.tcp_port))
+        if self.controller.is_connected():
+            self.controller.initialize()
+
+    def _set_connected(self, value: bool) -> None:
+        if value:
+            self._connect_hardware()
+        else:
+            self.controller.disconnect()
+
+    def _get_pressure1(self):
+        """Read the gauge 1 pressure from the ATC Pressure controller"""
+        try:
+            self.pressure1 = self.controller.read_pressure(gauge=1)
+        except UnknownResponse as e:
+            self.logger.error("Error reading pressure1: %s", e)
+            self.error = str(e)
+        return self.pressure1
+
+    def _get_pressure2(self):
+        """Read the gauge 2 pressure from the ATC Pressure controller"""
+        try:
+            self.pressure2 = self.controller.read_pressure(gauge=2)
+        except UnknownResponse as e:
+            self.logger.error("Error reading pressure2: %s", e)
+            self.error = str(e)
+        return self.pressure2
+
+    def _get_pressure_units(self):
+        """Read the pressure units from the ATC Pressure controller"""
+        try:
+            _ = self.controller.get_pressure_unit()
+            self.units = self.controller.pressure_units
+        except UnknownResponse as e:
+            self.logger.error("Error reading pressure_units: %s", e)
+            self.error = str(e)
+        return self.units
+
+    def _set_pressure_units(self, code: int =1) -> None:
+        """Set the pressure units from the ATC Pressure controller
+
+        :parm code: The integer new pressure units code:
+            0 - mbar, 1 - Torr, 2 - Pascal, 3 - Micron, 4 - hPascal, 5 - Volt
+        """
+        try:
+            if self.controller.set_pressure_unit(code):
+                self.units = self.controller.pressure_units
+        except UnknownResponse as e:
+            self.logger.error("Error setting pressure_units: %s", e)
+            self.error = str(e)
+
+    def _error_string(self) -> str:
+        """Return last error string"""
+        return self.error
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(description='HSFEI ATC Pressure Daemon')
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+    parser.add_argument('-d', '--daemon-id', type=str,
+                        help='Daemon ID (required for subsystem configs with multiple daemons)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        daemon = AtcPressDaemon.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e:  # pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
