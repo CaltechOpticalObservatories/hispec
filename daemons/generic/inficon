@@ -143,7 +143,7 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
             self.error = str(e)
         return self.units
 
-    def _set_pressure_units(self, code: int =1) -> None:
+    def _set_pressure_units(self, code: int =1) -> bool:
         """Set the pressure units from the ATC Pressure controller
 
         :parm code: The integer new pressure units code:
@@ -153,12 +153,15 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
             if self.controller.set_pressure_unit(code):
                 self.units = self.controller.pressure_units
                 self.error = ""
+                return True
             else:
                 self.logger.error("Units code not set: %d", code)
                 self.error = "Units code not set"
+                return False
         except UnknownResponse as e:
             self.logger.error("Error setting pressure_units: %s", e)
             self.error = str(e)
+            return False
 
     def _get_uptime(self) -> int:
         """Return the number of seconds elapsed since the daemon started"""
