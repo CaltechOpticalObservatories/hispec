@@ -3,14 +3,21 @@
 import argparse
 import json
 import sys
-from typing import Dict, Any,  Optional #pylint: disable = W0611
+from typing import Any, Dict, Optional
 
-from hispec.daemon import HispecDaemon #pylint: disable = E0611
-from hispec.driver.thorlabs.ppc102 import Ppc102Controller #pylint: disable = E0611
+# pylint: disable=import-error,no-name-in-module
+from hispec.daemon import HispecDaemon
+from hispec.driver.thorlabs.ppc102 import Ppc102Controller
+# pylint: enable=import-error,no-name-in-module
 #from ppc102 import Ppc102Controller  # Assuming ppc102.py is in the same directory
 
-class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
+
+class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
     '''Daemon for controlling the Blue Piaa Gimbal Mount via Thorlabs PPC102 controller'''
+
+    # A hardware daemon needs one attribute per configured limit and one public
+    # method per keyword, so the stock pylint ceilings do not apply here.
+    # pylint: disable=too-many-instance-attributes,too-many-public-methods
 
     # Defaults
     group_id = "hsfei"
@@ -18,24 +25,40 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
     # pub/sub topics
     topics = {}
 
-    #voltage control parameters
+    # voltage control parameters
     V_MIN = -25
     V_MAX = 150
+
+    # Closed-loop position units.
+    # actually resolves to "mrad"; this is only the fallback.
+    DEFAULT_POS_UNITS = "mrad"
 
     def __init__(self):
         """Initialize the Gimbal daemon."""
         super().__init__()
 
-        #Defaults
+        # Defaults
         self.host = None
         self.port = None
-        self.dev = Ppc102Controller(log = True)
+        self.dev = Ppc102Controller(log=True)
         self.daemon_desc = None
         self.units = None
-        self._soft_min = None
-        self._soft_max = None
-        self._hard_min = None
-        self._hard_max = None
+        self._soft_min_x = None
+        self._soft_max_x = None
+        self._soft_min_y = None
+        self._soft_max_y = None
+        self._hard_min_x = None
+        self._hard_max_x = None
+        self._hard_min_y = None
+        self._hard_max_y = None
+        self._soft_min_volt_x = None
+        self._soft_max_volt_x = None
+        self._soft_min_volt_y = None
+        self._soft_max_volt_y = None
+        self._hard_min_volt_x = None
+        self._hard_max_volt_x = None
+        self._hard_min_volt_y = None
+        self._hard_max_volt_y = None
         self.named_positions = {}
 
         # Daemon state
@@ -43,21 +66,34 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             'error': '',
             'connected': False,
             'enabled': False,
-            'isloopsclosed': False
+            'isloopclosed': False,
+            'halted': False
         }
 
-    def on_start(self, libby):
+    def on_start(self, libby):  # pylint: disable=unused-argument
         '''Starts up daemon and initializies the hardware device'''
 
-        #load configuration from hsfei.yaml
+        # load configuration from hsfei.yaml
         self.host = self.get_config("hardware.ip_address")
         self.port = self.get_config("hardware.tcp_port")
         self.daemon_desc = self.get_config("peer_id")
-        self.units = self.get_config("hardware.open_loop_units")
-        self._soft_min = self.get_config("limits.open_loop.soft_min")
-        self._soft_max = self.get_config("limits.open_loop.soft_max")
-        self._hard_min = self.get_config("limits.open_loop.hard_min")
-        self._hard_max = self.get_config("limits.open_loop.hard_max")
+        self.units = self.get_config("hardware.open_loop_units") or self.DEFAULT_POS_UNITS
+        self._soft_min_x = self.get_config("limits.position.soft_min_x")
+        self._soft_max_x = self.get_config("limits.position.soft_max_x")
+        self._soft_min_y = self.get_config("limits.position.soft_min_y")
+        self._soft_max_y = self.get_config("limits.position.soft_max_y")
+        self._hard_min_x = self.get_config("limits.position.hard_min_x")
+        self._hard_max_x = self.get_config("limits.position.hard_max_x")
+        self._hard_min_y = self.get_config("limits.position.hard_min_y")
+        self._hard_max_y = self.get_config("limits.position.hard_max_y")
+        self._soft_min_volt_x = self.get_config("limits.voltage.soft_min_volt_x")
+        self._soft_max_volt_x = self.get_config("limits.voltage.soft_max_volt_x")
+        self._soft_min_volt_y = self.get_config("limits.voltage.soft_min_volt_y")
+        self._soft_max_volt_y = self.get_config("limits.voltage.soft_max_volt_y")
+        self._hard_min_volt_x = self.get_config("limits.voltage.hard_min_volt_x")
+        self._hard_max_volt_x = self.get_config("limits.voltage.hard_max_volt_x")
+        self._hard_min_volt_y = self.get_config("limits.voltage.hard_min_volt_y")
+        self._hard_max_volt_y = self.get_config("limits.voltage.hard_max_volt_y")
         self.named_positions = self.get_config("named_positions") or {}
 
         # Initialize hardware connection
@@ -86,64 +122,149 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
 
     def _register_keywords(self):
         """Registers keywords for the daemon."""
-        self.keyword_registry.bool("is_connected",
+
+        # --- connection / general -------------------------------------------
+        self.keyword_registry.bool("isconnected",
                         getter=self.dev.is_connected,
-                        setter=self.keyword_wrapper(self.connect, key="is_connected"),
+                        setter=self.keyword_wrapper(self.connect, key="isconnected"),
                         description="Check if daemon can talk to the GimbalMount controller.")
         self.keyword_registry.string("error",
                         getter=lambda: self.state['error'],
                         description="Get the current error message.")
-        self.keyword_registry.bool("isloopsclosed",
-                        getter=self.keyword_wrapper(self.is_loops_closed, key="isloopsclosed"),
-                        setter=self.keyword_wrapper(self.set_loops, key="isloopsclosed"),
-                        description="Check if gimbal loops are closed.")
+        # halt is a boolean keyword: writing True stops motion, writing False clears the
+        self.keyword_registry.bool("halt",
+                        getter=lambda: self.state['halted'],
+                        setter=self.keyword_wrapper(self.set_halt, key="halted"),
+                        description="Immediately stop all gimbal motion on both axes.")
+
+        # --- loop state ------------------------------------------------------
+        self.keyword_registry.bool("isloopclosed",
+                        getter=self.keyword_wrapper(self.is_loops_closed, key="isloopclosed"),
+                        setter=self.keyword_wrapper(self.set_loops, key="isloopclosed"),
+                        description="Check/set closed-loop state of both gimbal axes.")
+        self.keyword_registry.bool("isloopclosedx",
+                        getter=self.keyword_wrapper(self.is_loop_closed_x, key="isloopclosed"),
+                        setter=self.keyword_wrapper(self.set_loop_x, key="isloopclosed"),
+                        description="Check/set closed-loop state of the gimbal X axis.")
+        self.keyword_registry.bool("isloopclosedy",
+                        getter=self.keyword_wrapper(self.is_loop_closed_y, key="isloopclosed"),
+                        setter=self.keyword_wrapper(self.set_loop_y, key="isloopclosed"),
+                        description="Check/set closed-loop state of the gimbal Y axis.")
+
+        # --- position --------------------------------------------------------
         self.keyword_registry.float("positionvaluex",
                         getter=self.keyword_wrapper(self.get_xpos, key="position"),
                         setter=self.keyword_wrapper(self.set_xpos, key="position"),
-                        validator=self._check_soft_limits,
+                        validator=lambda v: self._check_soft_limits(v, axis="x"),
                         units=self.units,
-                        description="set/get current position of GimbalMount.")
+                        description="set/get current X position of GimbalMount.")
         self.keyword_registry.float("positionvaluey",
                         getter=self.keyword_wrapper(self.get_ypos, key="position"),
                         setter=self.keyword_wrapper(self.set_ypos, key="position"),
-                        validator=self._check_soft_limits,
+                        validator=lambda v: self._check_soft_limits(v, axis="y"),
                         units=self.units,
-                        description="set/get current position of GimbalMount.")
+                        description="set/get current Y position of GimbalMount.")
         self.keyword_registry.string("positionnamed",
                         getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
                         setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
                         validator=self._check_named,
                         description="set/get named position of GimbalMount.")
-        self.keyword_registry.float("voltagevaluex",
+
+        # --- open loop drive voltage -----------------------------------------
+        self.keyword_registry.float("positionvoltx",
                         getter=self.keyword_wrapper(self.get_xvolts, key="voltage"),
                         setter=self.keyword_wrapper(self.set_xvolts, key="voltage"),
-                        validator=self._check_voltage_limits,
+                        validator=lambda v: self._check_voltage_limits(v, axis="x"),
                         units="Volts",
-                        description="set/get voltage for open loop control of GimbalMount.")
-        self.keyword_registry.float("voltagevaluey",
+                        description="set/get X drive voltage for open loop control of GimbalMount.")
+        self.keyword_registry.float("positionvolty",
                         getter=self.keyword_wrapper(self.get_yvolts, key="voltage"),
                         setter=self.keyword_wrapper(self.set_yvolts, key="voltage"),
-                        validator=self._check_voltage_limits,
+                        validator=lambda v: self._check_voltage_limits(v, axis="y"),
                         units="Volts",
-                        description="set/get voltage for open loop control of GimbalMount.")
-        self.keyword_registry.int("softmin",
-                        getter=lambda: self._soft_min,
-                        setter=lambda v: setattr(self, "_soft_min", int(v)),
+                        description="set/get Y drive voltage for open loop control of GimbalMount.")
+
+        # --- software position limits ----------------------------------------
+        self.keyword_registry.float("softmaxx",
+                        getter=lambda: self._soft_max_x,
+                        setter=lambda v: setattr(self, "_soft_max_x", float(v)),
                         units=self.units,
-                        description="Software lower limit for gimbal position.")
-        self.keyword_registry.int("softmax",
-                        getter=lambda: self._soft_max,
-                        setter=lambda v: setattr(self, "_soft_max", int(v)),
+                        description="Software upper limit for gimbal X position.")
+        self.keyword_registry.float("softmaxy",
+                        getter=lambda: self._soft_max_y,
+                        setter=lambda v: setattr(self, "_soft_max_y", float(v)),
                         units=self.units,
-                        description="Software upper limit for gimbal position.")
-        self.keyword_registry.int("hardmin",
-                        getter=lambda: self._hard_min,
+                        description="Software upper limit for gimbal Y position.")
+        self.keyword_registry.float("softminx",
+                        getter=lambda: self._soft_min_x,
+                        setter=lambda v: setattr(self, "_soft_min_x", float(v)),
                         units=self.units,
-                        description="Hardware lower limit for gimbal position.")
-        self.keyword_registry.int("hardmax",
-                        getter=lambda: self._hard_max,
+                        description="Software lower limit for gimbal X position.")
+        self.keyword_registry.float("softminy",
+                        getter=lambda: self._soft_min_y,
+                        setter=lambda v: setattr(self, "_soft_min_y", float(v)),
                         units=self.units,
-                        description="Hardware upper limit for gimbal position.")
+                        description="Software lower limit for gimbal Y position.")
+
+        # --- hardware position limits (read only) -----------------------------
+        self.keyword_registry.float("hardmaxx",
+                        getter=lambda: self._hard_max_x,
+                        units=self.units,
+                        description="Hardware upper limit for gimbal X position.")
+        self.keyword_registry.float("hardmaxy",
+                        getter=lambda: self._hard_max_y,
+                        units=self.units,
+                        description="Hardware upper limit for gimbal Y position.")
+        self.keyword_registry.float("hardminx",
+                        getter=lambda: self._hard_min_x,
+                        units=self.units,
+                        description="Hardware lower limit for gimbal X position.")
+        self.keyword_registry.float("hardminy",
+                        getter=lambda: self._hard_min_y,
+                        units=self.units,
+                        description="Hardware lower limit for gimbal Y position.")
+
+        # --- software voltage limits ------------------------------------------
+        self.keyword_registry.float("softmaxvoltx",
+                        getter=lambda: self._soft_max_volt_x,
+                        setter=lambda v: setattr(self, "_soft_max_volt_x", float(v)),
+                        units="Volts",
+                        description="Software upper limit for gimbal X drive voltage.")
+        self.keyword_registry.float("softmaxvolty",
+                        getter=lambda: self._soft_max_volt_y,
+                        setter=lambda v: setattr(self, "_soft_max_volt_y", float(v)),
+                        units="Volts",
+                        description="Software upper limit for gimbal Y drive voltage.")
+        self.keyword_registry.float("softminvoltx",
+                        getter=lambda: self._soft_min_volt_x,
+                        setter=lambda v: setattr(self, "_soft_min_volt_x", float(v)),
+                        units="Volts",
+                        description="Software lower limit for gimbal X drive voltage.")
+        self.keyword_registry.float("softminvolty",
+                        getter=lambda: self._soft_min_volt_y,
+                        setter=lambda v: setattr(self, "_soft_min_volt_y", float(v)),
+                        units="Volts",
+                        description="Software lower limit for gimbal Y drive voltage.")
+
+        # --- hardware voltage limits (read only) -------------------------------
+        self.keyword_registry.float("hardmaxvoltx",
+                        getter=lambda: self._hard_max_volt_x,
+                        units="Volts",
+                        description="Hardware upper limit for gimbal X drive voltage.")
+        self.keyword_registry.float("hardmaxvolty",
+                        getter=lambda: self._hard_max_volt_y,
+                        units="Volts",
+                        description="Hardware upper limit for gimbal Y drive voltage.")
+        self.keyword_registry.float("hardminvoltx",
+                        getter=lambda: self._hard_min_volt_x,
+                        units="Volts",
+                        description="Hardware lower limit for gimbal X drive voltage.")
+        self.keyword_registry.float("hardminvolty",
+                        getter=lambda: self._hard_min_volt_y,
+                        units="Volts",
+                        description="Hardware lower limit for gimbal Y drive voltage.")
+
+        # --- extras (not in the required list, kept from the original) ---------
         self.keyword_registry.string("status",
                         getter=self.keyword_wrapper(self.status_json, key="status"),
                         description="Grabs status of gimbal mount")
@@ -158,8 +279,8 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            self.dev.set_enable(channel = 1, enable = 1)
-            self.dev.set_enable(channel = 2, enable = 1)
+            self.dev.set_enable(channel=1, enable=1)
+            self.dev.set_enable(channel=2, enable=1)
             self.state['enabled'] = True
             self.logger.debug("Initialized %s", self.daemon_desc)
         except (OSError, ValueError) as e:
@@ -168,7 +289,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": str(e)}
         return {"ok": True}
 
-    def on_stop(self, libby=None) -> None: #pylint: disable=W0222
+    def on_stop(self, libby=None) -> None:  # pylint: disable=arguments-differ,unused-argument
         '''Stops the daemon and disconnects from hardware device'''
         try:
             self.connect(False)
@@ -180,7 +301,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         """handles connection"""
         try:
             if connect:
-                self.dev.connect(host = self.host, port = self.port)
+                self.dev.connect(host=self.host, port=self.port)
             else:
                 self.dev.disconnect()
             result = self.dev.is_connected()
@@ -190,7 +311,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             self.logger.error("Failed to connect/disconnect with hardware: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok": True, "is_connected": result}
+        return {"ok": True, "is_connected": result, "isconnected": result}
 
     def clean_up_gimbal(self):
         '''Cleans up gimbal settings'''
@@ -202,7 +323,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             self.dev.set_enable(channel=0, enable=1)  # Device can stay enabled
             self.dev.set_output_volts(channel=1, volts=0)  # Set output voltages to 0
             self.dev.set_output_volts(channel=2, volts=0)
-            self.state['isloopsclosed'] = False
+            self.state['isloopclosed'] = False
             self.logger.info("Cleaned up %s", self.daemon_desc)
         except (OSError, ValueError) as e:
             self.logger.error("error during cleanup: %s", e)
@@ -210,16 +331,43 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": str(e)}
         return {"ok": True, "message": "Gimbal cleaned up"}
 
+    def halt(self):
+        '''Immediately stop motion on both axes by re-commanding the current output.'''
+        if not self.dev.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            for chan in (1, 2):
+                res = self.dev.get_status_update(channel=chan)
+                if self.state['isloopclosed']:
+                    self.dev.set_pos(channel=chan, pos=float(res[1]))
+                else:
+                    self.dev.set_output_volts(channel=chan, volts=float(res[0]))
+            self.state['halted'] = True
+            self.logger.info("Halted %s", self.daemon_desc)
+        except (OSError, ValueError, TypeError, IndexError) as e:
+            self.logger.error("error during halt: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "halted": True}
+
+    def set_halt(self, halted: bool):
+        '''Boolean setter for the halt keyword; False clears the latched halt flag.'''
+        if halted:
+            return self.halt()
+        self.state['halted'] = False
+        return {"ok": True, "halted": False}
+
     def status(self):
         """handles status"""
         if not self.dev.is_connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            res_x = self.dev.get_status_update(channel = 1)
-            res_y = self.dev.get_status_update(channel = 2)
-            enabled_x = self.dev.get_enable(channel = 1)
-            enabled_y = self.dev.get_enable(channel = 2)
+            res_x = self.dev.get_status_update(channel=1)
+            res_y = self.dev.get_status_update(channel=2)
+            enabled_x = self.dev.get_enable(channel=1)
+            enabled_y = self.dev.get_enable(channel=2)
             enabled = enabled_x == 1 and enabled_y == 1
             status = {
                 "is_connected": self.dev.is_connected(),
@@ -230,7 +378,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                 "flag_x": res_x[2],
                 "flag_y": res_y[2],
                 "enabled": enabled,
-                "isloopsclosed": self.dev.is_loop_closed()
+                "isloopclosed": self.dev.is_loop_closed()
             }
             self.logger.debug("status: %s", status)
         except (OSError, ValueError, TypeError, IndexError) as e:
@@ -253,13 +401,13 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
 
         try:
             closed = self.dev.is_loop_closed()
-            self.state['isloopsclosed'] = closed
+            self.state['isloopclosed'] = closed
             self.logger.debug("is_loops_closed: %s", closed)
         except (OSError, ValueError) as e:
             self.logger.error("error: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok": True, "isloopsclosed": closed}
+        return {"ok": True, "isloopclosed": closed}
 
     def set_loops(self, loops: bool):
         '''sets control loops'''
@@ -274,21 +422,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                 self.dev.set_loop(channel=0, loop=1)
                 self.logger.debug("open loops sent")
             result = self.dev.is_loop_closed()
-            if result:
-                self.logger.debug("loops are closed")
-                self.units = self.get_config("hardware.closed_loop_units")
-                self._soft_min = self.get_config("limits.closed_loop.soft_min")
-                self._soft_max = self.get_config("limits.closed_loop.soft_max")
-                self._hard_min = self.get_config("limits.closed_loop.hard_min")
-                self._hard_max = self.get_config("limits.closed_loop.hard_max")
-            else:
-                self.logger.debug("loops are open")
-                self.units = self.get_config("hardware.open_loop_units")
-                self._soft_min = self.get_config("limits.open_loop.soft_min")
-                self._soft_max = self.get_config("limits.open_loop.soft_max")
-                self._hard_min = self.get_config("limits.open_loop.hard_min")
-                self._hard_max = self.get_config("limits.open_loop.hard_max")
-            self.state['isloopsclosed'] = result
+            self.state['isloopclosed'] = result
             if result != bool(loops):
                 return {"ok": False,
                         "error": f"Failed to execute set loops: requested {bool(loops)}, "
@@ -297,7 +431,60 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             self.logger.error("error: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
-        return {"ok": True, "isloopsclosed": result}
+        return {"ok": True, "isloopclosed": result}
+
+    def is_loop_closed_x(self):
+        '''checks if the X axis loop is closed'''
+        return self.is_loop_closed(axis=0)
+
+    def is_loop_closed_y(self):
+        '''checks if the Y axis loop is closed'''
+        return self.is_loop_closed(axis=1)
+
+    def is_loop_closed(self, axis: int):
+        '''checks if a single axis loop is closed'''
+        if not self.dev.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        try:
+            closed = int(self.dev.get_loop(channel=self._channel(axis))) == 2
+            self.logger.debug("is_loop_closed axis %s: %s", axis, closed)
+        except (OSError, ValueError, TypeError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "isloopclosed": closed}
+
+    def set_loop_x(self, closed: bool):
+        '''sets the X axis control loop'''
+        return self.set_loop(axis=0, closed=closed)
+
+    def set_loop_y(self, closed: bool):
+        '''sets the Y axis control loop'''
+        return self.set_loop(axis=1, closed=closed)
+
+    def set_loop(self, axis: int, closed: bool):
+        '''sets a single axis control loop'''
+        if not self.dev.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        try:
+            self.dev.set_loop(channel=self._channel(axis), loop=2 if closed else 1)
+            self.logger.debug("set_loop axis %s: %s", axis, closed)
+            check = self.is_loop_closed(axis=axis)
+            if not check.get("ok"):
+                return check
+            result = check["isloopclosed"]
+            if result != bool(closed):
+                return {"ok": False,
+                        "error": f"Failed to execute set loop on axis {axis}: "
+                                 f"requested {bool(closed)}, hardware reports {result}"}
+            # Both axes must agree before the daemon considers itself closed-loop.
+            other = self.is_loop_closed(axis=1 - int(axis))
+            self.state['isloopclosed'] = bool(result and other.get("isloopclosed"))
+        except (OSError, ValueError, TypeError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "isloopclosed": result}
 
     def get_xpos(self):
         '''gets current X position'''
@@ -315,17 +502,13 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         '''gets current Y voltage'''
         return self.get_volts(axis=1)
 
-    def get_pos(self, axis : int):
+    def get_pos(self, axis: int):
         '''gets current position'''
-        if not self.dev.is_connected():
-            return {"ok": False, "error": "Not connected to hardware"}
-        if not self.state['enabled']:
-            return {"ok": False, "error": "Device not enabled"}
-        if not self.state['isloopsclosed']:
-            return {"ok": False, "error": "Control loops are not closed"}
+        problem = self._require_ready(loop_closed=True)
+        if problem:
+            return problem
         try:
-            pos = self.dev.get_pos(channel=axis+1)
-            position = float(pos)
+            position = float(self.dev.get_pos(channel=self._channel(axis)))
             self.logger.debug("get_pos: %s", position)
         except (OSError, ValueError) as e:
             self.logger.error("error: %s", e)
@@ -333,21 +516,13 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": str(e)}
         return {"ok": True, "position": position}
 
-    def get_volts(self, axis):
+    def get_volts(self, axis: int):
         '''gets output voltage for open loop control'''
-        if not self.dev.is_connected():
-            return {"ok": False, "error": "Not connected to hardware"}
-        if not self.state['enabled']:
-            return {"ok": False, "error": "Device not enabled"}
-        if self.state['isloopsclosed']:
-            return {"ok": False, "error": "Control loops are closed; cannot get volts"}
+        problem = self._require_ready(loop_closed=False, action="get volts")
+        if problem:
+            return problem
         try:
-            axis = int(axis)
-            if axis not in [0, 1]:
-                self.logger.error("Axis must be 0 (X) or 1 (Y)")
-                return {"ok": False, "error": "Axis must be 0 (X) or 1 (Y)"}
-            chan = axis + 1
-            voltage = float(self.dev.get_output_volts(channel=chan))
+            voltage = float(self.dev.get_output_volts(channel=self._channel(axis)))
             self.logger.debug("get_volts: %s", voltage)
         except (OSError, ValueError) as e:
             self.logger.error("error: %s", e)
@@ -357,13 +532,13 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
 
     def set_xpos(self, pos: float):
         '''sets current X position'''
-        if self.state['isloopsclosed']:
+        if self.state['isloopclosed']:
             return self.set_pos(axis=0, pos=pos)
         return self.set_volts(axis=0, volts=pos)
 
     def set_ypos(self, pos: float):
         '''sets current Y position'''
-        if self.state['isloopsclosed']:
+        if self.state['isloopclosed']:
             return self.set_pos(axis=1, pos=pos)
         return self.set_volts(axis=1, volts=pos)
 
@@ -377,24 +552,17 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
 
     def set_volts(self, axis: int, volts: float):
         '''sets output voltage for open loop control'''
-        if not self.dev.is_connected():
-            return {"ok": False, "error": "Not connected to hardware"}
-        if not self.state['enabled']:
-            return {"ok": False, "error": "Device not enabled"}
-        if self.state['isloopsclosed']:
-            return {"ok": False, "error": "Control loops are closed; cannot set volts"}
+        problem = self._require_ready(loop_closed=False, action="set volts")
+        if problem:
+            return problem
         try:
             volts = float(volts)
-            axis = int(axis)
-            if axis not in [0, 1]:
-                self.logger.error("Axis must be 0 (X) or 1 (Y)")
-                return {"ok": False, "error": "Axis must be 0 (X) or 1 (Y)"}
-            problem = self._check_voltage_limits(volts)
+            chan = self._channel(axis)
+            problem = self._check_voltage_limits(volts, axis=self._axis_name(axis))
             if problem:
                 self.logger.error("%s", problem)
                 return {"ok": False, "error": problem}
-            chan = axis + 1
-            #convert volts to int between -32768 and 32,767 for PPC102
+            # convert volts to int between -32768 and 32,767 for PPC102
             self.dev.set_output_volts(channel=chan, volts=volts)
             self.logger.debug("set_volts: %s", volts)
             voltage = self.dev.get_status_update(channel=chan)[0]
@@ -404,25 +572,18 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": str(e)}
         return {"ok": True, "voltage": voltage}
 
-    def set_pos(self, axis, pos):
+    def set_pos(self, axis: int, pos: float):
         '''sets current position'''
-        if not self.dev.is_connected():
-            return {"ok": False, "error": "Not connected to hardware"}
-        if not self.state['enabled']:
-            return {"ok": False, "error": "Device not enabled"}
-        if not self.state['isloopsclosed']:
-            return {"ok": False, "error": "Control loops are not closed"}
+        problem = self._require_ready(loop_closed=True)
+        if problem:
+            return problem
         try:
             pos = float(pos)
-            axis = int(axis)
-            if axis not in [0, 1]:
-                self.logger.error("Axis must be 0 (X) or 1 (Y)")
-                return {"ok": False, "error": "Axis must be 0 (X) or 1 (Y)"}
-            problem = self._check_soft_limits(pos)
+            chan = self._channel(axis)
+            problem = self._check_soft_limits(pos, axis=self._axis_name(axis))
             if problem:
                 self.logger.error("%s", problem)
                 return {"ok": False, "error": problem}
-            chan = axis + 1
             self.dev.set_pos(channel=chan, pos=pos)
             self.logger.debug("set_pos: %s", pos)
             position = self.dev.get_pos(channel=chan)
@@ -444,7 +605,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
                 return pos
         return None
 
-    def goto_named_pos(self, name):
+    def goto_named_pos(self, name: str):
         '''moves to named position'''
         if not self.dev.is_connected():
             return {"ok": False, "error": "Not connected to hardware"}
@@ -491,29 +652,80 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
         # Sitting between named positions is a normal state, not an error.
         return {"ok": True, "named_pos": "unknown", "position": current_pos}
 
-    def _check_soft_limits(self, pos: float) -> Optional[str]:
-        """Validate a requested position against the configured soft limits."""
+    def _require_ready(self, loop_closed: Optional[bool] = None,
+                       action: str = "") -> Optional[Dict[str, Any]]:
+        """Return an error result if the device is not ready for the requested operation."""
+        if not self.dev.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        if not self.state['enabled']:
+            return {"ok": False, "error": "Device not enabled"}
+        if loop_closed is None or bool(loop_closed) == bool(self.state['isloopclosed']):
+            return None
+        if loop_closed:
+            return {"ok": False, "error": "Control loops are not closed"}
+        message = "Control loops are closed"
+        if action:
+            message += f"; cannot {action}"
+        return {"ok": False, "error": message}
+
+    @staticmethod
+    def _channel(axis) -> int:
+        """Map axis 0 (X) / 1 (Y) to the PPC102 channel number, 1 or 2."""
+        axis = int(axis)
+        if axis not in (0, 1):
+            raise ValueError("Axis must be 0 (X) or 1 (Y)")
+        return axis + 1
+
+    @staticmethod
+    def _axis_name(axis) -> str:
+        """Map a numeric axis (0/1) to the 'x'/'y' label used by the limit checks."""
+        return "x" if int(axis) == 0 else "y"
+
+    @staticmethod
+    def _limit_error(value: float, axis: str, quantity: str, limits) -> Optional[str]:
+        """Return a message for the first violated limit, or None if value is in range."""
+        for name, low, high in limits:
+            if low is not None and value < low:
+                return f"{axis} {quantity} {value} below {name} min {low}"
+            if high is not None and value > high:
+                return f"{axis} {quantity} {value} above {name} max {high}"
+        return None
+
+    def _check_soft_limits(self, pos: float, axis: str = "x") -> Optional[str]:
+        """Validate a requested position against the configured limits for one axis."""
         try:
             pos = float(pos)
         except (TypeError, ValueError):
             return f"position '{pos}' is not a number"
-        if self._soft_min is not None and pos < self._soft_min:
-            return f"position {pos} below soft min {self._soft_min}"
-        if self._soft_max is not None and pos > self._soft_max:
-            return f"position {pos} above soft max {self._soft_max}"
-        return None
+        axis = str(axis).strip().lower()
+        if axis == "x":
+            limits = (("hard", self._hard_min_x, self._hard_max_x),
+                      ("soft", self._soft_min_x, self._soft_max_x))
+        elif axis == "y":
+            limits = (("hard", self._hard_min_y, self._hard_max_y),
+                      ("soft", self._soft_min_y, self._soft_max_y))
+        else:
+            return f"axis '{axis}' must be 'x' or 'y'"
+        return self._limit_error(pos, axis, "position", limits)
 
-    def _check_voltage_limits(self, volts: float) -> Optional[str]:
-        """Validate a requested voltage against the controller's absolute range."""
+    def _check_voltage_limits(self, volts: float, axis: str = "x") -> Optional[str]:
+        """Validate a requested voltage against the controller and configured limits."""
         try:
             volts = float(volts)
         except (TypeError, ValueError):
             return f"voltage '{volts}' is not a number"
         if not self.V_MIN <= volts <= self.V_MAX:
             return f"voltage must be between {self.V_MIN} and {self.V_MAX}"
-        if not self._soft_min <= volts <= self._soft_max:
-            return f"voltage must be between {self._soft_min} and {self._soft_max}"
-        return None
+        axis = str(axis).strip().lower()
+        if axis == "x":
+            limits = (("hard", self._hard_min_volt_x, self._hard_max_volt_x),
+                      ("soft", self._soft_min_volt_x, self._soft_max_volt_x))
+        elif axis == "y":
+            limits = (("hard", self._hard_min_volt_y, self._hard_max_volt_y),
+                      ("soft", self._soft_min_volt_y, self._soft_max_volt_y))
+        else:
+            return f"axis '{axis}' must be 'x' or 'y'"
+        return self._limit_error(volts, axis, "voltage", limits)
 
     def _check_named(self, name: str) -> Optional[str]:
         """Validate a requested position name against the configured set."""
@@ -528,6 +740,7 @@ class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
     def keyword_wrapper(func, key=None):
         """Wrap a daemon method for use as a keyword getter/setter."""
         def wrapper(*args, **kwargs):
+            """Call the wrapped method and raise on a failed result."""
             result = func(*args, **kwargs)
             if not result.get("ok"):
                 raise RuntimeError(result.get("error", f"Unknown error in {func.__name__}"))
@@ -559,7 +772,7 @@ def main():
     except KeyboardInterrupt:
         print("\nDaemon interrupted by user")
         sys.exit(0)
-    except Exception as e: #pylint: disable=W0718
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error running daemon: {e}", file=sys.stderr)
         sys.exit(1)
 
