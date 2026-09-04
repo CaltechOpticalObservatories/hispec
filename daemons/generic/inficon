@@ -19,7 +19,7 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
     """Daemon for controlling the Inficon pressure gauges via keywords."""
 
     def __init__(self):
-        group_id = self.get_config("group_id")
+        group_id = "hsfei"
         super().__init__()
 
         self.ip_address = None
