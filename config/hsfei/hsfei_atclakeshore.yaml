@@ -1,0 +1,30 @@
+# ATCLakeshore - Lakeshore 336 with option 3062 for the ATC dewar
+#
+# Usage:
+#   daemons/generic/lakeshore -c config/hsfei/hsfei_atclakeshore.yaml
+
+peer_id: hsfei_atcpress
+group_id: hsfei
+
+hardware:
+  ip_address: 192.168.29.104
+  tcp_port: 7777
+  model336: 1
+  opt3062: 1
+  celsius: 0
+
+sensors:
+  sensorA: tA_detector
+  sensorB: tB_snout
+  sensorC: tC_g10
+  sensorD1: tD1_getter
+  sensorD2: tD2_block
+  sensorD3: tD3_lid
+  sensorD4: tD4_window
+
+heaters:
+  heater1: 1_detector
+  heater2: 2_getter
+
+logging:
+  level: INFO
