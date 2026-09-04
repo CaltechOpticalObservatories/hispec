@@ -17,9 +17,8 @@ from hispec.driver.inficon.inficonvgc502 import InficonVGC502
 
 class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
     """Daemon for controlling the Inficon pressure gauges via keywords."""
-
+    group_id = "hsfei"
     def __init__(self):
-        group_id = "hsfei"
         super().__init__()
 
         self.ip_address = None
