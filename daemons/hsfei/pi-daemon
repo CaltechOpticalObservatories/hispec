@@ -149,8 +149,6 @@ class _Stage:
 class PiDaemon(HispecDaemon):
     """Daemon for controlling PI motion hardware via keywords."""
 
-    group_id = "hsfei"
-
     def __init__(self):
         super().__init__()
 
@@ -278,8 +276,6 @@ def main():
     )
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (YAML or JSON)')
-    parser.add_argument('-d', '--daemon-id', type=str,
-                        help='Daemon ID (required for subsystem configs with multiple daemons)')
 
     args = parser.parse_args()
 
@@ -288,7 +284,7 @@ def main():
         sys.exit(2)
 
     try:
-        daemon = PiDaemon.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon = PiDaemon.from_config_file(args.config)
         daemon.serve()
     except KeyboardInterrupt:
         print("\nDaemon interrupted by user")

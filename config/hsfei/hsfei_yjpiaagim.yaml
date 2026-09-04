@@ -2,7 +2,7 @@
 # Usage:
 #   daemons/hsfei/piaa-gimbalmount -c config/hsfei/hsfei_yjpiaagim.yaml
 
-peer_id: hsfei_yjpiaagim
+peer_id: yjpiaagim
 group_id: hsfei
 
 hardware:

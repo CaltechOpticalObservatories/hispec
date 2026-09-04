@@ -11,9 +11,6 @@ from hispec.driver.thorlabs.ppc102 import Ppc102Controller #pylint: disable = E0
 class PiaaGimbalmount(HispecDaemon): #pylint: disable = W0223
     '''Daemon for controlling the Blue Piaa Gimbal Mount via Thorlabs PPC102 controller'''
 
-    # Defaults
-    group_id = "hsfei"
-
     # pub/sub topics
     topics = {}
 
@@ -474,8 +471,6 @@ def main():
     )
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (YAML or JSON)')
-    parser.add_argument('-d', '--daemon-id', type=str,
-                        help='Daemon ID (required for subsystem configs with multiple daemons)')
 
     args = parser.parse_args()
 
@@ -484,7 +479,7 @@ def main():
         sys.exit(2)
 
     try:
-        daemon = PiaaGimbalmount.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon = PiaaGimbalmount.from_config_file(args.config)
         daemon.serve()
     except KeyboardInterrupt:
         print("\nDaemon interrupted by user")

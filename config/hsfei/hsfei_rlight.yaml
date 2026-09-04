@@ -3,7 +3,8 @@
 # Usage:
 #   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_rlight.yaml
 
-peer_id: hsfei_rlight
+peer_id: rlight
+group_id: hsfei
 
 hardware:
   ip_address: 192.168.29.100
