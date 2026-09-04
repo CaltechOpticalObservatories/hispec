@@ -3,7 +3,7 @@
 # Usage:
 #   daemons/generic/lakeshore -c config/hsfei/hsfei_atclakeshore.yaml
 
-peer_id: hsfei_atclake
+peer_id: hsfei_atctherm
 group_id: hsfei
 
 hardware:
