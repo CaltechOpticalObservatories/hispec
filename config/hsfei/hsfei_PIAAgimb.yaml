@@ -1,0 +1,43 @@
+#
+# Usage:
+#   daemons/hsfei/piaa-gimbalmount -c config/hsfei/hsfei_PIAAgimb.yaml
+
+peer_id: PIAAgimb
+group_id: hsfei
+
+hardware:
+  ip_address: 192.168.29.100
+  tcp_port: 10013
+  axis: 2
+  closed_loop_units: mrad
+  open_loop_units: volts
+  timeout: 30.0
+  retry_count: 3
+
+limits:
+  position:
+    soft_min_pos_x: -9.5
+    soft_max_pos_x: 9.5
+    soft_min_pos_y: -9.5
+    soft_max_pos_y: 9.5
+    hard_min_pos_x: -10.0
+    hard_max_pos_x: 10.0
+    hard_min_pos_y: -10.0
+    hard_max_pos_y: 10.0
+  voltage:
+    soft_min_volt_x: -20.0
+    soft_max_volt_x: 145.0
+    soft_min_volt_y: -20.0
+    soft_max_volt_y: 145.0
+    hard_min_volt_x: -25.0
+    hard_max_volt_x: 150.0
+    hard_min_volt_y: -25.0
+    hard_max_volt_y: 150.0
+
+named_positions:
+  center: [0.0, 0.0]
+  offset1: [1.0, 1.0]
+  offset2: [-1.0, -1.0]
+
+logging:
+  level: INFO

@@ -1,0 +1,491 @@
+#!/usr/bin/env python3
+'''Module for the SMC8 Attenuator Daemon
+
+Wraps the COO-Utilities standa SmcController (libximc based) for the HISPEC
+RED CAL etalon attenuator.
+
+Notes on the driver contract (standa/smc8.py) that shape this daemon:
+  * connect(), disconnect(), set_pos(), set_attenuation(), home() and halt()
+    swallow their own exceptions and return a bool, so every call is checked
+    for a falsy return rather than wrapped in try/except alone.
+  * get_pos() and get_attenuation() return None on failure.
+  * get_limits() returns {"1": (min, max)} and needs an open connection.
+  * positions are controller steps; attenuation is dB, 0.0 - 40.0.
+'''
+import argparse
+import sys
+from typing import Optional
+
+from hispec.daemon import HispecDaemon #pylint: disable = E0611
+from hispec.driver.standa.smc8 import SmcController #pylint: disable = E0611
+
+# Driver limits from SmcController.set_attenuation()
+ATTEN_MIN_DB = 0.0
+ATTEN_MAX_DB = 40.0
+# Driver default for SmcController.connect(step_size=...)
+DEFAULT_STEP_SIZE = 0.0025
+# Default match window for named positions, in dB
+DEFAULT_NAMED_TOL_DB = 0.05
+
+
+class SMC8Attenuator(HispecDaemon): #pylint: disable = W0223
+    '''Daemon for controlling the SMC8 Attenuator via smc8 controller'''
+
+    def __init__(self):
+        """Initialize the SMC8 Attenuator daemon.
+
+        Args: come from the hscal configuration file
+        """
+        super().__init__()
+
+        self.tcp = None
+        self.serial = None
+        self.xinet = None
+        self.dev = SmcController(log=True)
+        self._step_size = DEFAULT_STEP_SIZE
+        self._soft_min = None
+        self._soft_max = None
+        self._hard_min = None
+        self._hard_max = None
+        self._named_tol_db = DEFAULT_NAMED_TOL_DB
+        self.named_positions = {}
+        self.daemon_desc = "SMC8 Attenuator Daemon"
+        self.units = "steps"          # units of the positionvalue keyword
+        self.atten_units = "dB"       # fixed by the driver's conversion coefficients
+
+        # Daemon state
+        self.state = {
+            'error': ''
+        }
+
+    def on_start(self, libby): #pylint: disable=W0613
+        '''Starts up daemon and initializies the hardware device'''
+        self.tcp = self._opt_str(self.get_config("hardware.tcp"))
+        self.serial = self._opt_str(self.get_config("hardware.serial"))
+        self.xinet = self._opt_str(self.get_config("hardware.xinet"))
+        self.daemon_desc = self.get_config("peer_id") or self.daemon_desc
+        self.units = self._opt_str(self.get_config("hardware.units")) or self.units
+        self._step_size = self._opt_float(self.get_config("hardware.step_size"))
+        if self._step_size is None:
+            self._step_size = DEFAULT_STEP_SIZE
+        self._soft_min = self._opt_int(self.get_config("limits.soft_min"))
+        self._soft_max = self._opt_int(self.get_config("limits.soft_max"))
+        self._hard_min = self._opt_int(self.get_config("limits.hard_min"))
+        self._hard_max = self._opt_int(self.get_config("limits.hard_max"))
+        self._named_tol_db = self._opt_float(self.get_config("named_position_tolerance_db"))
+        if self._named_tol_db is None:
+            self._named_tol_db = DEFAULT_NAMED_TOL_DB
+        self.named_positions = self._load_named_positions()
+
+        # Registered before the connection attempt so the error keyword stays
+        # readable even when the hardware is unavailable.
+        self._register_keywords()
+
+        if not (self.tcp or self.serial or self.xinet):
+            self.logger.error("No connection parameters specified for SMC8 Attenuator controller")
+            self.state['error'] = 'No connection parameters specified'
+            return
+
+        if not self.connect(True).get("ok"):
+            self.logger.warning("Daemon will start but hardware is not available")
+            return
+        self.logger.info("Daemon started successfully and connected to hardware")
+
+        if not self.initialize().get("ok"):
+            self.logger.warning("Daemon will start but hardware is not initialized")
+            return
+        self._sync_hard_limits()
+        self.logger.info("Initialized %s", self.daemon_desc)
+
+    def on_stop(self, libby) -> None: #pylint: disable=W0222,W0613
+        '''Stops the daemon and disconnects from hardware device'''
+        if self.connect(False).get("ok"):
+            self.logger.info("Disconnected %s", self.daemon_desc)
+        else:
+            self.logger.error("Disconnect %s:: Failed ", self.daemon_desc)
+
+    def initialize(self):
+        """handles initialization"""
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        try:
+            if not self.dev.initialize():
+                raise RuntimeError("Driver failed to initialize the controller")
+            homed = self.dev.is_homed()
+            if not homed:
+                self.logger.warning("Controller reports the stage is not homed")
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(str(e))
+        return {"ok": True, "ishomed": bool(homed)}
+
+    def _register_keywords(self):
+        """Register keywords for the daemon."""
+        self.keyword_registry.bool("isconnected",
+                        getter=self.is_connected,
+                        setter=self.keyword_wrapper(self.connect, key="isconnected"),
+                        description="Check if daemon can talk to the SMC8 controller.")
+        self.keyword_registry.bool("ishomed",
+                        getter=self.is_homed,
+                        description="Check if the attenuator stage is homed.")
+        self.keyword_registry.string("error",
+                        getter=lambda: self.state['error'],
+                        description="Get the current error message.")
+        self.keyword_registry.int("positionvalue",
+                        getter=self.keyword_wrapper(self.get_pos, key="position"),
+                        setter=self.keyword_wrapper(self.set_pos, key="position"),
+                        validator=self._check_limits,
+                        units=self.units,
+                        description="Set and get current position of SMC8 Attenuator.")
+        self.keyword_registry.float("attenuation",
+                        getter=self.keyword_wrapper(self.get_atten, key="attenuation"),
+                        setter=self.keyword_wrapper(self.set_atten, key="attenuation"),
+                        validator=self._check_atten,
+                        units=self.atten_units,
+                        description="Set and get attenuation of SMC8 Attenuator.")
+        self.keyword_registry.string("positionnamed",
+                        getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
+                        setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
+                        validator=self._check_named,
+                        description="Set and get named position of SMC8 Attenuator.")
+        self.keyword_registry.int("softmin",
+                        getter=lambda: self._soft_min,
+                        setter=lambda v: setattr(self, "_soft_min", self._opt_int(v)),
+                        units=self.units,
+                        description="Software lower limit for attenuator position.")
+        self.keyword_registry.int("softmax",
+                        getter=lambda: self._soft_max,
+                        setter=lambda v: setattr(self, "_soft_max", self._opt_int(v)),
+                        units=self.units,
+                        description="Software upper limit for attenuator position.")
+        self.keyword_registry.int("hardmin",
+                        getter=lambda: self._hard_min,
+                        units=self.units,
+                        description="Hardware lower limit for attenuator position.")
+        self.keyword_registry.int("hardmax",
+                        getter=lambda: self._hard_max,
+                        units=self.units,
+                        description="Hardware upper limit for attenuator position.")
+
+    def is_connected(self) -> bool:
+        """True when the driver holds an open connection to the controller."""
+        checker = getattr(self.dev, "is_connected", None)
+        if callable(checker):
+            return bool(checker())
+        return bool(getattr(self.dev, "connected", False))
+
+    def is_homed(self) -> bool:
+        """True when the controller reports the stage as homed."""
+        return bool(self.is_connected() and self.dev.is_homed())
+
+    def connect(self, connect):
+        """handles connection"""
+        connect = bool(connect)
+        try:
+            if connect:
+                if self.tcp is not None:
+                    ok = self.dev.connect(device_str=self.tcp, device_port=None,
+                                          connection_type='tcp', step_size=self._step_size)
+                elif self.serial is not None:
+                    ok = self.dev.connect(device_str=self.serial, device_port=None,
+                                          connection_type='serial', step_size=self._step_size)
+                elif self.xinet is not None:
+                    ok = self.dev.connect(device_str=self.xinet, device_port=None,
+                                          connection_type='xinet', step_size=self._step_size)
+                else:
+                    raise ConnectionError("No connection parameters specified")
+            else:
+                ok = self.dev.disconnect()
+            # The driver reports failure by return value, not by raising.
+            if not ok:
+                raise ConnectionError("Driver reported failure, see the driver log for details")
+            result = self.is_connected()
+            if result != connect:
+                raise ConnectionError("Failed to Handle Connection Request")
+            self.logger.info("isconnected: %s", result)
+        except Exception as e: # pylint: disable=W0718
+            self.logger.error("Failed to execute: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+        self.state['error'] = ''
+        return {"ok": True, "isconnected": result}
+
+    def status(self):
+        """handles status"""
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        try:
+            position = self.get_pos()
+            named = self.cur_named_position()
+            limits = self.get_limits()
+            status = {
+                "connected": True,
+                "ishomed": self.is_homed(),
+                "position": position.get("position"),
+                "attenuation": named.get("attenuation"),
+                "named_pos": named.get("named_pos"),
+                "min_limit": limits.get("min_limit"),
+                "max_limit": limits.get("max_limit"),
+                "soft_min": self._soft_min,
+                "soft_max": self._soft_max,
+                "units": self.units,
+                "error": self.state['error'],
+            }
+            self.logger.debug("status: %s", status)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(str(e))
+        return {"ok": True, "status": status}
+
+    def get_limits(self):
+        '''gets the travel limits reported by the controller'''
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+        try:
+            limits = self.dev.get_limits()
+            axis = (limits or {}).get("1")
+            if not axis:
+                raise RuntimeError(f"Controller returned no limits: {limits}")
+            self.logger.debug("get_limits: %s", limits)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(str(e))
+        return {"ok": True, "min_limit": int(axis[0]), "max_limit": int(axis[1])}
+
+    def get_pos(self):
+        '''gets current position'''
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            position = self.dev.get_pos()
+            # get_pos() returns None instead of raising when the read fails.
+            if position is None:
+                raise RuntimeError("Driver failed to read the position")
+            self.logger.debug("get_pos: %s", position)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(str(e))
+        return {"ok": True, "position": int(position)}
+
+    def set_pos(self, pos):
+        '''sets current position'''
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            pos = int(pos)
+        except (TypeError, ValueError):
+            return self._fail(f"position '{pos}' is not an integer")
+
+        message = self._check_limits(pos)
+        if message:
+            return self._fail(message)
+
+        try:
+            if not self.dev.set_pos(pos):
+                raise RuntimeError(f"Driver refused the move to {pos}")
+            self.logger.debug("set_pos: %d", pos)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(str(e))
+        return {"ok": True, "position": pos}
+
+    def get_atten(self):
+        '''gets current attenuation in dB'''
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            atten = self.dev.get_attenuation()
+            if atten is None:
+                raise RuntimeError("Driver failed to read the attenuation")
+            self.logger.debug("get_atten: %s", atten)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(str(e))
+        return {"ok": True, "attenuation": round(float(atten), 3)}
+
+    def set_atten(self, atten):
+        '''sets attenuation in dB'''
+        if not self.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            atten = float(atten)
+        except (TypeError, ValueError):
+            return self._fail(f"attenuation '{atten}' is not a number")
+
+        message = self._check_atten(atten)
+        if message:
+            return self._fail(message)
+
+        try:
+            if not self.dev.set_attenuation(atten):
+                raise RuntimeError(f"Driver refused the move to {atten} dB")
+            self.logger.debug("set_atten: %s", atten)
+        except Exception as e: # pylint: disable=W0718
+            return self._fail(str(e))
+        return {"ok": True, "attenuation": atten}
+
+    def get_named_positions(self):
+        """Get named positions from config (e.g., empty, OD2), in dB."""
+        return self.named_positions
+
+    def get_named_position(self, name: str):
+        """Get a specific named position value in dB, or None if not found."""
+        return self.named_positions.get(str(name).strip().lower())
+
+    def cur_named_position(self):
+        """Get the name of the current position, if it matches a named position."""
+        result = self.get_atten()
+        if not result.get("ok"):
+            return result
+        current = result["attenuation"]
+        for name, atten in self.named_positions.items():
+            if abs(current - atten) <= self._named_tol_db:
+                return {"ok": True, "named_pos": name, "attenuation": current}
+        # Sitting between named positions is a normal state, not an error.
+        return {"ok": True, "named_pos": "unknown", "attenuation": current}
+
+    def goto_named_pos(self, name):
+        '''moves to named position'''
+        goal = self.get_named_position(name)
+        if goal is None:
+            return self._fail(f"unknown named position '{name}'; "
+                              f"available: {sorted(self.named_positions)}")
+
+        result = self.set_atten(goal)
+        if not result.get("ok"):
+            return result
+        self.logger.debug("goto_named_pos: %s -> %s dB", name, goal)
+        return {"ok": True, "named_pos": str(name).strip().lower(), "attenuation": goal}
+
+    def _sync_hard_limits(self):
+        """Fill in hard limits from the controller when the config leaves them unset."""
+        limits = self.get_limits()
+        if not limits.get("ok"):
+            return
+        if self._hard_min is None:
+            self._hard_min = limits["min_limit"]
+        if self._hard_max is None:
+            self._hard_max = limits["max_limit"]
+        self.logger.info("hard limits: %s to %s %s",
+                         self._hard_min, self._hard_max, self.units)
+
+    def _load_named_positions(self) -> dict:
+        """Read named positions from config, keyed lowercase, values in dB."""
+        positions = {}
+        for name, value in (self.get_config("named_positions") or {}).items():
+            atten = self._opt_float(value)
+            if atten is None:
+                self.logger.warning("Named position '%s' has no value in config, skipping", name)
+                continue
+            message = self._check_atten(atten)
+            if message:
+                self.logger.warning("Named position '%s' ignored: %s", name, message)
+                continue
+            positions[str(name).strip().lower()] = atten
+        return positions
+
+    def _check_limits(self, pos) -> Optional[str]:
+        """Returns an error message if position is outside the configured limits."""
+        try:
+            pos = int(pos)
+        except (TypeError, ValueError):
+            return f"value '{pos}' must be an integer"
+        for label, limit in (("hard min", self._hard_min), ("soft min", self._soft_min)):
+            if limit is not None and pos < limit:
+                return f"position {pos} below {label} {limit}"
+        for label, limit in (("hard max", self._hard_max), ("soft max", self._soft_max)):
+            if limit is not None and pos > limit:
+                return f"position {pos} above {label} {limit}"
+        return None
+
+    def _check_atten(self, atten) -> Optional[str]:
+        """Returns an error message if attenuation is outside the driver's dB range."""
+        try:
+            atten = float(atten)
+        except (TypeError, ValueError):
+            return f"value '{atten}' must be a number"
+        if not ATTEN_MIN_DB <= atten <= ATTEN_MAX_DB:
+            return f"attenuation {atten} outside {ATTEN_MIN_DB} - {ATTEN_MAX_DB} dB"
+        return None
+
+    def _check_named(self, name) -> Optional[str]:
+        """Returns an error message if name is not a configured named position."""
+        if not name:
+            return "value must be a non-empty string"
+        if str(name).strip().lower() not in self.named_positions:
+            return (f"unknown named position '{name}'; "
+                    f"available: {sorted(self.named_positions)}")
+        return None
+
+    def _fail(self, message):
+        """Log an error, record it in daemon state, and build the error return."""
+        self.logger.error("Error: %s", message)
+        self.state['error'] = message
+        return {"ok": False, "error": message}
+
+    def _opt_str(self, value) -> Optional[str]:
+        """Normalize a config value to a string, or None when it is unset."""
+        if value is None:
+            return None
+        text = str(value).strip()
+        # Tolerates 'None'/'null' written as bare strings in the YAML.
+        if not text or text.lower() in ("none", "null", "~"):
+            return None
+        return text
+
+    def _opt_float(self, value) -> Optional[float]:
+        """Normalize a config value to a float, or None when it is unset/invalid."""
+        text = self._opt_str(value)
+        if text is None:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            self.logger.warning("Config value '%s' is not a number, ignoring", value)
+            return None
+
+    def _opt_int(self, value) -> Optional[int]:
+        """Normalize a config value to an int, or None when it is unset/invalid."""
+        number = self._opt_float(value)
+        return None if number is None else int(number)
+
+    def keyword_wrapper(self, func, key=None):
+        """Wrap a daemon method for use as a keyword getter/setter."""
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+            if not result.get("ok"):
+                message = result.get("error", f"Unknown error in {func.__name__}")
+                self.logger.error("keyword_wrapper [%s]: %s", func.__name__, message)
+                raise RuntimeError(message)
+            if key:
+                return result[key]
+            return {k: v for k, v in result.items() if k != "ok"}
+        return wrapper
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(
+        description='SMC8 Attenuator Daemon'
+    )
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        print(f"Starting SMC8 Attenuator Daemon with config: {args.config}")
+        daemon = SMC8Attenuator.from_config_file(args.config)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e: #pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

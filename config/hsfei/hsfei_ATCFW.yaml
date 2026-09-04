@@ -6,9 +6,9 @@
 # ATC FilterWheel — Thor labs fw 102c contoller instance
 #
 # Usage:
-#   daemons/generic/filterwheel -c config/hsfei/hsfei_filterwheel.yaml
+#   daemons/generic/filterwheel -c config/hsfei/hsfei_atcfwheel.yaml
 
-peer_id: atcfwheel
+peer_id: ATCFW
 group_id: hsfei
 
 hardware:
@@ -34,4 +34,4 @@ named_positions:
 
 logging:
   level: INFO
-  file: /tmp/atcfwheel.log
+  file: /tmp/ATCFW.log

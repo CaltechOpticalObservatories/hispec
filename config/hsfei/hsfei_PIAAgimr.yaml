@@ -1,13 +1,13 @@
 #
 # Usage:
-#   daemons/hsfei/piaa-gimbalmount -c config/hsfei/hsfei_yjpiaagim.yaml
+#   daemons/hsfei/piaa-gimbalmount -c config/hsfei/hsfei_PIAAgimr.yaml
 
-peer_id: yjpiaagim
+peer_id: PIAAgimr
 group_id: hsfei
 
 hardware:
   ip_address: 192.168.29.100
-  tcp_port: 10013
+  tcp_port: 10012
   axis: 2
   closed_loop_units: mrad
   open_loop_units: volts

@@ -1,0 +1,54 @@
+# HISPEC RED CAL Etalon Attenuator — Standa SMC8 contoller instance
+#
+# Usage:
+#   daemons/hscal/smc8_attenuator -c config/hscal/hscal_hketatten.yaml
+ 
+peer_id: hketatten
+group_id: hscal
+ 
+hardware:
+  # Set exactly ONE of serial / tcp / xinet; leave the others null.
+  # The daemon checks them in this order: tcp, serial, xinet.
+  # Formats are what smc8.py connect() expects (it prepends the xi- scheme):
+  #   serial: '\\COM111'  or  '/dev/ximc/000746D30'  -> xi-com://
+  #   tcp:    '172.16.130.155:1820'                  -> xi-tcp://
+  #   xinet:  '192.168.1.120/abcd'                   -> xi-net://
+  #           host/device-id, where device-id is the serial number in hex
+  serial: null
+  tcp: null
+  xinet: null
+ 
+  # Units of the positionvalue keyword. The controller works in steps;
+  # the attenuation keyword is always dB.
+  units: steps
+ 
+  # libximc user-unit coefficient, passed to connect(step_size=...)
+  step_size: 0.0025
+ 
+  # Reserved: read by neither the daemon nor the driver yet.
+  timeout_s: 30.0
+  retry_count: 3
+ 
+# Travel limits in controller steps. null disables the check.
+# hard_min/hard_max are read-only keywords; left null, they are filled in from
+# the controller's edges settings on startup.
+limits:
+  soft_min: null
+  soft_max: null
+  hard_min: null
+  hard_max: null
+ 
+# Named positions in dB of attenuation (0.0 - 40.0), matched case-insensitively.
+# Optical density converts as dB = 10 * OD, so OD2 -> 20.0 dB.
+# TODO: confirm against the as-built attenuator before deploying.
+named_positions:
+  empty: 0.0
+  OD2: 20.0
+ 
+# How close, in dB, the current attenuation must be to a named position for the
+# positionnamed keyword to report that name.
+named_position_tolerance_db: 0.05
+ 
+logging:
+  level: INFO
+  file: /tmp/hscal_hketatten.log
