@@ -152,6 +152,10 @@ class AtcPressDaemon(HispecDaemon):  # pylint: disable=W0223
         try:
             if self.controller.set_pressure_unit(code):
                 self.units = self.controller.pressure_units
+                self.error = ""
+            else:
+                self.logger.error("Units code not set: %d", code)
+                self.error = "Units code not set"
         except UnknownResponse as e:
             self.logger.error("Error setting pressure_units: %s", e)
             self.error = str(e)
