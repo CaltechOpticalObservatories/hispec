@@ -1,0 +1,21 @@
+# Capability flags for the Eaton EMAT-08/10 PDU.
+#
+# Mirrors kroot/util/kpdu/defs/eaton_emat0810.def, translated from that
+# file's HAS_OUTLET_*/HAS_STRIP_* KTL-template flags into the flags used by
+# daemons/generic/pdu's keyword-generation logic (_Outlet.register_keywords()
+# and Pdu._register_keywords()). One file per PDU model, named by model key
+# (the value used for hardware.model in a deployment's config), the same way
+# kpdu has one .def file per model.
+#
+# Outlet-level flags gate per-outlet keywords:
+has_outlet_amps: true    # -> outletcurrent{n}
+has_outlet_draw: true    # -> outletpower{n}
+has_outlet_pos: true     # -> outletautorestart{n}
+has_outlet_wh: true       # -> outletenergy{n} and the resetstatistics{n} trigger
+
+# Strip-level flags are checked but not yet backed by the Telnet driver;
+# setting one true only logs a startup warning today (see
+# Pdu._register_keywords()).
+has_strip_amps: false
+has_strip_draw: false
+has_hardware_ver: false
