@@ -3,7 +3,7 @@
 # Usage:
 #   daemons/hscal/smc8_attenuator -c config/hscal/hscal_hketatten.yaml
  
-peer_id: hscal_hketatten
+peer_id: hketatten
 group_id: hscal
  
 hardware:

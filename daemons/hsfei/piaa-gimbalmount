@@ -19,9 +19,6 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
     # method per keyword, so the stock pylint ceilings do not apply here.
     # pylint: disable=too-many-instance-attributes,too-many-public-methods
 
-    # Defaults
-    group_id = "hsfei"
-
     # pub/sub topics
     topics = {}
 
@@ -757,8 +754,6 @@ def main():
     )
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (YAML or JSON)')
-    parser.add_argument('-d', '--daemon-id', type=str,
-                        help='Daemon ID (required for subsystem configs with multiple daemons)')
 
     args = parser.parse_args()
 
@@ -767,7 +762,7 @@ def main():
         sys.exit(2)
 
     try:
-        daemon = PiaaGimbalmount.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon = PiaaGimbalmount.from_config_file(args.config)
         daemon.serve()
     except KeyboardInterrupt:
         print("\nDaemon interrupted by user")

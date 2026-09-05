@@ -8,7 +8,7 @@
 # Usage:
 #   daemons/generic/filterwheel -c config/hsfei/hsfei_atcfwheel.yaml
 
-peer_id: hsfei_ATCFW
+peer_id: ATCFW
 group_id: hsfei
 
 hardware:
