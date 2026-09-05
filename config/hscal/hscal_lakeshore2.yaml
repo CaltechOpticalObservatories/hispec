@@ -1,0 +1,29 @@
+# CAL RED Gas Cell Lakeshore 2 Model 336: NH3 and CO2 gas cells
+#
+# Usage:
+#   daemons/generic/lakeshore -c config/hsfei/hsfei_atclakeshore.yaml
+
+peer_id: hscal_gcelheater2
+group_id: hscal
+
+hardware:
+  ip_address: 192.168.29.162
+  tcp_port: 7777
+  model336: true
+  opt3062: false
+  celsius: false
+
+sensors:
+  - channel: A
+    keyword: tA_gc3_NH3
+  - channel: D
+    keyword: tD_gc4_CO2
+
+heaters:
+  - id: 1
+    keyword: 1_gc3_NH3
+  - id: 2
+    keyword: 2_gc4_CO2
+
+logging:
+  level: INFO
