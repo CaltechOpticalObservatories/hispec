@@ -1,9 +1,9 @@
 # CAL RED Gas Cell Lakeshore 2 Model 336: NH3 and CO2 gas cells
 #
 # Usage:
-#   daemons/generic/lakeshore -c config/hsfei/hsfei_atclakeshore.yaml
+#   daemons/generic/lakeshore -c config/hscal/hscal_gcellheater2.yaml
 
-peer_id: hscal_gcelheater2
+peer_id: gcellheater2
 group_id: hscal
 
 hardware:
