@@ -1,9 +1,9 @@
 # ATCLakeshore - Lakeshore 336 with option 3062 for the ATC dewar
 #
 # Usage:
-#   daemons/generic/lakeshore -c config/hsfei/hsfei_atclakeshore.yaml
+#   daemons/generic/lakeshore -c config/hsfei/hsfei_atctherm.yaml
 
-peer_id: hsfei_atctherm
+peer_id: atctherm
 group_id: hsfei
 
 hardware:
