@@ -3,7 +3,7 @@
 # Usage:
 #   daemons/hsfei/atcpress -c config/hsfei/hsfei_atcpress.yaml
 
-peer_id: hsfei_atcpress
+peer_id: atcpress
 group_id: hsfei
 
 hardware:
