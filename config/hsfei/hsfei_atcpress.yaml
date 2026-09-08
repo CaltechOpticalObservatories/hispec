@@ -1,7 +1,7 @@
 # ATCPress — Inficon VGC502 pressure gauge
 #
 # Usage:
-#   daemons/hsfei/atcpress -c config/hsfei/hsfei_atcpress.yaml
+#   daemons/generic/inficon -c config/hsfei/hsfei_atcpress.yaml
 
 peer_id: atcpress
 group_id: hsfei
