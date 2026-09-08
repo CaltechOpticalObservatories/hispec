@@ -81,7 +81,7 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
                                     description="Cold head temperature.")
         self.keyword_registry.float("reject_temp",
                                     getter=self._get_reject_temp,
-                                    units="K",
+                                    units="C",
                                     description="Reject temperature.")
         self.keyword_registry.float("target_temp",
                                     getter=self._get_target_temp,
