@@ -121,8 +121,6 @@ class _Stage:
 class AdcDaemon(HispecDaemon):  # pylint: disable=W0223
     """Daemon for controlling the ADC prism rotators via keywords."""
 
-    group_id = "hsfei"
-
     def __init__(self):
         super().__init__()
 
@@ -263,8 +261,6 @@ def main():
     parser = argparse.ArgumentParser(description='HSFEI ADC Rotator Daemon')
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (YAML or JSON)')
-    parser.add_argument('-d', '--daemon-id', type=str,
-                        help='Daemon ID (required for subsystem configs with multiple daemons)')
 
     args = parser.parse_args()
 
@@ -273,7 +269,7 @@ def main():
         sys.exit(2)
 
     try:
-        daemon = AdcDaemon.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon = AdcDaemon.from_config_file(args.config)
         daemon.serve()
     except KeyboardInterrupt:
         print("\nDaemon interrupted by user")

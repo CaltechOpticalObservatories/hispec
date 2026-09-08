@@ -3,7 +3,8 @@
 # Usage:
 #   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_atcpickoff.yaml
 
-peer_id: hsfei_atcpickoff
+peer_id: atcpickoff
+group_id: hsfei
 
 hardware:
   ip_address: 192.168.29.100

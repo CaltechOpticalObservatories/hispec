@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+"""
+Generic Lakeshore model 224 or 336 (with or without option 3062) Daemon
+
+Exposes the Lakeshore Temperature controller commands as libby keywords.
+"""
+
+import argparse
+import sys
+import time
+
+from hispec import HispecDaemon
+from hispec.driver.lakeshore.lakeshore import LakeshoreController
+
+
+class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attributes
+    """Daemon for controlling the Lakeshore via keywords."""
+
+    # Keyword suffix, index into the controller's (p, i, d) tuple, and label.
+    PID_TERMS = (("p", 0, "proportional"),
+                 ("i", 1, "integral"),
+                 ("d", 2, "derivative"))
+
+    def __init__(self):
+        super().__init__()
+
+        self.ip_address = None
+        self.tcp_port = None
+        self.units = None
+        self.model336 = None
+        self.opt3062 = None
+        self.lakeshore_model = None
+        self.sensors = None
+        self.heaters = None
+        self.error = None
+        self.start_time = None
+
+        # The controller needs hardware settings that from_config only populates
+        # after __init__ returns, so it is built in on_start instead.
+        self.controller = None
+
+    def on_start(self, libby):
+        """Called when the daemon starts - register keywords and connect."""
+        self.start_time = time.monotonic()
+
+        # from_config populates _config after __init__, so read it here
+        self.ip_address = self.get_config("hardware.ip_address")
+        self.tcp_port = self.get_config("hardware.tcp_port")
+        self.model336 = self.get_config("hardware.model336")
+        self.opt3062 = self.get_config("hardware.opt3062")
+        if self.model336:
+            self.lakeshore_model = "336+opt3062" if self.opt3062 else "336"
+        else:
+            self.lakeshore_model = "224"
+        self.units = "C" if self.get_config("hardware.celsius") else "K"
+        self.sensors = self.get_config("sensors") or []
+        self.heaters = self.get_config("heaters") or []
+
+        self.controller = LakeshoreController(log=True,
+                                              model336=self.model336,
+                                              opt3062=self.opt3062,
+                                              celsius=self.get_config("hardware.celsius"))
+
+        self.logger.info("Starting %s daemon with for model %s in degrees %s",
+                         self.peer_id, self.lakeshore_model, self.units)
+        self.logger.info("Using sensors: %s", self.sensors)
+        self.logger.info("Using heaters: %s", self.heaters)
+
+        self._register_sensor_keywords()
+        self._register_heater_keywords()
+
+        self.keyword_registry.bool("isconnected",
+                                   getter=self.controller.is_connected,
+                                   setter=self._set_connected,
+                                   description="Lakeshore controller is connected.")
+        self.keyword_registry.string("error",
+                                     getter=self._error_string,
+                                     description="Last error from the Lakeshore controller.")
+        self.keyword_registry.int("uptime",
+                                  getter=self._get_uptime,
+                                  units="seconds",
+                                  description="Seconds since the daemon started.")
+        self.keyword_registry.trigger("shutdown",
+                                      action=self._shutdown,
+                                      description="Shutdown the daemon now.")
+
+        if not (self.ip_address and self.tcp_port):
+            self.logger.error("No IP address or port specified")
+            return
+
+        try:
+            self._connect_hardware()
+            self.logger.info("Daemon started successfully and connected to hardware")
+        except Exception as e:  # pylint: disable=W0718
+            self.logger.error("Failed to connect to hardware: %s", e)
+            self.error = str(e)
+            self.logger.warning("Daemon will start but hardware is not available")
+
+    def _register_sensor_keywords(self):
+        """Register one read-only temperature keyword per configured sensor."""
+        for entry in self.sensors:
+            channel = entry.get("channel")
+            keyword = entry.get("keyword")
+            if not channel or not keyword:
+                self.logger.error("Skipping sensor entry without channel/keyword: %s", entry)
+                continue
+
+            self.keyword_registry.float(
+                keyword,
+                getter=self._make_temperature_getter(channel),
+                units=self.units,
+                description=f"Temperature at sensor {channel}.")
+
+    def _register_heater_keywords(self):
+        """Register the setpoint, output, status and PID keywords per heater."""
+        for entry in self.heaters:
+            output = entry.get("id")
+            keyword = entry.get("keyword")
+            if output is None or not keyword:
+                self.logger.error("Skipping heater entry without id/keyword: %s", entry)
+                continue
+
+            self.keyword_registry.float(
+                keyword,
+                getter=self._make_setpoint_getter(output),
+                setter=self._make_setpoint_setter(output),
+                units=self.units,
+                description=f"Setpoint for heater output {output}.")
+            self.keyword_registry.float(
+                f"{keyword}_output",
+                getter=self._make_output_getter(output),
+                units="percent",
+                description=f"Output power of heater output {output}.")
+            self.keyword_registry.string(
+                f"{keyword}_status",
+                getter=self._make_status_getter(output),
+                description=f"Status of heater output {output}.")
+
+            for term, index, label in self.PID_TERMS:
+                self.keyword_registry.float(
+                    f"{keyword}_{term}",
+                    getter=self._make_pid_getter(output, index),
+                    setter=self._make_pid_setter(output, index),
+                    description=f"PID {label} term for heater output {output}.")
+
+    def _make_temperature_getter(self, channel):
+        """Return a zero-argument getter reading the temperature at `channel`."""
+        def getter():
+            return self.controller.get_temperature(channel)
+        return getter
+
+    def _make_setpoint_getter(self, output):
+        """Return a zero-argument getter reading the setpoint of heater `output`."""
+        def getter():
+            return self.controller.get_heater_setpoint(output)
+        return getter
+
+    def _make_setpoint_setter(self, output):
+        """Return a one-argument setter writing the setpoint of heater `output`."""
+        def setter(value):
+            if not self.controller.set_heater_setpoint(output, value):
+                raise RuntimeError(f"Failed to set setpoint for heater output {output}")
+        return setter
+
+    def _make_output_getter(self, output):
+        """Return a zero-argument getter reading the power of heater `output`."""
+        def getter():
+            return self.controller.get_heater_output(output)
+        return getter
+
+    def _make_status_getter(self, output):
+        """Return a zero-argument getter reading the status of heater `output`."""
+        def getter():
+            return self.controller.get_heater_status(output)
+        return getter
+
+    def _make_pid_getter(self, output, index):
+        """Return a zero-argument getter reading one PID term of heater `output`."""
+        def getter():
+            values = self.controller.get_heater_pid(output)
+            return None if values is None else values[index]
+        return getter
+
+    def _make_pid_setter(self, output, index):
+        """Return a one-argument setter writing one PID term of heater `output`.
+
+        The controller writes P, I and D as a single command and rejects the
+        write unless all three are in range, so the other two terms are read
+        back and resent unchanged.
+        """
+        def setter(value):
+            values = self.controller.get_heater_pid(output)
+            if values is None:
+                raise RuntimeError(
+                    f"Unable to read PID values for heater output {output}")
+            terms = list(values)
+            terms[index] = value
+            if not self.controller.set_heater_pid(output, *terms):
+                raise RuntimeError(
+                    f"Failed to set PID values for heater output {output}")
+        return setter
+
+    def _shutdown(self):
+        """Shutdown the daemon"""
+        self.logger.info("Shutting down")
+        if self.controller is not None:
+            self.controller.disconnect()
+        self.request_stop()
+
+    def on_stop(self, libby=None):
+        """Cleanup when the daemon shuts down."""
+        self.logger.info("Shutting down %s daemon", self.peer_id)
+        if self.controller is None:
+            return
+        try:
+            self.controller.disconnect()
+            self.logger.info("Disconnected from Lakeshore controller")
+        except Exception as e:  # pylint: disable=W0718
+            self.logger.error("Error disconnecting: %s", e)
+            self.error = str(e)
+
+    def _connect_hardware(self):
+        self.logger.info("Connecting to Lakeshore controller at %s:%s",
+                         self.ip_address, self.tcp_port)
+        self.controller.connect(host=self.ip_address, port=int(self.tcp_port))
+        if self.controller.is_connected():
+            self.controller.initialize()
+
+    def _set_connected(self, value: bool) -> None:
+        if value:
+            self._connect_hardware()
+        else:
+            self.controller.disconnect()
+
+    def _get_uptime(self) -> int:
+        """Return the number of seconds elapsed since the daemon started"""
+        if self.start_time is None:
+            return 0
+        return int(time.monotonic() - self.start_time)
+
+    def _error_string(self) -> str:
+        """Return last error string"""
+        return self.error
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(description='Generic Lakeshore Daemon')
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+    parser.add_argument('-d', '--daemon-id', type=str,
+                        help='Daemon ID (required for subsystem configs with multiple daemons)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        daemon = LakeshoreDaemon.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e:  # pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

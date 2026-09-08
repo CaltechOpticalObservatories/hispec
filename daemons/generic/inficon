@@ -179,8 +179,6 @@ def main():
     parser = argparse.ArgumentParser(description='Inficon Pressure Daemon')
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (YAML or JSON)')
-    parser.add_argument('-d', '--daemon-id', type=str,
-                        help='Daemon ID (required for subsystem configs with multiple daemons)')
 
     args = parser.parse_args()
 

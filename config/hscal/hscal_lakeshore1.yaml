@@ -1,0 +1,29 @@
+# CAL RED Gas Cell Lakeshore 1 Model 336: N2O and CH4/H2O gas cells
+#
+# Usage:
+#   daemons/generic/lakeshore -c config/hsfei/hsfei_atclakeshore.yaml
+
+peer_id: hscal_gcelheater1
+group_id: hscal
+
+hardware:
+  ip_address: 192.168.29.161
+  tcp_port: 7777
+  model336: true
+  opt3062: false
+  celsius: false
+
+sensors:
+  - channel: A
+    keyword: tA_gc1_N2O
+  - channel: D
+    keyword: tD_gc2_CH4_H2O
+
+heaters:
+  - id: 1
+    keyword: 1_gc1_N2O
+  - id: 2
+    keyword: 2_gc2_CH4_H2O
+
+logging:
+  level: INFO
