@@ -16,9 +16,10 @@ hardware:
 
 
 named_positions:
-  open: 0.0
-  dichroic_1: 0.0
-  dichroic_2: 0.0
+  J+H: 0.2
+  H+JHGap: 32.95
+  JHGap: 65.98
+  J+JHGap: 98.6
 
 logging:
   level: INFO
