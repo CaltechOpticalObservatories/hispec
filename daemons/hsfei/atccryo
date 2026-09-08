@@ -9,25 +9,29 @@ import argparse
 import sys
 import time
 
-from hispec.driver.inficon.inficonvgc502 import UnknownResponse
-
 from hispec import HispecDaemon
 from hispec.driver.sunpower.sunpower_cryocooler import SunpowerCryocooler
+
+# Errors the driver raises, or lets through, when a command goes wrong.
+HARDWARE_ERRORS = (IOError, ValueError, IndexError, TypeError)
 
 
 class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
     """Daemon for controlling the ATC Sunpower cryocooler via keywords."""
+
+    # Control modes accepted by the cryocooler's COOLER command.
+    CONTROL_MODES = ("OFF", "ON", "POWER")
+
+    # Keyword and controller method suffix, plus label, for each PID term.
+    PID_TERMS = (("p", "proportional"),
+                 ("i", "integral"),
+                 ("d", "derivative"))
 
     def __init__(self):
         super().__init__()
 
         self.ip_address = None
         self.tcp_port = None
-        self.n_gauges = None
-        self.pressure1 = None
-        self.pressure2 = None
-        self.units = None
-        self.error = None
         self.start_time = None
         self.controller = SunpowerCryocooler(log=True)
 
@@ -38,38 +42,68 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
         self.tcp_port = self.get_config("hardware.tcp_port")
-        self.n_gauges = self.get_config("gauges.n_gauges")
-        group_id = self.get_config("group_id")
 
-        self.logger.info("Starting %s daemon with %d gauge(s)", self.peer_id, self.n_gauges)
+        self.logger.info("Starting %s daemon", self.peer_id)
 
         self.keyword_registry.bool("isconnected",
                                    getter=self.controller.is_connected,
                                    setter=self._set_connected,
-                                   description="ADC Pressure controller is connected.")
-        self.keyword_registry.string("error",
-                                     getter=self._error_string,
-                                     description="Last error from the ATC Pressure controller.")
+                                   description="Sunpower Cryocooler is connected.")
         self.keyword_registry.int("uptime",
                                   getter=self._get_uptime,
                                   units="seconds",
                                   description="Seconds since the daemon started.")
-        self.keyword_registry.float("pressure1",
-                                    getter=self._get_pressure1,
-                                    description="Pressure from gauge 1.")
-        self.keyword_registry.float("pressure2",
-                                    getter=self._get_pressure2,
-                                    description="Pressure from gauge 2.")
-        self.keyword_registry.float("temperature",
-                                    getter=self.controller.read_temperature,
-                                    description="Temperature from ATC Pressure controller.")
-        self.keyword_registry.string("units",
-                                     getter=self._get_pressure_units,
-                                     description="Pressure units.")
-        self.keyword_registry.int("units_code",
-                                  setter=self._set_pressure_units,
-                                  description="Pressure units code: 0 - mbar, 1 - Torr, 2 - Pascal,"
-                                              " 3 - Micron, 4 - hPascal, 5 - Volt.")
+        self.keyword_registry.string("status",
+                                     getter=self._get_status,
+                                     description="Full status report from the cryocooler.")
+        self.keyword_registry.string("cooler_error",
+                                     getter=self._get_cooler_error,
+                                     description="Error reported by the cryocooler itself.")
+        self.keyword_registry.string("version",
+                                     getter=self._get_version,
+                                     description="Cryocooler firmware version.")
+        self.keyword_registry.string("model",
+                                     getter=self._get_model,
+                                     description="Cryocooler model.")
+        self.keyword_registry.string("sensor",
+                                     getter=self._get_sensor,
+                                     description="Cryocooler temperature sensor type.")
+        self.keyword_registry.string("control_mode",
+                                     getter=self._get_control_mode,
+                                     setter=self._set_control_mode,
+                                     validator=self._validate_control_mode,
+                                     description="Control mode: OFF - cooler off,"
+                                                 " ON - temperature control,"
+                                                 " POWER - power control.")
+        self.keyword_registry.float("cold_head_temp",
+                                    getter=self._get_cold_head_temp,
+                                    units="K",
+                                    description="Cold head temperature.")
+        self.keyword_registry.float("reject_temp",
+                                    getter=self._get_reject_temp,
+                                    units="K",
+                                    description="Reject temperature.")
+        self.keyword_registry.float("target_temp",
+                                    getter=self._get_target_temp,
+                                    setter=self._set_target_temp,
+                                    units="K",
+                                    description="Target cold head temperature,"
+                                                " used in ON control mode.")
+        self.keyword_registry.float("measured_power",
+                                    getter=self._get_measured_power,
+                                    units="watts",
+                                    description="Measured cryocooler power.")
+        self.keyword_registry.float("commanded_power",
+                                    getter=self._get_commanded_power,
+                                    setter=self._set_commanded_power,
+                                    units="watts",
+                                    description="Commanded cryocooler power,"
+                                                " used in POWER control mode.")
+        self.keyword_registry.float("current_commanded_power",
+                                    getter=self._get_current_commanded_power,
+                                    units="watts",
+                                    description="Power the controller is commanding now.")
+        self._register_pid_keywords()
         self.keyword_registry.trigger("shutdown",
                                       action=self._shutdown,
                                       description="Shutdown the daemon now.")
@@ -83,8 +117,29 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
             self.logger.info("Daemon started successfully and connected to hardware")
         except Exception as e:  # pylint: disable=W0718
             self.logger.error("Failed to connect to hardware: %s", e)
-            self.error = str(e)
             self.logger.warning("Daemon will start but hardware is not available")
+
+    def _register_pid_keywords(self):
+        """Register one read/write keyword per term of the cryocooler PID loop."""
+        for term, label in self.PID_TERMS:
+            self.keyword_registry.float(
+                f"pid_{term}",
+                getter=self._make_pid_getter(term),
+                setter=self._make_pid_setter(term),
+                description=f"PID {label} constant of the cryocooler control loop.")
+
+    def _make_pid_getter(self, term):
+        """Return a zero-argument getter reading one PID term."""
+        def getter():
+            return self._read_number(f"pid_{term}",
+                                     getattr(self.controller, f"get_pid_{term}"))
+        return getter
+
+    def _make_pid_setter(self, term):
+        """Return a one-argument setter writing one PID term."""
+        def setter(value):
+            self._write(f"pid_{term}", getattr(self.controller, f"set_pid_{term}"), value)
+        return setter
 
     def _shutdown(self):
         """Shutdown the daemon"""
@@ -97,13 +152,12 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:
             self.controller.disconnect()
-            self.logger.info("Disconnected from ATC Pressure controller")
+            self.logger.info("Disconnected from Sunpower Cryocooler")
         except Exception as e:  # pylint: disable=W0718
             self.logger.error("Error disconnecting: %s", e)
-            self.error = str(e)
 
     def _connect_hardware(self):
-        self.logger.info("Connecting to ATC Pressure controller at %s:%s",
+        self.logger.info("Connecting to Sunpower Cryocooler at %s:%s",
                          self.ip_address, self.tcp_port)
         self.controller.connect(host=self.ip_address, port=int(self.tcp_port))
         if self.controller.is_connected():
@@ -115,53 +169,138 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
         else:
             self.controller.disconnect()
 
-    def _get_pressure1(self):
-        """Read the gauge 1 pressure from the ATC Pressure controller"""
+    def _read(self, label, getter, default=None):
+        """Call a controller getter, reporting any failure via lasterror."""
+        # The driver logs 'not connected' to its own logger, where lasterror
+        # cannot see it, and then reports the read as an unparsable reply.
+        if not self.controller.is_connected():
+            self.logger.error("Cannot read %s: not connected to the cryocooler", label)
+            return default
         try:
-            self.pressure1 = self.controller.read_pressure(gauge=1)
-        except UnknownResponse as e:
-            self.logger.error("Error reading pressure1: %s", e)
-            self.error = str(e)
-        return self.pressure1
+            return getter()
+        except HARDWARE_ERRORS as e:
+            self.logger.error("Error reading %s: %s", label, e)
+            return default
 
-    def _get_pressure2(self):
-        """Read the gauge 2 pressure from the ATC Pressure controller"""
-        try:
-            self.pressure2 = self.controller.read_pressure(gauge=2)
-        except UnknownResponse as e:
-            self.logger.error("Error reading pressure2: %s", e)
-            self.error = str(e)
-        return self.pressure2
+    def _read_number(self, label, getter):
+        """Call a controller getter that has to answer with a number.
 
-    def _get_pressure_units(self):
-        """Read the pressure units from the ATC Pressure controller"""
-        try:
-            _ = self.controller.get_pressure_unit()
-            self.units = self.controller.pressure_units
-        except UnknownResponse as e:
-            self.logger.error("Error reading pressure_units: %s", e)
-            self.error = str(e)
-        return self.units
-
-    def _set_pressure_units(self, code: int =1) -> bool:
-        """Set the pressure units from the ATC Pressure controller
-
-        :parm code: The integer new pressure units code:
-            0 - mbar, 1 - Torr, 2 - Pascal, 3 - Micron, 4 - hPascal, 5 - Volt
+        The driver falls back to returning the raw reply text when it cannot
+        parse a value out of it, so anything non-numeric is reported as an
+        error rather than handed to a float keyword.
         """
+        value = self._read(label, getter)
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            self.logger.error("Unexpected %s reply: %s", label, value)
+            return None
+        return float(value)
+
+    def _read_string(self, label, getter):
+        """Call a controller getter and flatten its reply into one string."""
+        value = self._read(label, getter, default="")
+        if isinstance(value, list):
+            return "; ".join(value)
+        return "" if value is None else str(value)
+
+    def _read_last_value(self, label, getter):
+        """Call a controller getter whose multi-line reply holds one value.
+
+        The cooler echoes the command it was sent, so the value is on the last
+        line of the reply, either bare or as '<COMMAND>=<value>'.
+        """
+        reply = self._read(label, getter, default=[])
+        if not reply:
+            return ""
+        return reply[-1].split("=")[-1].strip()
+
+    def _write(self, label, setter, *args):
+        """Send a set command, raising RuntimeError if the cooler does not take it."""
+        if not self.controller.is_connected():
+            self.logger.error("Cannot set %s: not connected to the cryocooler", label)
+            raise RuntimeError(f"Cannot set {label}: not connected to the cryocooler")
         try:
-            if self.controller.set_pressure_unit(code):
-                self.units = self.controller.pressure_units
-                self.error = ""
-                return True
-            else:
-                self.logger.error("Units code not set: %d", code)
-                self.error = "Units code not set"
-                return False
-        except UnknownResponse as e:
-            self.logger.error("Error setting pressure_units: %s", e)
-            self.error = str(e)
-            return False
+            reply = setter(*args)
+        except HARDWARE_ERRORS as e:
+            self.logger.error("Error setting %s: %s", label, e)
+            raise RuntimeError(f"Failed to set {label}: {e}") from e
+        # The driver reports a silent controller as this string rather than raising.
+        if reply == "No reply":
+            self.logger.error("No reply setting %s", label)
+            raise RuntimeError(f"No reply setting {label}")
+        return reply
+
+    def _get_status(self) -> str:
+        """Read the full status report from the Sunpower Cryocooler"""
+        return self._read_string("status", self.controller.get_status)
+
+    def _get_cooler_error(self) -> str:
+        """Read the error state reported by the Sunpower Cryocooler"""
+        return self._read_string("cooler_error", self.controller.get_error)
+
+    def _get_version(self) -> str:
+        """Read the firmware version from the Sunpower Cryocooler"""
+        return self._read_string("version", self.controller.get_version)
+
+    def _get_model(self) -> str:
+        """Read the model from the Sunpower Cryocooler"""
+        return self._read_last_value("model", self.controller.get_model)
+
+    def _get_sensor(self) -> str:
+        """Read the temperature sensor type from the Sunpower Cryocooler"""
+        return self._read_last_value("sensor", self.controller.get_sensor)
+
+    def _get_control_mode(self) -> str:
+        """Read the control mode from the Sunpower Cryocooler"""
+        return self._read_last_value("control_mode",
+                                     self.controller.get_control_mode).upper()
+
+    def _validate_control_mode(self, mode: str):
+        """Reject control modes the COOLER command does not accept."""
+        if mode.strip().upper() not in self.CONTROL_MODES:
+            return f"control_mode must be one of {', '.join(self.CONTROL_MODES)}"
+        return None
+
+    def _set_control_mode(self, mode: str) -> None:
+        """Set the control mode of the Sunpower Cryocooler"""
+        actions = {"OFF": self.controller.turn_off_cooler,
+                   "ON": self.controller.turn_on_cooler,
+                   "POWER": self.controller.set_cooler_to_power_mode}
+        self._write("control_mode", actions[mode.strip().upper()])
+
+    def _get_cold_head_temp(self):
+        """Read the cold head temperature from the Sunpower Cryocooler"""
+        return self._read_number("cold_head_temp", self.controller.get_cold_head_temp)
+
+    def _get_reject_temp(self):
+        """Read the reject temperature from the Sunpower Cryocooler"""
+        return self._read_number("reject_temp", self.controller.get_reject_temp)
+
+    def _get_target_temp(self):
+        """Read the target temperature from the Sunpower Cryocooler"""
+        return self._read_number("target_temp", self.controller.get_target_temp)
+
+    def _set_target_temp(self, ttemp: float) -> None:
+        """Set the target temperature for the Sunpower Cryocooler"""
+        self._write("target_temp", self.controller.set_target_temp, ttemp)
+
+    def _get_measured_power(self):
+        """Read the measured power from the Sunpower Cryocooler"""
+        return self._read_number("measured_power", self.controller.get_measured_power)
+
+    def _get_commanded_power(self):
+        """Read the commanded power from the Sunpower Cryocooler"""
+        return self._read_number("commanded_power", self.controller.get_commanded_power)
+
+    def _set_commanded_power(self, watts: float) -> None:
+        """Set the commanded power for the Sunpower Cryocooler"""
+        self._write("commanded_power", self.controller.set_commanded_power, watts)
+
+    def _get_current_commanded_power(self):
+        """Read the power the Sunpower Cryocooler is commanding now"""
+        return self._read_number("current_commanded_power",
+                                 self.controller.get_current_commanded_power)
 
     def _get_uptime(self) -> int:
         """Return the number of seconds elapsed since the daemon started"""
@@ -169,14 +308,10 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
             return 0
         return int(time.monotonic() - self.start_time)
 
-    def _error_string(self) -> str:
-        """Return last error string"""
-        return self.error
-
 
 def main():
     """Main entry point for the daemon."""
-    parser = argparse.ArgumentParser(description='HSFEI ATC Pressure Daemon')
+    parser = argparse.ArgumentParser(description='HSFEI Sunpower Cryocooler Daemon')
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (YAML or JSON)')
 
