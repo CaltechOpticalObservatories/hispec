@@ -62,6 +62,7 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
                                     description="Pressure from gauge 2.")
         self.keyword_registry.float("temperature",
                                     getter=self.controller.read_temperature,
+                                    units="C",
                                     description="Temperature from Inficon pressure controller.")
         self.keyword_registry.string("units",
                                      getter=self._get_pressure_units,
