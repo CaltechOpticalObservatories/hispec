@@ -1,0 +1,14 @@
+# ATCCryo — Sunpower Cryocooler daemon config
+#
+# Usage:
+#   daemons/hsfei/atccryo -c config/hsfei/hsfei_atccryo.yaml
+
+peer_id: atccryo
+group_id: hsfei
+
+hardware:
+  ip_address: 192.168.29.100
+  tcp_port: 10016
+
+logging:
+  level: INFO
