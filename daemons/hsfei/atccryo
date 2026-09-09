@@ -56,9 +56,9 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
         self.keyword_registry.string("status",
                                      getter=self._get_status,
                                      description="Full status report from the cryocooler.")
-        self.keyword_registry.string("cooler_error",
-                                     getter=self._get_cooler_error,
-                                     description="Error reported by the cryocooler itself.")
+        self.keyword_registry.int("cooler_error",
+                                  getter=self._get_cooler_error,
+                                  description="Error code reported by the cryocooler itself.")
         self.keyword_registry.string("version",
                                      getter=self._get_version,
                                      description="Cryocooler firmware version.")
@@ -237,7 +237,7 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
 
     def _get_cooler_error(self) -> str:
         """Read the error state reported by the Sunpower Cryocooler"""
-        return self._read_string("cooler_error", self.controller.get_error)
+        return self._read_number("cooler_error", self.controller.get_error)
 
     def _get_version(self) -> str:
         """Read the firmware version from the Sunpower Cryocooler"""
