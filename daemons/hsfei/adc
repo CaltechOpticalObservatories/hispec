@@ -16,6 +16,10 @@ from hispec import HispecDaemon
 from hispec.driver.newport.smc100pp import StageController
 
 
+# StageController.home() polls to completion, so the RPC waits out the move
+HOME_TIMEOUT_S = 60.0
+
+
 def _as_float(v) -> Optional[float]:
     if v is None:
         return None
@@ -48,7 +52,9 @@ class _Stage:
         s = self.suffix
         registry.bool(f"isreferenced{s}",
                       getter=self.is_referenced,
-                      description="ADC rotator stage is referenced (homed).")
+                      setter=self._set_referenced,
+                      timeout_s=HOME_TIMEOUT_S,
+                      description="ADC rotator stage is referenced (homed); write true to home.")
         registry.bool(f"ismoving{s}",
                       getter=self.is_moving,
                       description="ADC rotator stage is moving.")
@@ -117,6 +123,16 @@ class _Stage:
             if not self.controller.move_abs(position=v, stage_id=self.stage_id, blocking=False):
                 raise RuntimeError("controller rejected move command")
 
+    def _set_referenced(self, value: bool) -> None:
+        """Home the stage; reject false, the driver cannot clear the flag."""
+        if not value:
+            raise RuntimeError("cannot clear referenced state; write true to home")
+        with self._move_lock:
+            if self.is_moving():
+                raise RuntimeError("stage is already moving; halt or wait for completion")
+            if not self.controller.home(stage_id=self.stage_id):
+                raise RuntimeError("controller rejected reference move")
+
 
 class AdcDaemon(HispecDaemon):  # pylint: disable=W0223
     """Daemon for controlling the ADC prism rotators via keywords."""
@@ -161,7 +177,10 @@ class AdcDaemon(HispecDaemon):  # pylint: disable=W0223
                                       description="Halt all ADC rotator motion.")
         self.keyword_registry.bool("isreferenced",
                                    getter=lambda: all(s.is_referenced() for s in self.stages),
-                                   description="Both ADC rotator stages are referenced.")
+                                   setter=self._set_all_referenced,
+                                   timeout_s=HOME_TIMEOUT_S,
+                                   description="Both ADC rotator stages are referenced; "
+                                               "write true to home both.")
         self.keyword_registry.bool("ismoving",
                                    getter=lambda: any(s.is_moving() for s in self.stages),
                                    description="Either ADC rotator stage is moving.")
@@ -224,6 +243,11 @@ class AdcDaemon(HispecDaemon):  # pylint: disable=W0223
     def _halt_all(self) -> None:
         for stage in self.stages:
             stage.stop()
+
+    def _set_all_referenced(self, value: bool) -> None:
+        """Setter for the consolidated isreferenced: home every stage."""
+        for stage in self.stages:
+            stage._set_referenced(value)  # pylint: disable=protected-access
 
     def _check_named(self, name: str) -> Optional[str]:
         if not name:
