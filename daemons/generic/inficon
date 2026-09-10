@@ -7,7 +7,6 @@ Exposes the Inficon pressure gauge commands as libby keywords.
 
 import argparse
 import sys
-import time
 
 from hispec.driver.inficon.inficonvgc502 import UnknownResponse
 
@@ -28,14 +27,11 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         self.pressure2 = None
         self.units = None
         self.error = None
-        self.start_time = None
         self.controller = InficonVGC502(log=True)
         self.daemon_description = "Inficon Pressure Daemon"
 
     def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
-        self.start_time = time.monotonic()
-
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
         self.tcp_port = self.get_config("hardware.tcp_port")
@@ -50,10 +46,6 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Last error from the Inficon pressure controller.")
-        self.keyword_registry.int("uptime",
-                                  getter=self._get_uptime,
-                                  units="seconds",
-                                  description="Seconds since the daemon started.")
         self.keyword_registry.float("pressure1",
                                     getter=self._get_pressure1,
                                     description="Pressure from gauge 1.")
@@ -71,10 +63,6 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
                                   setter=self._set_pressure_units,
                                   description="Pressure units code: 0 - mbar, 1 - Torr, 2 - Pascal,"
                                               " 3 - Micron, 4 - hPascal, 5 - Volt.")
-        self.keyword_registry.trigger("shutdown",
-                                      action=self._shutdown,
-                                      description="Shutdown the daemon now.")
-
         if not (self.ip_address and self.tcp_port):
             self.logger.error("No IP address or port specified")
             return
@@ -86,12 +74,6 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
             self.logger.error("Failed to connect to hardware: %s", e)
             self.error = str(e)
             self.logger.warning("Daemon will start but hardware is not available")
-
-    def _shutdown(self):
-        """Shutdown the daemon"""
-        self.logger.info("Shutting down")
-        self.controller.disconnect()
-        self.request_stop()
 
     def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
@@ -163,12 +145,6 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
             self.logger.error("Error setting pressure_units: %s", e)
             self.error = str(e)
             return False
-
-    def _get_uptime(self) -> int:
-        """Return the number of seconds elapsed since the daemon started"""
-        if self.start_time is None:
-            return 0
-        return int(time.monotonic() - self.start_time)
 
     def _error_string(self) -> str:
         """Return last error string"""
