@@ -7,7 +7,6 @@ Exposes the Sunpower cryocooler commands as libby keywords.
 
 import argparse
 import sys
-import time
 
 from hispec import HispecDaemon
 from hispec.driver.sunpower.sunpower_cryocooler import SunpowerCryocooler
@@ -37,7 +36,6 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
 
     def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
-        self.start_time = time.monotonic()
 
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
@@ -49,10 +47,6 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
                                    getter=self.controller.is_connected,
                                    setter=self._set_connected,
                                    description="Sunpower Cryocooler is connected.")
-        self.keyword_registry.int("uptime",
-                                  getter=self._get_uptime,
-                                  units="seconds",
-                                  description="Seconds since the daemon started.")
         self.keyword_registry.string("status",
                                      getter=self._get_status,
                                      description="Full status report from the cryocooler.")
@@ -235,9 +229,10 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
         """Read the full status report from the Sunpower Cryocooler"""
         return self._read_string("status", self.controller.get_status)
 
-    def _get_cooler_error(self) -> str:
+    def _get_cooler_error(self) -> int | None:
         """Read the error state reported by the Sunpower Cryocooler"""
-        return self._read_number("cooler_error", self.controller.get_error)
+        value = self._read_number("cooler_error", self.controller.get_error)
+        return int(value) if value is not None else None
 
     def _get_version(self) -> str:
         """Read the firmware version from the Sunpower Cryocooler"""
@@ -301,12 +296,6 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
         """Read the power the Sunpower Cryocooler is commanding now"""
         return self._read_number("current_commanded_power",
                                  self.controller.get_current_commanded_power)
-
-    def _get_uptime(self) -> int:
-        """Return the number of seconds elapsed since the daemon started"""
-        if self.start_time is None:
-            return 0
-        return int(time.monotonic() - self.start_time)
 
 
 def main():
