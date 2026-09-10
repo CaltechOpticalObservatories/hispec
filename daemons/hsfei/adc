@@ -175,6 +175,10 @@ class AdcDaemon(HispecDaemon):  # pylint: disable=W0223
         self.keyword_registry.trigger("halt",
                                       action=self._halt_all,
                                       description="Halt all ADC rotator motion.")
+        self.keyword_registry.trigger("shutdown",
+                                      action=self._shutdown,
+                                      description="Gracefully stop this daemon; "
+                                                  "refused while a stage is moving.")
         self.keyword_registry.bool("isreferenced",
                                    getter=lambda: all(s.is_referenced() for s in self.stages),
                                    setter=self._set_all_referenced,
@@ -243,6 +247,18 @@ class AdcDaemon(HispecDaemon):  # pylint: disable=W0223
     def _halt_all(self) -> None:
         for stage in self.stages:
             stage.stop()
+
+    def _shutdown(self) -> None:
+        """Stop the daemon, refusing while a stage is still moving."""
+        try:
+            moving = any(s.is_moving() for s in self.stages)
+        except Exception:  # pylint: disable=W0718
+            # An unreachable controller must not leave the daemon unstoppable
+            moving = False
+        if moving:
+            raise RuntimeError("a stage is moving; halt before shutting down")
+        self.logger.info("Shutting down on keyword request")
+        self.request_stop()
 
     def _set_all_referenced(self, value: bool) -> None:
         """Setter for the consolidated isreferenced: home every stage."""
