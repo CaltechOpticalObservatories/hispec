@@ -1,0 +1,22 @@
+# CAL RED (HK) Etalon SRS PTC10 daemon config
+#
+# Usage:
+#   daemons/generic/srstherm -c config/hscal/hscal_hkettherm.yaml
+
+peer_id: hkettherm
+group_id: hscal
+
+hardware:
+  ip_address: 192.168.29.165
+  tcp_port: 23
+
+sensors:
+  - channel: 2A
+    keyword: t2A_red_etalon
+
+heaters:
+  - id: Out 1
+    keyword: Out1_red_etalon
+
+logging:
+  level: INFO

@@ -1,0 +1,22 @@
+# CAL BLUE (YJ) Etalon SRS PTC10 daemon config
+#
+# Usage:
+#   daemons/generic/srstherm -c config/hscal/hscal_yjettherm.yaml
+
+peer_id: yjettherm
+group_id: hscal
+
+hardware:
+  ip_address: 192.168.29.150
+  tcp_port: 23
+
+sensors:
+  - channel: 2A
+    keyword: t2A_blue_etalon
+
+heaters:
+  - id: Out 1
+    keyword: Out1_blue_etalon
+
+logging:
+  level: INFO
