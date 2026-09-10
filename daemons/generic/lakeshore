@@ -194,6 +194,13 @@ class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-
                     f"Failed to set PID values for heater output {output}")
         return setter
 
+    def _shutdown(self):
+        """Shutdown the daemon"""
+        self.logger.info("Shutting down")
+        if self.controller is not None:
+            self.controller.disconnect()
+        self.request_stop()
+
     def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
@@ -205,13 +212,6 @@ class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-
         except Exception as e:  # pylint: disable=W0718
             self.logger.error("Error disconnecting: %s", e)
             self.error = str(e)
-
-    def _shutdown(self):
-        """Shutdown the daemon"""
-        self.logger.info("Shutting down")
-        if self.controller is not None:
-            self.controller.disconnect()
-        self.request_stop()
 
     def _connect_hardware(self):
         self.logger.info("Connecting to Lakeshore controller at %s:%s",
