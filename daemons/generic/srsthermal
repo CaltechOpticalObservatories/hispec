@@ -7,7 +7,6 @@ Exposes the SRS PTC10 Temperature controller commands as libby keywords.
 
 import argparse
 import sys
-import time
 
 from hispec import HispecDaemon
 from hispec.driver.srs.ptc10 import PTC10
@@ -33,7 +32,6 @@ class SRSThermalDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance
 
     def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
-        self.start_time = time.monotonic()
 
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
