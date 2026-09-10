@@ -57,13 +57,6 @@ class SRSThermalDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Last error from the SRS PTC10 controller.")
-        self.keyword_registry.int("uptime",
-                                  getter=self._get_uptime,
-                                  units="seconds",
-                                  description="Seconds since the daemon started.")
-        self.keyword_registry.trigger("shutdown",
-                                      action=self._shutdown,
-                                      description="Shutdown the daemon now.")
 
         if not (self.ip_address and self.tcp_port):
             self.logger.error("No IP address or port specified")
@@ -119,13 +112,6 @@ class SRSThermalDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance
             return self.controller.get_atomic_value(output)
         return getter
 
-    def _shutdown(self):
-        """Shutdown the daemon"""
-        self.logger.info("Shutting down")
-        if self.controller is not None:
-            self.controller.disconnect()
-        self.request_stop()
-
     def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
@@ -150,12 +136,6 @@ class SRSThermalDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance
             self._connect_hardware()
         else:
             self.controller.disconnect()
-
-    def _get_uptime(self) -> int:
-        """Return the number of seconds elapsed since the daemon started"""
-        if self.start_time is None:
-            return 0
-        return int(time.monotonic() - self.start_time)
 
     def _error_string(self) -> str:
         """Return last error string"""
