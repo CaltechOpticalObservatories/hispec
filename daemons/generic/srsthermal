@@ -55,6 +55,9 @@ class SRSThermalDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Last error from the SRS PTC10 controller.")
+        self.keyword_registry.trigger("shutdown",
+                                      action=self._shutdown,
+                                      description="Shutdown the daemon now.")
 
         if not (self.ip_address and self.tcp_port):
             self.logger.error("No IP address or port specified")
@@ -109,6 +112,13 @@ class SRSThermalDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance
         def getter():
             return self.controller.get_atomic_value(output)
         return getter
+
+    def _shutdown(self):
+        """Shutdown the daemon"""
+        self.logger.info("Shutting down")
+        if self.controller is not None:
+            self.controller.disconnect()
+        self.request_stop()
 
     def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
