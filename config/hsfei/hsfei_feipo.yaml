@@ -1,9 +1,9 @@
 # FEI Pickoff Mirror — C-663 stepper instance
 #
 # Usage:
-#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_pickoff.yaml
+#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_feipo.yaml
 
-peer_id: pickoff
+peer_id: feipo
 group_id: hsfei
 
 hardware:

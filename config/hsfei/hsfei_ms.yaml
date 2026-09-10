@@ -1,9 +1,9 @@
 # FEI Mask Selector — H C-863 servo + V C-663 stepper, daisy-chained.
 #
 # Usage:
-#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_msel.yaml
+#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_ms.yaml
 
-peer_id: msel
+peer_id: ms
 group_id: hsfei
 
 hardware:

@@ -1,9 +1,9 @@
 # ATC Pickoff Dichroic Selector — C-663 stepper instance
 #
 # Usage:
-#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_atcpickoff.yaml
+#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_atcp.yaml
 
-peer_id: atcpickoff
+peer_id: atcp
 group_id: hsfei
 
 hardware:

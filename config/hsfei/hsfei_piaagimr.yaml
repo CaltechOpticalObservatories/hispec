@@ -1,8 +1,8 @@
 #
 # Usage:
-#   daemons/hsfei/piaa-gimbalmount -c config/hsfei/hsfei_PIAAgimr.yaml
+#   daemons/hsfei/piaa-gimbalmount -c config/hsfei/hsfei_piaagimr.yaml
 
-peer_id: PIAAgimr
+peer_id: piaagimr
 group_id: hsfei
 
 hardware:

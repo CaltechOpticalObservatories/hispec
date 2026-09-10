@@ -1,9 +1,9 @@
 # Focal/Pupil Plane Selector — C-663 stepper instance
 #
 # Usage:
-#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_focpupsel.yaml
+#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_atcl.yaml
 
-peer_id: focpupsel
+peer_id: atcl
 group_id: hsfei
 
 hardware:
