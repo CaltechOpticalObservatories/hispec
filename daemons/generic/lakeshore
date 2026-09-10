@@ -7,7 +7,6 @@ Exposes the Lakeshore Temperature controller commands as libby keywords.
 
 import argparse
 import sys
-import time
 
 from hispec import HispecDaemon
 from hispec.driver.lakeshore.lakeshore import LakeshoreController
@@ -41,7 +40,6 @@ class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-
 
     def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
-        self.start_time = time.monotonic()
 
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
@@ -76,10 +74,6 @@ class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Last error from the Lakeshore controller.")
-        self.keyword_registry.int("uptime",
-                                  getter=self._get_uptime,
-                                  units="seconds",
-                                  description="Seconds since the daemon started.")
         self.keyword_registry.trigger("shutdown",
                                       action=self._shutdown,
                                       description="Shutdown the daemon now.")
@@ -185,7 +179,7 @@ class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-
         """Return a one-argument setter writing one PID term of heater `output`.
 
         The controller writes P, I and D as a single command and rejects the
-        write unless all three are in range, so the other two terms are read
+        write command unless all three are in range, so the other two terms are read
         back and resent unchanged.
         """
         def setter(value):
@@ -232,12 +226,6 @@ class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-
         else:
             self.controller.disconnect()
 
-    def _get_uptime(self) -> int:
-        """Return the number of seconds elapsed since the daemon started"""
-        if self.start_time is None:
-            return 0
-        return int(time.monotonic() - self.start_time)
-
     def _error_string(self) -> str:
         """Return last error string"""
         return self.error
@@ -248,8 +236,6 @@ def main():
     parser = argparse.ArgumentParser(description='Generic Lakeshore Daemon')
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (YAML or JSON)')
-    parser.add_argument('-d', '--daemon-id', type=str,
-                        help='Daemon ID (required for subsystem configs with multiple daemons)')
 
     args = parser.parse_args()
 
