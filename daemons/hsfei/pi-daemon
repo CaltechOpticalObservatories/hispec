@@ -52,13 +52,13 @@ class _Stage:
         s = self.suffix
         registry.bool(f"isloopclosed{s}",
                       setter=lambda v: self.controller.close_loop(self.device_key, self.axis, enable=bool(v)),
-                      getter=lambda: self.controller.is_loop_closed(self.device_key, self.axis),
+                      getter=self.is_loop_closed,
                       description="Servo control loop is closed.")
         registry.bool(f"isreferenced{s}",
-                      getter=lambda: self.controller.is_homed(self.device_key, self.axis),
+                      getter=self.is_referenced,
                       description="Stage has been referenced (homed).")
         registry.bool(f"ismoving{s}",
-                      getter=lambda: self.controller.is_moving(self.device_key, self.axis),
+                      getter=self.is_moving,
                       description="Stage is currently moving.")
         registry.float(f"positionvalue{s}",
                        getter=lambda: self.controller.get_pos(self.device_key, self.axis),
@@ -90,6 +90,18 @@ class _Stage:
                        getter=lambda: self._hard_limits()[1],
                        units=self.units,
                        description="Hardware travel maximum (from the controller).")
+
+    def is_loop_closed(self) -> bool:
+        """Return whether this stage's servo control loop is closed."""
+        return self.controller.is_loop_closed(self.device_key, self.axis)
+
+    def is_referenced(self) -> bool:
+        """Return whether this stage has been referenced (homed)."""
+        return self.controller.is_homed(self.device_key, self.axis)
+
+    def is_moving(self) -> bool:
+        """Return whether this stage is currently moving."""
+        return self.controller.is_moving(self.device_key, self.axis)
 
     def halt(self):
         """Halt motion on this stage."""
@@ -168,6 +180,8 @@ class PiDaemon(HispecDaemon):
 
         for stage in self.stages:
             stage.register_keywords(self.keyword_registry)
+        if len(self.stages) > 1:
+            self._register_consolidated_keywords()
         self.keyword_registry.bool("isconnected",
                                    getter=self._controller_responsive,
                                    setter=self._set_connected,
@@ -239,6 +253,27 @@ class PiDaemon(HispecDaemon):
     def _halt_all(self) -> None:
         for stage in self.stages:
             stage.halt()
+
+    def _register_consolidated_keywords(self) -> None:
+        """Register whole-module isreferenced/isloopclosed/ismoving.
+
+        Aggregates across stages (all/all/any); called only when there's
+        more than one, since a single-stage config's one _Stage already
+        registers these same bare (no-suffix) keywords itself, and
+        registering them twice would raise on the duplicate name.
+        """
+        self.keyword_registry.bool(
+            "isreferenced",
+            getter=lambda: all(stage.is_referenced() for stage in self.stages),
+            description="All stages are referenced (homed).")
+        self.keyword_registry.bool(
+            "isloopclosed",
+            getter=lambda: all(stage.is_loop_closed() for stage in self.stages),
+            description="All stages have their servo control loop closed.")
+        self.keyword_registry.bool(
+            "ismoving",
+            getter=lambda: any(stage.is_moving() for stage in self.stages),
+            description="Any stage is currently moving.")
 
     def _connect_hardware(self):
         """Connect to the PI controller hardware."""
