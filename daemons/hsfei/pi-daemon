@@ -56,7 +56,8 @@ class _Stage:
                       description="Servo control loop is closed.")
         registry.bool(f"isreferenced{s}",
                       getter=self.is_referenced,
-                      description="Stage has been referenced (homed).")
+                      setter=self._set_referenced,
+                      description="Stage has been referenced (homed); write true to home.")
         registry.bool(f"ismoving{s}",
                       getter=self.is_moving,
                       description="Stage is currently moving.")
@@ -138,6 +139,16 @@ class _Stage:
             return (f"unknown named position '{name}'; "
                     f"available: {list(self.named_positions.keys())}")
         return None
+
+    def _set_referenced(self, value: bool) -> None:
+        """Home the stage; reject false, GCS2 has no un-reference command."""
+        if not value:
+            raise RuntimeError("cannot clear referenced state; write true to home")
+        with self._move_lock:
+            if self.controller.is_moving(self.device_key, self.axis):
+                raise RuntimeError("stage is already moving; halt or wait for completion")
+            if not self.controller.home(self.device_key, self.axis, blocking=False):
+                raise RuntimeError("controller rejected reference move")
 
     def _set_position(self, v: float) -> None:
         with self._move_lock:
@@ -265,7 +276,8 @@ class PiDaemon(HispecDaemon):
         self.keyword_registry.bool(
             "isreferenced",
             getter=lambda: all(stage.is_referenced() for stage in self.stages),
-            description="All stages are referenced (homed).")
+            setter=self._set_all_referenced,
+            description="All stages are referenced (homed); write true to home all.")
         self.keyword_registry.bool(
             "isloopclosed",
             getter=lambda: all(stage.is_loop_closed() for stage in self.stages),
@@ -274,6 +286,11 @@ class PiDaemon(HispecDaemon):
             "ismoving",
             getter=lambda: any(stage.is_moving() for stage in self.stages),
             description="Any stage is currently moving.")
+
+    def _set_all_referenced(self, value: bool) -> None:
+        """Setter for the consolidated isreferenced: home every stage."""
+        for stage in self.stages:
+            stage._set_referenced(value)  # pylint: disable=protected-access
 
     def _connect_hardware(self):
         """Connect to the PI controller hardware."""
