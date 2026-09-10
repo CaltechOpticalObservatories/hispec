@@ -14,7 +14,7 @@ Getting Started
 ---------------
 
 Start with the host-machine build page when setting up a development or
-deployment machine. Use the FEI server and RTC pages for subsystem-specific
+deployment machine. Use the FEI/RTC build page for subsystem-specific
 installation and configuration details.
 
 .. toctree::
@@ -23,8 +23,7 @@ installation and configuration details.
    :titlesonly:
 
    Host Machine Build Setup <build_notes/host_machine_build_notes>
-   FEI Server Build Setup <build_notes/fei_server_build_notes>
-   TCC and Real-Time Kernel Build <build_notes/rtc_buildnote>
+   FEI Server and RTC Build <build_notes/fei_buildnote>
 
 Planned Documentation Areas
 ---------------------------

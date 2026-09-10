@@ -1,3 +1,5 @@
+:orphan:
+
 ===========================================
 Build Setup for hsdev FEI
 ===========================================
@@ -104,7 +106,7 @@ Update package list and install core build tools, development libraries, and uti
        htop
 
 KROOT Specific Packages (Optional / Machine Dependent)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Install packages required for KROOT environment build dependencies:
 
@@ -285,7 +287,7 @@ Expected output:
       Chip version: 42220400, LibFT4222 version: 010404E8
 
 SPI FTDI 4222 udev Configuration (Non-Root USB Access)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
      
      - There may be no FT4222H connected. Run ``lsusb`` and check for something like:
 
