@@ -1,9 +1,9 @@
 # FEI Retractable Light Source Module — H + V C-863 servo, daisy-chained.
 #
 # Usage:
-#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_rlight.yaml
+#   daemons/hsfei/pi-daemon -c config/hsfei/hsfei_lsm.yaml
 
-peer_id: rlight
+peer_id: lsm
 group_id: hsfei
 
 hardware:
