@@ -15,8 +15,8 @@ hardware:
   retry_count: 3
 
 named_positions:
-  focal: 0.0
-  pupil: 0.0
+  focal: 7.15
+  pupil: 93.64
 
 logging:
   level: INFO
