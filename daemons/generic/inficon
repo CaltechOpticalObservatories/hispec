@@ -63,6 +63,10 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
                                   setter=self._set_pressure_units,
                                   description="Pressure units code: 0 - mbar, 1 - Torr, 2 - Pascal,"
                                               " 3 - Micron, 4 - hPascal, 5 - Volt.")
+        self.keyword_registry.trigger("shutdown",
+                                      action=self._shutdown,
+                                      description="Shutdown the daemon now.")
+
         if not (self.ip_address and self.tcp_port):
             self.logger.error("No IP address or port specified")
             return
@@ -74,6 +78,12 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
             self.logger.error("Failed to connect to hardware: %s", e)
             self.error = str(e)
             self.logger.warning("Daemon will start but hardware is not available")
+
+    def _shutdown(self):
+        """Shutdown the daemon"""
+        self.logger.info("Shutting down")
+        # on_stop handles teardown; a driver error here would block shutdown
+        self.request_stop()
 
     def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
@@ -164,7 +174,7 @@ def main():
         sys.exit(2)
 
     try:
-        daemon = InficonDaemon.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon = InficonDaemon.from_config_file(args.config)
         daemon.serve()
     except KeyboardInterrupt:
         print("\nDaemon interrupted by user")
