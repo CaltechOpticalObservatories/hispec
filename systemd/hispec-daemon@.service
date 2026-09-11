@@ -1,0 +1,56 @@
+# HISPEC hardware daemon — systemd template unit.
+#
+# This is a template: one file manages any daemons/<subdir>/<script>
+# that is a HispecDaemon subclass taking `-c <config.yaml>` and blocking in daemon.serve() 
+#
+# Instantiated per running daemon via the "%i" instance name, e.g.:
+#
+#   systemctl enable --now hispec-daemon@hsfei_atcpress
+#   systemctl enable --now hispec-daemon@hscal_gcellheater1
+#   systemctl enable --now hispec-daemon@hscal_gcellheater2
+#
+# Each instance name maps to an EnvironmentFile at
+# /etc/hispec/instances/<instance>.env which says which daemon script to run
+# (HISPEC_DAEMON, as a path relative to daemons/, e.g. "generic/inficon" or
+# "hsfei/adc") and which config file to pass it (see systemd/instances/*.env
+# and systemd/README.md for setup instructions).
+
+[Unit]
+Description=HISPEC hardware daemon (%i)
+Documentation=https://github.com/CaltechOpticalObservatories/hispec/blob/main/systemd/README.md
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=hispec
+Group=hispec
+
+EnvironmentFile=/etc/hispec/instances/%i.env
+WorkingDirectory=/opt/hispec/app
+ExecStart=/opt/hispec/venv/bin/python3 /opt/hispec/app/daemons/${HISPEC_DAEMON} -c ${HISPEC_CONFIG}
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+KillSignal=SIGTERM
+
+# The daemon logs to stderr/stdout unless its YAML config sets logging.file,
+# so by default everything lands in the journal:
+#   journalctl -u hispec-daemon@%i -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hispec-%i
+
+# Basic sandboxing. Loosen ProtectSystem/ProtectHome if a driver needs write
+# access outside /etc/hispec, /var/log/hispec (e.g. a serial device node
+# under /dev is unaffected by these two).
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
