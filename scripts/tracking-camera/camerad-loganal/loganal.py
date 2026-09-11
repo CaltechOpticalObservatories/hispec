@@ -14,6 +14,15 @@ seqno = 1
 in_exposure = False
 in_read = False
 in_wait = False
+# Populated from log lines as they are matched below; pre-initialised so a log
+# that lacks the expected lines cannot raise NameError further down.
+vstart = vstop = hstart = hstop = None
+frame = None
+ts_exp_start = None
+ts_rd_start = None
+deltas = []
+rdeltas = []
+wdeltas = []
 print("")
 with open(sys.argv[1]) as fn:
     lines = fn.readlines()

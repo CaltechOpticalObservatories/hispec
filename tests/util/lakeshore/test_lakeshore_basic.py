@@ -1,6 +1,6 @@
 """Perform basic tests."""
 import pytest
-from hispec.util.lakeshore.lakeshore import LakeshoreController
+from hispec.driver.lakeshore.lakeshore import LakeshoreController
 
 def test_not_connected():
     """Test not connected."""

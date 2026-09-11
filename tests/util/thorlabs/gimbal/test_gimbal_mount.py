@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import unittest
-from hispec.util.thorlabs.gimbal.PPC102_lib import PPC102_Coms, DATA_CODES
+from hispec.driver.thorlabs.gimbal.PPC102_lib import PPC102_Coms, DATA_CODES
 import time
 
 inifile = "BlueGimbalMount.ini"

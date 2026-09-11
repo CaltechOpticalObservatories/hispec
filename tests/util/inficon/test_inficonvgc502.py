@@ -2,7 +2,7 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch
 
-from hispec.util.inficon.inficonvgc502 import InficonVGC502, UnknownResponse
+from hispec.driver.inficon.inficonvgc502 import InficonVGC502, UnknownResponse
 
 
 @pytest.fixture

@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.12"]
     steps:
     - uses: actions/checkout@v4
 
@@ -30,10 +30,24 @@ jobs:
     - name: Run pylint and check score threshold
       run: |
         echo "Running pylint..."
-        pylint_output=$(pylint $(git ls-files '*.py' | grep -v '^qt/') || true)
+
+        # Submodules are linted in their own repos, so keep their paths out of
+        # the file list even if this checkout is ever changed to fetch them.
+        submodules=$(git config --file .gitmodules --get-regexp path | awk '{print $2}' || true)
+        echo "Excluding submodules:"
+        echo "$submodules"
+
+        files=$(git ls-files '*.py' | grep -v '^qt/' | grep -v -E -f <(echo "$submodules" | sed 's|^|^|; s|$|/|') || true)
+
+        if [ -z "$files" ]; then
+          echo "No Python files to lint"
+          exit 0
+        fi
+
+        pylint_output=$(pylint $files || true)
 
         echo "$pylint_output"
-        
+
         score=$(echo "$pylint_output" | grep 'Your code has been rated at' | awk '{print $7}' | cut -d'/' -f1)
 
         echo "Pylint score: $score"
