@@ -15,10 +15,10 @@ hardware:
   retry_count: 3
 
 named_positions:
-  home: 0.0
-  deployed: 25.0
-  science: 12.5
-  calibration: 37.5
+  J+H: 0.2
+  H+JHGap: 32.95
+  JHGap: 65.98
+  J+JHGap: 98.6
 
 logging:
   level: INFO

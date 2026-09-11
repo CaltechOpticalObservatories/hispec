@@ -16,14 +16,14 @@ stages:
     axis: "1"
     units: mm
     named_positions:
-      in: 0.0
+      on_axis: 2.643
       out: 0.0
   - name: v
     device_id: 2
     axis: "1"
     units: mm
     named_positions:
-      in: 0.0
+      on_axis: 22.603
       out: 0.0
 
 logging:
