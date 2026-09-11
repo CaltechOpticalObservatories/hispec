@@ -1,123 +1,174 @@
 """Tests for the FEI subsystem API."""
 import pytest
 
-from hispec.api import MoveTimeout, PositionError
-from hispec.api.fei import FEI, devices
+from hispec.api import DeviceError, ProcedureTimeout
+from hispec.api.fei import devices
 
 
-def _motion_values(device="ms", suffix="h", position=0.0, moving=False,
-                   referenced=True):
-    """Keyword values for one idle motion axis."""
-    return {
-        f"hsfei.{device}.positionvalue{suffix}": position,
-        f"hsfei.{device}.ismoving{suffix}": moving,
-        f"hsfei.{device}.isreferenced{suffix}": referenced,
-        f"hsfei.{device}.positionnamed{suffix}": "custom",
-    }
+def test_axis_names_come_from_the_device_configs(fei):
+    """Axis names are derived from config/hsfei, not hard-coded."""
+    assert set(fei.axis_names()) == {
+        "atcl", "atcp", "feipo", "lsm_h", "lsm_v", "ms_h", "ms_v"}
 
 
-def test_unknown_stage_lists_available(client_factory):
-    """Asking for a stage that does not exist names the ones that do."""
-    fei = FEI(client_factory())
+def test_pi_axis_resolves_the_device_key(fei):
+    """An axis carries everything a PI driver call needs."""
+    axis = fei.pi_axis("ms_h")
+    assert axis.device == devices.MS
+    # Address, port and chain position all come from hsfei_ms.yaml.
+    assert axis.device_key == ("192.168.29.100", 10005, 2)
+    assert axis.axis == "1"
+    assert axis.units == "mm"
+
+
+def test_unknown_axis_lists_the_real_ones(fei):
+    """Asking for an axis that does not exist names the ones that do."""
     with pytest.raises(KeyError) as excinfo:
-        fei.stage("no_such_stage")
+        fei.pi_axis("no_such_axis")
     assert "ms_h" in str(excinfo.value)
 
 
-def test_stage_handles_are_cached(client_factory):
-    """The same stage name hands back the same handle."""
-    fei = FEI(client_factory())
-    assert fei.stage("ms_h") is fei.stage("ms_h")
+def test_move_axes_commands_every_axis_before_waiting(fei, fake_drivers):
+    """Axes on one controller are commanded together, not in series."""
+    result = fei.move_axes({"ms_h": 1.0, "ms_v": 2.0})
+    moves = [call for call in fake_drivers[devices.MS].calls
+             if call[0] == "set_pos"]
+    assert [(call[2], call[3]) for call in moves] == [(1.0, False), (2.0, False)]
+    assert result == {"ms_h": 1.0, "ms_v": 2.0}
 
 
-def test_stage_suffix_matches_daemon_keywords(client_factory):
-    """A multi-axis daemon's keywords carry the axis suffix."""
-    fei = FEI(client_factory())
-    assert fei.stage("ms_h").keyword("positionvalue") == "positionvalueh"
-    assert fei.stage("adc1").keyword("positionvalue") == "positionvalue1"
-    # A single-axis daemon has no suffix.
-    assert fei.stage("feipo").keyword("positionvalue") == "positionvalue"
+def test_move_axes_raises_when_the_controller_refuses(fei, fake_drivers):
+    """A rejected move is an error, not a silent no-op."""
+    fake_drivers[devices.MS].refuse_moves = True
+    with pytest.raises(DeviceError):
+        fei.move_axes({"ms_h": 1.0})
 
 
-def test_move_waits_then_reads_back(client_factory):
-    """A move commands the axis, waits for it to stop, and reports position."""
-    client = client_factory(_motion_values())
-    assert FEI(client).stage("ms_h").move(12.5) == 12.5
-    assert ("hsfei.ms.positionvalueh", 12.5) in client.sets
-    # Motion is given a chance to start before the wait for it to end.
-    assert [expr for expr, _timeout, _svc in client.waits] == [
-        "$ismovingh == true", "$ismovingh == false"]
+def test_move_axes_times_out_while_an_axis_still_moves(fei, fake_drivers):
+    """An axis that never stops raises instead of returning early."""
+    pi = fake_drivers[devices.MS]
+    pi.moving.add((("192.168.29.100", 10005, 2), "1"))
+    with pytest.raises(ProcedureTimeout):
+        fei.move_axes({"ms_h": 1.0}, timeout_s=0.05)
 
 
-def test_move_times_out_while_still_moving(client_factory):
-    """An axis that never stops raises rather than returning silently."""
-    client = client_factory(_motion_values(moving=True))
-    with pytest.raises(MoveTimeout):
-        FEI(client).stage("ms_h").move(5.0, timeout_s=0.01)
+def test_move_axes_can_skip_the_wait(fei):
+    """A non-blocking move commands the axis and returns."""
+    assert fei.move_axes({"feipo": 3.0}, wait=False) == {"feipo": 3.0}
 
 
-def test_move_detects_missed_target(client_factory):
-    """Stopping away from the target raises when a tolerance is given."""
-    client = client_factory(_motion_values(position=0.0),
-                            frozen=("hsfei.ms.positionvalueh",))
-    with pytest.raises(PositionError):
-        FEI(client).stage("ms_h").move(5.0, tolerance=0.1)
+def test_named_positions_come_from_config(fei):
+    """A named move uses the positions the daemon config defines."""
+    assert fei.pi_axis("feipo").named_target("science") == 12.5
+    assert fei.move_to_named(devices.FEIPO, "deployed") == {"feipo": 25.0}
 
 
-def test_move_without_wait_only_commands(client_factory):
-    """A non-blocking move writes the target and does not wait."""
-    client = client_factory(_motion_values())
-    assert FEI(client).stage("ms_h").move(3.0, wait=False) is None
-    assert client.waits == []
+def test_unknown_named_position_lists_the_configured_ones(fei):
+    """A typo in a position name reports what is actually configured."""
+    with pytest.raises(KeyError) as excinfo:
+        fei.select_mask("slot_99")
+    assert "slot_1" in str(excinfo.value)
 
 
-def test_move_adc_commands_both_prisms_before_waiting(client_factory):
-    """Both ADC prisms are commanded first, so they move together."""
-    client = client_factory({**_motion_values("adc", "1"),
-                             **_motion_values("adc", "2")})
-    assert FEI(client).move_adc(10.0, -10.0) == {"adc1": 10.0, "adc2": -10.0}
-    assert client.sets == [("hsfei.adc.positionvalue1", 10.0),
-                           ("hsfei.adc.positionvalue2", -10.0)]
+def test_select_mask_moves_both_axes(fei):
+    """The mask selector's two axes are both driven by one call."""
+    assert set(fei.select_mask("slot_1")) == {"ms_h", "ms_v"}
 
 
-def test_home_all_skips_referenced_axes(client_factory):
-    """An axis that is already referenced is left alone."""
-    client = client_factory(_motion_values(referenced=True))
-    results = FEI(client).home_all(["ms_h"])
-    assert results == {"ms_h": None}
-    assert client.sets == []
+def test_move_adc_commands_both_prisms_first(fei, fake_drivers):
+    """Both ADC prisms are commanded before either wait starts."""
+    assert fei.move_adc(10.0, -10.0) == {1: 10.0, 2: -10.0}
+    assert fake_drivers[devices.ADC].calls == [
+        ("move_abs", 1, 10.0, False), ("move_abs", 2, -10.0, False)]
 
 
-def test_home_all_records_failures_and_continues(client_factory):
-    """One unreachable axis does not stop the others from homing."""
-    client = client_factory(_motion_values("ms", "h", referenced=False))
-    results = FEI(client).home_all(["ms_h", "feipo"])
-    assert results["ms_h"] is None
-    assert results["feipo"] is not None
-    assert ("hsfei.ms.isreferencedh", True) in client.sets
+def test_move_adc_raises_when_a_prism_refuses(fei, fake_drivers):
+    """A refused prism move is reported, not ignored."""
+    fake_drivers[devices.ADC].refuse_moves = True
+    with pytest.raises(DeviceError):
+        fei.move_adc(0.0, 0.0)
 
 
-def test_halt_all_hits_each_motion_daemon_once(client_factory):
-    """Halting the subsystem triggers halt once per daemon, not per axis."""
-    client = client_factory()
-    FEI(client).halt_all()
-    halted = [name for name, _value in client.sets]
-    assert sorted(halted) == sorted(
-        f"hsfei.{device}.halt" for device in
-        {device for device, _suffix, _units in devices.STAGES.values()})
+def test_home_all_skips_axes_already_referenced(fei, fake_drivers):
+    """An axis that reports homed is left alone."""
+    pi = fake_drivers[devices.FEIPO]
+    pi.homed.add((("192.168.29.100", 10001, 1), "1"))
+    assert fei.home_all(["feipo"]) == {"feipo": None}
+    assert not [call for call in pi.calls if call[0] == "home"]
 
 
-def test_temperatures_cover_every_configured_sensor(client_factory):
-    """Every ATC dewar sensor is read, unreadable ones included."""
-    client = client_factory({"hsfei.atctherm.tA_detector": 40.2})
-    temps = FEI(client).temperatures()
-    assert temps["tA_detector"] == 40.2
-    assert set(temps) == set(devices.ATCTHERM_SENSORS)
+def test_home_all_covers_every_axis_and_the_adc(fei, fake_drivers):
+    """Homing the subsystem reaches the PI axes and both ADC prisms."""
+    results = fei.home_all()
+    assert set(results) == set(fei.axis_names()) | {"adc1", "adc2"}
+    assert all(error is None for error in results.values())
+    assert fake_drivers[devices.ADC].calls == [("home", 1), ("home", 2)]
 
 
-def test_status_never_raises_on_a_dead_subsystem(client_factory):
-    """A status snapshot of an unreachable FEI reports Nones, not errors."""
-    status = FEI(client_factory()).status()
-    assert set(status) == {"connected", "positions", "devices"}
-    assert set(status["connected"]) == set(devices.DEVICES)
-    assert all(value is None for value in status["positions"].values())
+def test_home_all_records_failures_and_keeps_going(fei, fake_drivers):
+    """One controller refusing to home does not stop the others."""
+    def refuse(*_args, **_kwargs):
+        raise OSError("controller offline")
+    fake_drivers[devices.MS].home = refuse
+
+    results = fei.home_all(["ms_h", "feipo"])
+    assert results["ms_h"] == "controller offline"
+    assert results["feipo"] is None
+
+
+def test_halt_all_hits_each_connected_controller_once(fei, fake_drivers):
+    """Halting sends one halt per controller, not one per axis."""
+    fei.halt_all()
+    halts = [call for call in fake_drivers[devices.MS].calls
+             if call[0] == "halt_motion"]
+    assert len(halts) == 1
+
+
+def test_halt_all_does_not_connect_anything(fake_drivers):
+    """Halting an FEI with nothing connected touches no device."""
+    from hispec.api.fei import FEI  # local: keeps the fixture out of this test
+    FEI().halt_all()
+    assert all(not getattr(driver, "calls", [])
+               for driver in fake_drivers.values())
+
+
+def test_temperatures_use_the_configured_sensor_keywords(fei):
+    """Sensor names and channels both come from the Lakeshore config."""
+    temps = fei.temperatures()
+    # hsfei_atctherm.yaml maps channel A to tA_detector.
+    assert temps["tA_detector"] == 40.0
+    # A sensor the controller will not report is None, not an exception.
+    assert temps["tC_g10"] is None
+
+
+def test_status_is_tolerant_of_a_dead_device(fei, fake_drivers):
+    """A snapshot reports what it could not read rather than raising."""
+    def refuse(*_args, **_kwargs):
+        raise OSError("gauge offline")
+    fake_drivers[devices.ATCPRESS].read_pressure = refuse
+
+    status = fei.status()
+    assert status["pressures"]["gauge1"] is None
+    assert status["cryo"]["cold_head_temp"] == 80.0
+    assert set(status["positions"]) >= set(fei.axis_names())
+
+
+def test_cooldown_starts_the_cooler_then_samples_until_target(fei, fake_drivers):
+    """A cooldown commands the cooler, then polls to the target temperature."""
+    cryo = fake_drivers[devices.ATCCRYO]
+    cryo.cold_head_temps = [120.0, 90.0, 55.0]
+    seen = []
+
+    samples = fei.cooldown(56.0, tolerance_k=1.0, timeout_s=5.0, poll_s=0.01,
+                           on_sample=seen.append)
+
+    assert cryo.calls[:2] == [("set_target_temp", 56.0), ("turn_on_cooler",)]
+    assert [s["cryo"]["cold_head_temp"] for s in samples] == [120.0, 90.0, 55.0]
+    assert seen == samples
+
+
+def test_cooldown_times_out_without_reaching_target(fei, fake_drivers):
+    """A dewar that will not cool raises rather than waiting forever."""
+    fake_drivers[devices.ATCCRYO].cold_head_temps = [300.0]
+    with pytest.raises(ProcedureTimeout):
+        fei.cooldown(50.0, timeout_s=0.05, poll_s=0.01)
