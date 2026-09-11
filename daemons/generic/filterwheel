@@ -129,6 +129,14 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                         getter=lambda: self._hard_max,
                         units=self.units,
                         description="Hardware upper limit for filter wheel position.")
+        self.keyword_registry.trigger("shutdown",
+                        action=self._shutdown,
+                        description="Gracefully stop this daemon")
+
+    def _shutdown(self) -> None:
+        """Stop the daemon; on_stop disconnects from the hardware"""
+        self.logger.info("Shutting down %s on keyword request", self.daemon_desc)
+        self.request_stop()
 
     def get_named_positions(self):
         """Get named positions from config (e.g., home, deployed, science)."""

@@ -203,6 +203,10 @@ class PiDaemon(HispecDaemon):
         self.keyword_registry.trigger("halt",
                                       action=self._halt_all,
                                       description="Halt motion on all stages.")
+        self.keyword_registry.trigger("shutdown",
+                                      action=self._shutdown,
+                                      description="Gracefully stop this daemon; "
+                                                  "refused while a stage is moving.")
 
         if not (self.ip_address and self.tcp_port):
             self.logger.error("No IP address or port specified")
@@ -264,6 +268,18 @@ class PiDaemon(HispecDaemon):
     def _halt_all(self) -> None:
         for stage in self.stages:
             stage.halt()
+
+    def _shutdown(self) -> None:
+        """Stop the daemon, refusing while a stage is still moving."""
+        try:
+            moving = any(stage.is_moving() for stage in self.stages)
+        except Exception:
+            # An unreachable controller must not leave the daemon unstoppable
+            moving = False
+        if moving:
+            raise RuntimeError("a stage is moving; halt before shutting down")
+        self.logger.info("Shutting down on keyword request")
+        self.request_stop()
 
     def _register_consolidated_keywords(self) -> None:
         """Register whole-module isreferenced/isloopclosed/ismoving.

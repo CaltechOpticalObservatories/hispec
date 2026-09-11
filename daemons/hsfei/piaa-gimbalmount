@@ -268,6 +268,14 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         self.keyword_registry.trigger("cleanup",
                         action=self.clean_up_gimbal,
                         description="Clean up Gimbal, Open loops and set voltage to 0")
+        self.keyword_registry.trigger("shutdown",
+                        action=self._shutdown,
+                        description="Gracefully stop this daemon")
+
+    def _shutdown(self) -> None:
+        """Stop the daemon; on_stop disconnects but leaves the loops closed"""
+        self.logger.info("Shutting down %s on keyword request", self.daemon_desc)
+        self.request_stop()
 
     def initialize(self):
         """handles initialization"""
