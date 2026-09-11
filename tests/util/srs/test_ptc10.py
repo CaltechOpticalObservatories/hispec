@@ -1,11 +1,10 @@
 """
-Unit tests for the PTC10 class in the hispec.util.srs.ptc10 module.
+Unit tests for the PTC10 class in the hispec.driver.srs.ptc10 module.
 """
 import unittest
 from unittest.mock import MagicMock
-# pylint: disable=import-error,no-name-in-module
-from hispec.util.srs.ptc10_connection import PTC10Connection
-from hispec.util.srs.ptc10 import PTC10
+from hispec.driver.srs.ptc10_connection import PTC10Connection
+from hispec.driver.srs.ptc10 import PTC10
 
 
 class TestPTC10(unittest.TestCase):

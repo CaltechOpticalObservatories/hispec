@@ -27,3 +27,27 @@ dependencies = [
     "libby@git+https://github.com/CaltechOpticalObservatories/libby.git",
     "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base"
 ]
+
+[tool.pylint.main]
+# CI lints without installing the project or its dependencies, and the driver
+# packages live in git submodules that the lint job does not check out, so
+# these imports can never resolve there. Ignore them rather than reporting
+# import-error for environment reasons unrelated to code quality.
+ignored-modules = [
+    # Third-party dependencies, not installed in the lint environment
+    "astropy",
+    "libby",
+    "matplotlib",
+    "numpy",
+    "pysnmp",
+    "pytest",
+    "scipy",
+    "serial",
+    "zmq",
+    # Keck/KTL-internal modules, unavailable outside the summit environment
+    "DFW",
+    "SerialStream",
+    # Device drivers vendored as git submodules
+    "hispec.driver",
+    "PPC102_lib",
+]
