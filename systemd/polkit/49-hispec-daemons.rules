@@ -1,0 +1,21 @@
+// Let members of the "hispec-ops" group start/stop/restart hispec-daemon@*
+// units without sudo, while leaving every other systemd unit on the host
+// alone.
+//
+// Install as /etc/polkit-1/rules.d/49-hispec-daemons.rules (picked up
+// automatically by polkit — no restart needed). Requires root to install;
+// see install.sh.
+//
+// Note: this only covers org.freedesktop.systemd1.manage-units (start,
+// stop, restart, kill, reset-failed). Polkit can't scope
+// manage-unit-files (enable/disable) to a single unit by name, so
+// `systemctl enable/disable` still needs an admin.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.systemd1.manage-units" &&
+        subject.isInGroup("hispec-ops")) {
+        var unit = action.lookup("unit");
+        if (unit && unit.indexOf("hispec-daemon@") == 0) {
+            return polkit.Result.YES;
+        }
+    }
+});
