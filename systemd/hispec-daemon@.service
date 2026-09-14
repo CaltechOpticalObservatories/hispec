@@ -29,7 +29,9 @@ User=hispec
 Group=hispec
 
 EnvironmentFile=/etc/hispec/instances/%i.env
-WorkingDirectory=/opt/hispec/app
+# Drivers write their own .log next to the working directory, so this has to
+# be writable by User= above; the repo checkout is not
+WorkingDirectory=/var/log/hispec
 ExecStart=/opt/hispec/venv/bin/python3 /opt/hispec/app/daemons/${HISPEC_DAEMON} -c ${HISPEC_CONFIG}
 
 Restart=on-failure
