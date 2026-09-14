@@ -30,6 +30,10 @@ into it, installs `hispec-daemon@.service`, and installs a polkit rule
 start/stop/restart `hispec-daemon@*` units without sudo. Override
 `HISPEC_REPO_DIR` / `HISPEC_VENV_DIR` for different paths.
 
+The polkit rule is in the JavaScript `.rules` format, which needs polkit
+0.106 or newer (Ubuntu 22.04 and later). On an older host it is ignored
+silently, with no error, and operators just get an auth prompt instead.
+
 **No sudo day to day:** once an admin has run `install.sh` and added you —
 `usermod -aG hispec-ops,systemd-journal <you>` (log out/in, or `newgrp
 hispec-ops`, to pick it up) — you can create/edit files under `/etc/hispec/`
@@ -57,29 +61,30 @@ daemon (e.g. two lakeshores) just means two env files with different
 
 | instance              | daemon                   | config                                  |
 | --------------------- | ------------------------ | ---------------------------------------- |
-| `hsfei_atcpress`      | `generic/inficon`        | `config/hsfei/hsfei_atcpress.yaml`      |
-| `hsfei_atctherm`      | `generic/lakeshore`      | `config/hsfei/hsfei_atctherm.yaml`      |
-| `hscal_gcellheater1`  | `generic/lakeshore`      | `config/hscal/hscal_gcellheater1.yaml`  |
-| `hscal_gcellheater2`  | `generic/lakeshore`      | `config/hscal/hscal_gcellheater2.yaml`  |
-| `hsfei_ATCFW`         | `generic/filterwheel`    | `config/hsfei/hsfei_ATCFW.yaml`         |
 | `hscal_hkcalfwheel1`  | `generic/filterwheel`    | `config/hscal/hscal_hkcalfwheel1.yaml`  |
 | `hscal_hkcalfwheel2`  | `generic/filterwheel`    | `config/hscal/hscal_hkcalfwheel2.yaml`  |
 | `hscal_hkgcellfwheel` | `generic/filterwheel`    | `config/hscal/hscal_hkgcellfwheel.yaml` |
 | `hscal_yjcalfwheel1`  | `generic/filterwheel`    | `config/hscal/hscal_yjcalfwheel1.yaml`  |
 | `hscal_yjcalfwheel2`  | `generic/filterwheel`    | `config/hscal/hscal_yjcalfwheel2.yaml`  |
+| `hsfei_atcfw`         | `generic/filterwheel`    | `config/hsfei/hsfei_atcfw.yaml`         |
+| `hsfei_atcpress`      | `generic/inficon`        | `config/hsfei/hsfei_atcpress.yaml`      |
+| `hscal_gcellheater1`  | `generic/lakeshore`      | `config/hscal/hscal_gcellheater1.yaml`  |
+| `hscal_gcellheater2`  | `generic/lakeshore`      | `config/hscal/hscal_gcellheater2.yaml`  |
+| `hsfei_atctherm`      | `generic/lakeshore`      | `config/hsfei/hsfei_atctherm.yaml`      |
+| `hscal_hkettherm`     | `generic/srsthermal`     | `config/hscal/hscal_hkettherm.yaml`     |
+| `hscal_yjettherm`     | `generic/srsthermal`     | `config/hscal/hscal_yjettherm.yaml`     |
+| `hscal_hketatten`     | `hscal/smc8_attenuator`  | `config/hscal/hscal_hketatten.yaml`     |
 | `hsfei_adc`           | `hsfei/adc`              | `config/hsfei/hsfei_adc.yaml`           |
 | `hsfei_atccryo`       | `hsfei/atccryo`          | `config/hsfei/hsfei_atccryo.yaml`       |
-| `hsfei_atcpickoff`    | `hsfei/pi-daemon`        | `config/hsfei/hsfei_atcpickoff.yaml`    |
-| `hsfei_focpupsel`     | `hsfei/pi-daemon`        | `config/hsfei/hsfei_focpupsel.yaml`     |
-| `hsfei_msel`          | `hsfei/pi-daemon`        | `config/hsfei/hsfei_msel.yaml`          |
-| `hsfei_pickoff`       | `hsfei/pi-daemon`        | `config/hsfei/hsfei_pickoff.yaml`       |
-| `hsfei_rlight`        | `hsfei/pi-daemon`        | `config/hsfei/hsfei_rlight.yaml`        |
-| `hsfei_PIAAgimb`      | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_PIAAgimb.yaml`      |
-| `hsfei_PIAAgimr`      | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_PIAAgimr.yaml`      |
-| `hscal_hketatten`     | `hscal/smc8_attenuator`  | `config/hscal/hscal_hketatten.yaml`     |
+| `hsfei_atcl`          | `hsfei/pi-daemon`        | `config/hsfei/hsfei_atcl.yaml`          |
+| `hsfei_atcp`          | `hsfei/pi-daemon`        | `config/hsfei/hsfei_atcp.yaml`          |
+| `hsfei_feipo`         | `hsfei/pi-daemon`        | `config/hsfei/hsfei_feipo.yaml`         |
+| `hsfei_lsm`           | `hsfei/pi-daemon`        | `config/hsfei/hsfei_lsm.yaml`           |
+| `hsfei_ms`            | `hsfei/pi-daemon`        | `config/hsfei/hsfei_ms.yaml`            |
+| `hsfei_piaagimb`      | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimb.yaml`      |
+| `hsfei_piaagimr`      | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimr.yaml`      |
 
-(`config/example/pdu.yaml` has no instance file yet — there's no
-`daemons/generic/pdu` script to run it.)
+(`config/example/pdu.yaml` has no instance file yet.)
 
 ## Day to day
 
