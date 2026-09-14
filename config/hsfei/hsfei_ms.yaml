@@ -16,14 +16,14 @@ stages:
     axis: "1"
     units: mm
     named_positions:
-      slot_1: 0.0
+      keck_mask: 33.62
       slot_2: 0.0
   - name: h
     device_id: 2
     axis: "1"
     units: mm
     named_positions:
-      slot_1: 0.0
+      keck_mask: 1.8
       slot_2: 0.0
 
 logging:
