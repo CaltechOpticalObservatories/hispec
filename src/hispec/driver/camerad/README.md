@@ -8,7 +8,8 @@ daemon and no text protocol in between.
 This wraps `camera_interface`, a pybind11 module built from
 [camera-interface](https://github.com/CaltechOpticalObservatories/camera-interface).
 It is a compiled extension rather than a PyPI package, so it has to be built
-and put on `PYTHONPATH`:
+and put on `PYTHONPATH`. pybind11 is needed only to compile it, not to import
+it, so it does not belong in this project's dependencies:
 
 ```bash
 cd camera-interface/build
