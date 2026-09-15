@@ -1,0 +1,17 @@
+# YJPress — Inficon VGC502 BLUE-yj pressure gauge
+#
+# Usage:
+#   daemons/generic/inficon -c config/hsyj/hsyj_yjpress.yaml
+
+peer_id: yjpress
+group_id: hsyj
+
+hardware:
+  ip_address: 192.168.29.131
+  tcp_port: 8000
+
+gauges:
+  n_gauges: 2
+
+logging:
+  level: INFO

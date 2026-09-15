@@ -1,0 +1,33 @@
+# ATCLakeshore - Lakeshore 336 for the BLUE-yj dewar
+#
+# Usage:
+#   daemons/generic/lakeshore -c config/hsyj/hsyj_yjdettherm.yaml
+
+peer_id: yjtherm
+group_id: hsyj
+
+hardware:
+  ip_address: 192.168.29.175
+  tcp_port: 7777
+  model336: true
+  opt3062: true
+  celsius: false
+
+sensors:
+  - channel: A
+    keyword: tA_detector
+  - channel: B
+    keyword: tB_penguin
+  - channel: C
+    keyword: tC
+  - channel: D
+    keyword: tD
+
+heaters:
+  - id: 1
+    keyword: 1_detector
+  - id: 2
+    keyword: 2_getter
+
+logging:
+  level: INFO
