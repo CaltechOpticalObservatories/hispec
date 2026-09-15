@@ -6,16 +6,23 @@ This documentation site collects the instrument-control software notes, build
 procedures, deployment references, and operational information needed by the
 engineering team.
 
-The current documentation is focused on host and subsystem build setup. Each
-build note is maintained as its own page so the sidebar can link directly to
-the relevant setup procedure.
-
 Getting Started
 ---------------
 
-Start with the host-machine build page when setting up a development or
-deployment machine. Use the FEI/RTC build page for subsystem-specific
-installation and configuration details.
+If you are new to the software, start with the :doc:`architecture overview
+<architecture/overview>` to understand how the system fits together, then use
+the :doc:`daemon inventory <architecture/daemons>` to find the piece you care
+about.
+
+If you are setting up a machine, start with the host-machine build page. Use
+the FEI/RTC build page for subsystem-specific installation and configuration
+details.
+
+.. toctree::
+   :caption: Architecture
+   :maxdepth: 2
+
+   architecture/index
 
 .. toctree::
    :caption: Build Notes
@@ -30,8 +37,6 @@ Planned Documentation Areas
 
 These sections are placeholders for the next round of documentation pages:
 
-* software architecture and daemon responsibilities
-* configuration and deployment workflow
-* hardware interface notes
 * operations and troubleshooting procedures
 * developer setup and contribution workflow
+* hardware interface notes per subsystem
