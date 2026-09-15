@@ -1,3 +1,3 @@
-from .camera import Geometry, ReadMode, TrackingCamera
+from .camera import INSTRUMENT, Geometry, ReadMode, TrackingCamera
 
-__all__ = ["Geometry", "ReadMode", "TrackingCamera"]
+__all__ = ["INSTRUMENT", "Geometry", "ReadMode", "TrackingCamera"]

@@ -60,3 +60,7 @@
 [submodule "src/hispec/driver/hispec-fiber-switcher"]
 	path = src/hispec/driver/hispec-fiber-switcher
 	url = https://github.com/COO-Utilities/hispec-fiber-switcher
+[submodule "src/hispec/driver/pycamerad"]
+	path = src/hispec/driver/pycamerad
+	url = https://github.com/COO-Utilities/pycamerad.git
+	branch = main

@@ -1,15 +1,17 @@
 # tracking_camera
 
-Typed access to the HISPEC tracking camera, in process, with no `camerad`
-daemon and no text protocol in between.
+The HISPEC tracking camera's own commands, on top of
+[pycamerad](https://github.com/COO-Utilities/pycamerad), which provides
+everything common to any camerad camera.
 
 ## Prerequisite
 
-This wraps `camera_interface`, a pybind11 module built from
+pycamerad wraps `camera_interface`, a pybind11 module built from
 [camera-interface](https://github.com/CaltechOpticalObservatories/camera-interface).
-It is a compiled extension rather than a PyPI package, so it has to be built
-and put on `PYTHONPATH`. pybind11 is needed only to compile it, not to import
-it, so it does not belong in this project's dependencies:
+It is a compiled extension built per instrument rather than a package on an
+index, so it cannot be a dependency in `pyproject.toml` and has to be built
+separately. pybind11 is needed only to compile it, not to import it, so it is
+not a dependency of this project either:
 
 ```bash
 cd camera-interface/build
@@ -34,14 +36,15 @@ camera.set_window(True)
 camera.set_guiding_roi(51, 60, 51, 60)
 print(camera.geometry())                  # Geometry(y0=51, y1=60, x0=51, x1=60)
 
-camera.exptime("0")                       # forwarded to camera_interface.Camera
-camera.expose("1")
-print(camera.output_status())
+camera.exptime(0.0)                       # from pycamerad, typed
+camera.expose(1)
+print(camera.output_status())             # -> [OutputStatus(...)]
 ```
 
-Instrument commands have real signatures here so callers do not build argument
-strings by hand. Anything not defined on `TrackingCamera` is forwarded to the
-underlying `camera_interface.Camera`, so base commands are reached directly.
+This class holds only commands the HISPEC instrument provides, giving them real
+signatures so callers do not build argument strings by hand. Everything common
+to any camerad camera, including `exptime`, `expose`, `power` and
+`output_status`, comes from `pycamerad.Camerad`.
 
 A failed command raises `RuntimeError`. An invalid `ReadMode` raises
 `ValueError` before anything is sent.

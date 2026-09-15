@@ -1,4 +1,4 @@
-"""Unit tests for the tracking camera facade, with no camera_interface build needed."""
+"""Unit tests for the tracking camera add-on, with no camera_interface build needed."""
 
 import sys
 import types
@@ -6,7 +6,7 @@ import unittest
 
 
 class FakeCamera:
-    """Records instrument_cmd calls and replays canned replies."""
+    """Records calls and replays canned replies, standing in for the extension."""
 
     def __init__(self, replies=None):
         self.calls = []
@@ -19,19 +19,20 @@ class FakeCamera:
     def open(self):
         self.calls.append(("open", ""))
 
-    def load(self):
-        self.calls.append(("load", ""))
+    def load(self, args=""):
+        self.calls.append(("load", args))
 
     def power(self, args=""):
         self.calls.append(("power", args))
+        return self.replies.get("power", "ON")
 
     def expose(self, args=""):
         self.calls.append(("expose", args))
         return ""
 
 
-# The facade imports camera_interface at module scope, and it is a compiled
-# extension that need not be present to test string formatting
+# pycamerad imports camera_interface at module scope, and it is a compiled
+# extension that need not be present to test argument formatting
 sys.modules.setdefault("camera_interface", types.ModuleType("camera_interface"))
 
 from hispec.driver.tracking_camera import (  # noqa: E402
@@ -40,9 +41,9 @@ from hispec.driver.tracking_camera import (  # noqa: E402
 
 
 class TestTrackingCamera(unittest.TestCase):
-    """Check that commands are formatted and replies parsed correctly."""
+    """Check that instrument commands are formatted and replies parsed."""
 
-    def test_initialize_runs_the_required_sequence(self):
+    def test_initialize_adds_the_h2rg_reset_after_power_on(self):
         camera = FakeCamera()
         TrackingCamera(camera).initialize()
         self.assertEqual(
@@ -93,10 +94,12 @@ class TestTrackingCamera(unittest.TestCase):
             [("window_mode", "1"), ("autofetch_mode", "0"), ("debug", "true")],
         )
 
-    def test_unknown_attributes_forward_to_the_camera(self):
+    def test_generic_commands_come_from_the_base_class(self):
         camera = FakeCamera()
-        TrackingCamera(camera).expose("4")
-        self.assertEqual(camera.calls, [("expose", "4")])
+        facade = TrackingCamera(camera)
+        facade.expose(4)
+        self.assertTrue(facade.power())
+        self.assertEqual(camera.calls, [("expose", "4"), ("power", "")])
 
 
 if __name__ == "__main__":
