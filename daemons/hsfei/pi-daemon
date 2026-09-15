@@ -51,7 +51,7 @@ class _Stage:
         """Add this stage's keywords to the given KeywordRegistry."""
         s = self.suffix
         registry.bool(f"isloopclosed{s}",
-                      setter=lambda v: self.controller.close_loop(self.device_key, self.axis, enable=bool(v)),
+                      setter=self.set_loop_closed,
                       getter=self.is_loop_closed,
                       description="Servo control loop is closed.")
         registry.bool(f"isreferenced{s}",
@@ -95,6 +95,10 @@ class _Stage:
     def is_loop_closed(self) -> bool:
         """Return whether this stage's servo control loop is closed."""
         return self.controller.is_loop_closed(self.device_key, self.axis)
+
+    def set_loop_closed(self, enable: bool) -> None:
+        """Close this stage's servo control loop, or open it."""
+        self.controller.close_loop(self.device_key, self.axis, enable=bool(enable))
 
     def is_referenced(self) -> bool:
         """Return whether this stage has been referenced (homed)."""
@@ -297,7 +301,9 @@ class PiDaemon(HispecDaemon):
         self.keyword_registry.bool(
             "isloopclosed",
             getter=lambda: all(stage.is_loop_closed() for stage in self.stages),
-            description="All stages have their servo control loop closed.")
+            setter=self._set_all_loops_closed,
+            description="All stages have their servo control loop closed; "
+                        "write to set every stage.")
         self.keyword_registry.bool(
             "ismoving",
             getter=lambda: any(stage.is_moving() for stage in self.stages),
@@ -307,6 +313,11 @@ class PiDaemon(HispecDaemon):
         """Setter for the consolidated isreferenced: home every stage."""
         for stage in self.stages:
             stage._set_referenced(value)  # pylint: disable=protected-access
+
+    def _set_all_loops_closed(self, value: bool) -> None:
+        """Setter for the consolidated isloopclosed: set every stage's loop."""
+        for stage in self.stages:
+            stage.set_loop_closed(value)
 
     def _connect_hardware(self):
         """Connect to the PI controller hardware."""
