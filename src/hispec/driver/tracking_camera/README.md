@@ -1,4 +1,4 @@
-# camerad
+# tracking_camera
 
 Typed access to the HISPEC tracking camera, in process, with no `camerad`
 daemon and no text protocol in between.
@@ -23,7 +23,7 @@ export PYTHONPATH=$PWD/../lib
 ## Usage
 
 ```python
-from hispec.driver.camerad import TrackingCamera, ReadMode
+from hispec.driver.tracking_camera import TrackingCamera, ReadMode
 
 camera = TrackingCamera.from_config("hispecatc.cfg")
 camera.initialize()                       # open, load, power on, h2rg_init
@@ -48,9 +48,9 @@ A failed command raises `RuntimeError`. An invalid `ReadMode` raises
 
 ## Tests
 
-`tests/util/camerad/` runs against a fake camera, so neither the extension nor
+`tests/util/tracking_camera/` runs against a fake camera, so neither the extension nor
 hardware is needed:
 
 ```bash
-python -m unittest discover -s tests/util/camerad
+python -m unittest discover -s tests/util/tracking_camera
 ```

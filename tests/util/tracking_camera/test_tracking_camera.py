@@ -34,7 +34,7 @@ class FakeCamera:
 # extension that need not be present to test string formatting
 sys.modules.setdefault("camera_interface", types.ModuleType("camera_interface"))
 
-from hispec.driver.camerad.tracking_camera import (  # noqa: E402
+from hispec.driver.tracking_camera import (  # noqa: E402
     Geometry, ReadMode, TrackingCamera,
 )
 
