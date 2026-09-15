@@ -154,8 +154,11 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
         self.logger.info("Connecting to Sunpower Cryocooler at %s:%s",
                          self.ip_address, self.tcp_port)
         self.controller.connect(host=self.ip_address, port=int(self.tcp_port))
-        if self.controller.is_connected():
-            self.controller.initialize()
+        # The drivers signal failure by staying disconnected rather than raising
+        if not self.controller.is_connected():
+            raise RuntimeError(
+                f"no connection to {self.ip_address}:{self.tcp_port}")
+        self.controller.initialize()
 
     def _set_connected(self, value: bool) -> None:
         if value:
