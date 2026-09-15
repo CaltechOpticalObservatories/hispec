@@ -2,9 +2,35 @@
 
 HISPEC Instrument Control Software
 
+## Documentation
+
+Architecture, build notes and deployment references are published at
+**<https://caltechopticalobservatories.github.io/hispec/>**.
+
+Start with the [architecture overview][arch] for how the system fits together,
+or the [daemon inventory][inventory] to find a specific mechanism.
+
+[arch]: https://caltechopticalobservatories.github.io/hispec/architecture/overview.html
+[inventory]: https://caltechopticalobservatories.github.io/hispec/architecture/daemons.html
+
 ## Structure
-- Each mKTL service has a directory
-- Additional directories include etc, qt, util, init.d
+
+| Path | Contents |
+| --- | --- |
+| `daemons/` | Deployable device daemons. `generic/` are config-driven and shared across subsystems; `hsfei/`, `hscal/` are subsystem-specific. |
+| `config/` | One YAML file per deployed daemon instance, organised by subsystem. |
+| `src/hispec/` | Installable package: the `HispecDaemon` base class and the `driver/` submodules. |
+| `systemd/` | Template unit, per-instance env files and installer. See [systemd/README.md](systemd/README.md). |
+| `docs/` | Sphinx documentation sources. |
+| `tests/` | Driver unit tests. |
+| `etc/` | Vendored externals: `camera-interface`, `PIPython`. |
+| `scripts/` | Engineering and performance-analysis scripts. |
+
+`Makefile`, `Mk.instrument`, `init.d/`, `qt/` and `daemons/hs{owenv,dewar,power,ssd}/`
+are from the original KROOT/KTL build and are no longer used — see
+[Architecture Evolution][evolution].
+
+[evolution]: https://caltechopticalobservatories.github.io/hispec/architecture/evolution.html
 
 ## Quick start
 
@@ -28,7 +54,10 @@ pip install -e ".[dev]"    # falls back to requirements.txt if no pyproject
 
 ## Submodules
 
-This repo uses nested submodules under `util/` and possibly within service directories.
+Every vendor driver is a git submodule under `src/hispec/driver/`, sourced from
+the [COO-Utilities](https://github.com/COO-Utilities) organisation. A checkout
+without `--recursive` builds a package missing every `hispec.driver.*` module,
+so always initialise them.
 
 ### Pull the submodules
 
