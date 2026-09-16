@@ -1,0 +1,17 @@
+# HKPress — Inficon VGC502  RED-hk pressure gauge
+#
+# Usage:
+#   daemons/generic/inficon -c config/hshk/hshk_hkpress.yaml
+
+peer_id: hkpress
+group_id: hshk
+
+hardware:
+  ip_address: 192.168.29.132
+  tcp_port: 8000
+
+gauges:
+  n_gauges: 2
+
+logging:
+  level: INFO

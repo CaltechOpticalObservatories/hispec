@@ -1,0 +1,33 @@
+# HKLakeshore - Lakeshore 336 for the RED-hk dewar
+#
+# Usage:
+#   daemons/generic/lakeshore -c config/hshk/hshk_hkdettherm.yaml
+
+peer_id: hkdettherm
+group_id: hshk
+
+hardware:
+  ip_address: 192.168.29.185
+  tcp_port: 7777
+  model336: true
+  opt3062: false
+  celsius: false
+
+sensors:
+  - channel: A
+    keyword: tA_detector
+  - channel: B
+    keyword: tB_penguin
+  - channel: C
+    keyword: tC
+  - channel: D
+    keyword: tD
+
+heaters:
+  - id: 1
+    keyword: 1_detector
+  - id: 2
+    keyword: 2_penguin
+
+logging:
+  level: INFO
