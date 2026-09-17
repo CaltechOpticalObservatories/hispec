@@ -18,10 +18,10 @@ IPPORT_MS  = 10005
 ILS_CENTER = np.array([2.643, 22.603])   # (X, Y)
 MS_CENTER  = {  'keck' : np.array([1.800, 33.620]),
                 'circ' : np.array([1.600, 61.700])}     
-FAM_RED_CENTER  = {     'mmf' : np.array([-22.835, -0.078]),
-                        'smf' : np.array([7.3335, -0.1658])}    
+FAM_RED_CENTER  = {     'mmf' : np.array([-22.8421, -0.0903]),
+                        'smf' : np.array([  7.3323, -0.1795])}    
 FAM_RED_Z_CENTER  = {   'mmf' : 7.700,
-                        'smf' : 6.697 }
+                        'smf' : 6.745 }
 
 FAM_BLUE_CENTER = {     'mmf' : np.array([-22.795, -0.035]),
                         'smf' : np.array([-7.8162, 0.0259])}
