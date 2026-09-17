@@ -20,10 +20,10 @@ ENABLE_LOGGING = True
 # Path to settings file to use
 #SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24508.txt"
 #SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24494.txt"
-#SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24508_20250902.txt"    # Blue
-SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24494_20250828.txt"   # Red
+SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24508_20250902.txt"    # Blue
+#SETTINGS_FILENAME = "/home/hsdev/dechever/settings_FEI_XD24494_20250828.txt"   # Red
 # Connection properites
-COM_PORT = "/dev/ttyRedFAM"
+COM_PORT = "/dev/ttyBlueFAM"
 
 # Max time to wait for move to complete
 MOV_TIMEOUT = 20 # [seconds]
@@ -98,7 +98,7 @@ def redPM_XY(start, stop, nsteps, center_coords=None, pause=0.0, nread=NREAD_DFL
     # Perform scan (X/Y only)
     cur_max_val = -9999  
     cur_max_pos = [np.nan, np.nan, center_coords[2]]
-    with redPM_cmds.redPM_cmds() as pd:
+    with redPM_cmds.redPM_cmds(devnm="/dev/ttyPM100D") as pd:
         for yind, dely in enumerate(delys):
             #print(f"** Moving to Y = {dely:0.5f}")
             yAxis.setDPOS(dely, outputToConsole=False)
@@ -203,7 +203,7 @@ def redPM_Z(start, stop, nsteps, center_coords=None, pause=0.0, nread=NREAD_DFLT
     # Perform scan (X/Y only)
     cur_max_val = -9999  
     cur_max_pos = [center_coords[0], center_coords[1], np.nan]
-    with redPM_cmds.redPM_cmds() as pd:
+    with redPM_cmds.redPM_cmds(devnm="/dev/ttyPM100D") as pd:
         for zind, delz in enumerate(delzs):
             zAxis.setDPOS(delz, outputToConsole=False)
 
@@ -311,7 +311,7 @@ def redPM_newton_3d(
             else:
                 print(f"** {axis_dir} successfully referenced")
 
-    with redPM_cmds.redPM_cmds() as pd:
+    with redPM_cmds.redPM_cmds(devnm="/dev/ttyPM100D") as pd:
 
         def move_to(pos, pause):
             move_and_wait(pos[0], pos[1], pos[2], pause=pause)
@@ -399,7 +399,7 @@ def redPM_newton_3d_ORIG(
     best_eta = -np.inf
     best_pos = cur_pos.copy()
 
-    with redPM_cmds.redPM_cmds() as pd:
+    with redPM_cmds.redPM_cmds(devnm="/dev/ttyPM100D") as pd:
         for it in range(max_iters):
             print(f"\n=== Newton iteration {it} ===")
 
