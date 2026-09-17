@@ -61,13 +61,13 @@ def plot_1D_scan(pd_reads, deltas, center_coords, isPlotLog=False):
         fig, (ax_lin) = plt.subplots(1,1, figsize=(5.5,4.62))
     ax_lin.plot(deltas*scale, pd_reads, '-o')
     ax_lin.set_title(f'1D Coupling\nCenter = ({center_coords[0]:0.3f} , {center_coords[1]:0.3f}, {center_coords[2]:0.3f}) mm')
-    ax_lin.set_xlabel('Z-Displacement [um]')
+    ax_lin.set_xlabel('Z-Displacement [mm]')
     ax_lin.set_ylabel('Power [uW]')
 
     if isPlotLog:
         ax_log.semilogy(deltas*scale, pd_reads, '-o')
         ax_log.set_title(f'1D Coupling \nCenter = ({center_coords[0]:0.3f} , {center_coords[1]:0.3f}, {center_coords[2]:0.3f}) mm')
-        ax_log.set_xlabel('Z-Displacement [um]')
+        ax_log.set_xlabel('Z-Displacement [mm]')
         ax_log.set_ylabel('Power [uW]')
 
     plt.tight_layout()

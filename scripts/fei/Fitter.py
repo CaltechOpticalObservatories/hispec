@@ -233,10 +233,10 @@ def plot_1D_FAMScan_with_gaussFit(pd_reads, center_coords, deltas, show_residual
         axs[1].plot(z_coords, residuals, 'o-', linewidth=1.5)
         axs[1].axhline(0, color='k', linewidth=1)
         axs[1].set_title("Residuals")
-        axs[1].set_xlabel("Z Position (µm)")
+        axs[1].set_xlabel("Z Position (mm)")
         axs[1].set_ylabel("Residual (uW)")
     else:
-        ax.set_xlabel("Z Position (µm)")
+        ax.set_xlabel("Z Position (mm)")
 
     plt.tight_layout()
     plt.show(block=False)
