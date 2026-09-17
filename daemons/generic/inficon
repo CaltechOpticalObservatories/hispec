@@ -42,7 +42,7 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         self.keyword_registry.bool("isconnected",
                                    getter=self.controller.is_connected,
                                    setter=self._set_connected,
-                                   description="ADC Pressure controller is connected.")
+                                   description="Inficon Pressure controller is connected.")
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Last error from the Inficon pressure controller.")

@@ -1,0 +1,60 @@
+# RackMet — EDS OneWire environmental logger for the electronics racks
+#
+# Usage:
+#   daemons/hsmet/onewire -c config/hsmet/hsmet_hkcalrack.yaml
+#
+# Each entry under `sensors:` names one device by its sequence number: its
+# 1-based position in the logger's reply, which is fixed for a given rack.
+# Every entry gets three read-only keywords: <keyword>_temp, <keyword>_humid
+# and <keyword>_dew.
+#
+# Because the names are positional, they are only correct while all
+# `hardware.n_sensors` sensors report. If one drops off, the reply shortens,
+# every sensor after it shifts one position earlier, and those keywords then
+# name the wrong device. The daemon warns whenever the reply count stops
+# matching n_sensors, so check the log before trusting a reading that looks off.
+#
+# To confirm the order on the bus:
+#   python -c "from hispec.driver.onewire.onewire import ONEWIRE; \
+#              ow = ONEWIRE(); ow.connect('hs1wirered', 80); ow.get_data(); \
+#              print([(i, s['rom_id'], s['device_type']) for i, s \
+#                     in enumerate(ow.ow_data.read_sensors(), start=1)])"
+
+peer_id: hkcalrack
+group_id: hsmet
+
+hardware:
+  # hs1wirered
+  ip_address: 192.168.29.140
+  tcp_port: 80
+  # Sensors wired to the bus. A reply carrying any other number is logged as a
+  # warning, and a `seq:` past this is rejected at startup.
+  n_sensors: 7
+  # Units the logger itself is configured to report temperatures in; this only
+  # labels the keywords, it does not convert anything.
+  temperature_units: degC
+
+polling:
+  # Seconds a fetch from the logger is reused for. One fetch carries every
+  # sensor, so this keeps a sweep of all the keywords from re-fetching per
+  # keyword.
+  ttl_s: 5.0
+
+sensors:
+  - seq: 1
+    keyword: LeftTop
+  - seq: 2
+    keyword: RightTop
+  - seq: 3
+    keyword: RearEtalon
+  - seq: 4
+    keyword: LeftLow
+  - seq: 5
+    keyword: RightMid
+  - seq: 6
+    keyword: RightLow
+  - seq: 7
+    keyword: FrontMid
+
+logging:
+  level: INFO
