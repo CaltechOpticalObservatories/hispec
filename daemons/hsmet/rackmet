@@ -3,15 +3,36 @@
 Electronics Rack OneWire Metrology Daemon
 
 Exposes the onewire metrology logger elements as libby keywords.
+
+Every sensor listed under `sensors:` in the config file is matched to a
+device on the bus by its sequence number - its 1-based position in the
+logger's reply, which is fixed for a given rack - and gets three read-only
+float keywords: `<keyword>_temp`, `<keyword>_humid` and `<keyword>_dew`.
+
+`hardware.n_sensors` gives how many sensors the bus carries, which is known
+when the rack is wired. It bounds the usable sequence numbers and is what a
+reply's length is checked against.
 """
 
 import argparse
 import sys
+import threading
+import time
 
 #from hispec.driver.inficon.inficonvgc502 import UnknownResponse
 
 from hispec import HispecDaemon
 from hispec.driver.onewire.onewire import ONEWIRE
+
+# Keyword suffix, key in the driver's sensor dict, and label.
+SENSOR_VALUES = (("temp", "temperature", "Temperature"),
+                 ("humid", "humidity", "Relative humidity"),
+                 ("dew", "dew_point", "Dew point"))
+
+# A poll takes about a second, so this only has to be long enough to keep a
+# sweep of all the keywords from re-fetching once per keyword.
+DEFAULT_POLL_TTL_S = 5.0
+
 
 # pylint: disable=too-many-instance-attributes
 class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
@@ -23,21 +44,39 @@ class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
         self.ip_address = None
         self.tcp_port = None
         self.n_sensors = None
-        self.temperature = {}
-        self.humidity = {}
-        self.dewpoint = {}
+        self.sensors = None
+        self.units = None
+        self.poll_ttl_s = DEFAULT_POLL_TTL_S
         self.error = None
         self.controller = ONEWIRE(log=True)
         self.daemon_description = "OneWire Metrology Daemon"
+
+        # One fetch from the logger carries every sensor on the bus, so the
+        # keyword getters share a short-lived snapshot - in reply order - rather
+        # than each triggering its own fetch.
+        self._snapshot = []
+        self._snapshot_time = None
+        self._snapshot_lock = threading.Lock()
+        # Sequence numbers only line up while the whole bus reports, so warn
+        # when the count changes rather than on every poll.
+        self._last_count = None
 
     def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
         self.tcp_port = self.get_config("hardware.tcp_port")
-        self.n_sensors = self.get_config("sensors.n_sensors")
+        self.units = self.get_config("hardware.temperature_units", "degC")
+        self.poll_ttl_s = float(self.get_config("polling.ttl_s",
+                                                DEFAULT_POLL_TTL_S))
+        self.sensors = self.get_config("sensors") or []
+        self.n_sensors = self._sensor_count()
 
-        self.logger.info("Starting %s daemon with %d sensor(s)", self.peer_id, self.n_sensors)
+        self.logger.info("Starting %s daemon with %d sensor(s) on the bus, "
+                         "%d named in the config",
+                         self.peer_id, self.n_sensors, len(self.sensors))
+
+        self._register_sensor_keywords()
 
         self.keyword_registry.bool("isconnected",
                                    getter=self.controller.is_connected,
@@ -61,6 +100,143 @@ class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
             self.logger.error("Failed to connect to hardware: %s", e)
             self.error = str(e)
             self.logger.warning("Daemon will start but hardware is not available")
+
+    def _sensor_count(self):
+        """Return how many sensors the bus is expected to report.
+
+        The rack is wired ahead of time, so `hardware.n_sensors` is the
+        authority on how long a reply should be; fall back to the highest
+        configured sequence number when it is missing.
+        """
+        configured = self.get_config("hardware.n_sensors")
+        highest = max((int(entry["seq"]) for entry in self.sensors
+                       if str(entry.get("seq", "")).strip().lstrip("-").isdigit()),
+                      default=0)
+
+        if configured is None:
+            self.logger.warning(
+                "hardware.n_sensors is not set; assuming the %d sensor(s) "
+                "implied by the configured sequence numbers", highest)
+            return highest
+
+        try:
+            configured = int(configured)
+        except (TypeError, ValueError):
+            self.logger.error(
+                "hardware.n_sensors %r is not a number; assuming the %d "
+                "sensor(s) implied by the configured sequence numbers",
+                configured, highest)
+            return highest
+
+        if configured < 1:
+            self.logger.error(
+                "hardware.n_sensors %d is not 1 or greater; assuming the %d "
+                "sensor(s) implied by the configured sequence numbers",
+                configured, highest)
+            return highest
+
+        return configured
+
+    def _register_sensor_keywords(self):
+        """Register temperature, humidity and dew point per configured sensor."""
+        seen = {}
+        for entry in self.sensors:
+            seq = entry.get("seq")
+            keyword = entry.get("keyword")
+            if seq is None or not keyword:
+                self.logger.error("Skipping sensor entry without seq/keyword: %s", entry)
+                continue
+
+            try:
+                seq = int(seq)
+            except (TypeError, ValueError):
+                self.logger.error("Skipping sensor %s: seq %r is not a number", keyword, seq)
+                continue
+            if seq < 1:
+                self.logger.error("Skipping sensor %s: seq %d is not 1 or greater",
+                                  keyword, seq)
+                continue
+            if seq > self.n_sensors:
+                self.logger.error("Skipping sensor %s: seq %d is past the %d "
+                                  "sensor(s) on the bus",
+                                  keyword, seq, self.n_sensors)
+                continue
+            if seq in seen:
+                self.logger.error("Skipping sensor %s: seq %d already named %s",
+                                  keyword, seq, seen[seq])
+                continue
+            seen[seq] = keyword
+
+            for suffix, field, label in SENSOR_VALUES:
+                self.keyword_registry.float(
+                    f"{keyword}_{suffix}",
+                    getter=self._make_sensor_getter(seq, field),
+                    units="percent" if field == "humidity" else self.units,
+                    nullable=True,
+                    description=f"{label} at sensor {keyword} (sequence {seq}).")
+
+        unnamed = [seq for seq in range(1, self.n_sensors + 1) if seq not in seen]
+        if unnamed:
+            self.logger.info("No keywords for sensor(s) at sequence %s",
+                             ", ".join(str(seq) for seq in unnamed))
+
+    def _make_sensor_getter(self, seq, field):
+        """Return a zero-argument getter reading `field` of sensor number `seq`."""
+        index = seq - 1
+
+        def getter():
+            sensors = self._read_snapshot()
+            if index >= len(sensors):
+                # Short reply, so this position has no sensor behind it; report
+                # no reading rather than a stale one.
+                return None
+            return sensors[index].get(field)
+        return getter
+
+    def _read_snapshot(self):
+        """Return the sensors in reply order, re-fetching if the copy is stale."""
+        with self._snapshot_lock:
+            now = time.monotonic()
+            if (self._snapshot_time is not None
+                    and now - self._snapshot_time < self.poll_ttl_s):
+                return self._snapshot
+
+            try:
+                # read_sensors() rather than get_atomic_value(), which returns
+                # one value at a time and re-fetches for each.
+                self.controller.get_data()
+                self._snapshot = self.controller.ow_data.read_sensors()
+                self._snapshot_time = now
+                self._check_count(self._snapshot)
+            except Exception as e:  # pylint: disable=W0718
+                self.logger.error("Failed to read the OneWire logger: %s", e)
+                self.error = str(e)
+                # Drop the old readings so nothing serves a stale value as live.
+                self._snapshot = []
+                self._snapshot_time = now
+            return self._snapshot
+
+    def _check_count(self, sensors):
+        """Warn when the reply does not hold the expected number of sensors.
+
+        The sequence numbers are positions in the reply, so a sensor dropping
+        off the bus shifts every later sensor onto the wrong keyword. Only
+        changes are logged, to keep a missing sensor from filling the log.
+        """
+        count = len(sensors)
+        if count == self._last_count:
+            return
+        self._last_count = count
+
+        if count == self.n_sensors:
+            self.logger.info("OneWire logger is reporting all %d sensor(s)", count)
+            return
+        self.logger.warning(
+            "OneWire logger reported %d sensor(s) but %d are expected; "
+            "sequence numbers past the first missing sensor now name the wrong "
+            "device. ROM IDs in reply order: %s",
+            count, self.n_sensors,
+            [sensor.get("rom_id") for sensor in sensors])
 
     def _shutdown(self):
         """Shutdown the daemon"""
