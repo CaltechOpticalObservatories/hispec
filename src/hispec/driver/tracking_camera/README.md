@@ -7,20 +7,54 @@ everything common to any camerad camera.
 ## Prerequisite
 
 pycamerad wraps `camera_interface`, a pybind11 module built from
-[camera-interface](https://github.com/CaltechOpticalObservatories/camera-interface).
-It is a compiled extension built per instrument rather than a package on an
-index, so it cannot be a dependency in `pyproject.toml` and has to be built
-separately. pybind11 is needed only to compile it, not to import it, so it is
-not a dependency of this project either:
+[camera-interface](https://github.com/CaltechOpticalObservatories/camera-interface),
+checked out here as the `etc/camera-interface` submodule. It is a compiled
+extension built per instrument rather than a package on an index, so it cannot
+be a dependency in `pyproject.toml` and has to be installed separately.
+
+Install it into whichever environment you run hispec from, alongside hispec
+itself:
 
 ```bash
-cd camera-interface/build
-pip install pybind11
-cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera \
-      -DBUILD_PYTHON_MODULE=ON ..
-make camera_interface
-export PYTHONPATH=$PWD/../lib
+pip install ./etc/camera-interface \
+  --config-settings=cmake.define.INSTRUMENT=hispec_tracking_camera
 ```
+
+Add `--config-settings=cmake.define.ENABLE_SHM_OUTPUT=ON` for the
+shared-memory output, and `cmake.define.ImageStreamIO_DIR=<dir>` if
+ImageStreamIO is not under `/usr/local/lib/cmake`.
+
+`import camera_interface` then works with no `PYTHONPATH`, and `camerad` is on
+`PATH` whenever that environment is active. pybind11 is fetched into an
+isolated build environment, so it never has to be installed by hand.
+
+### Build dependencies
+
+Ubuntu 24.04 and 26.04:
+
+```bash
+sudo apt-get install -y build-essential cmake ninja-build \
+  libccfits-dev libcfitsio-dev libcurl4-openssl-dev nlohmann-json3-dev \
+  libzmq3-dev libopencv-dev libboost-thread-dev libboost-chrono-dev
+```
+
+zmqpp is not packaged for Ubuntu, so build it from source as CI does:
+
+```bash
+git clone --depth 1 https://github.com/zeromq/zmqpp.git
+cmake -S zmqpp -B zmqpp/build && cmake --build zmqpp/build -j"$(nproc)"
+sudo cmake --install zmqpp/build && sudo ldconfig
+```
+
+macOS, where zmqpp is packaged:
+
+```bash
+brew install cmake cfitsio ccfits nlohmann-json zeromq zmqpp opencv boost
+```
+
+`ENABLE_SHM_OUTPUT=ON` additionally needs
+[ImageStreamIO](https://github.com/milk-org/ImageStreamIO) built from source.
+It does not compile on macOS, so the shared-memory output is Linux-only.
 
 ## Usage
 

@@ -44,6 +44,8 @@ ignored-modules = [
     "scipy",
     "serial",
     "zmq",
+    # Compiled per instrument from camera-interface, so never on an index
+    "camera_interface",
     # Keck/KTL-internal modules, unavailable outside the summit environment
     "DFW",
     "SerialStream",
