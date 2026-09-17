@@ -11,9 +11,11 @@ from redPM_cmds import redPM_cmds
 # --------------------
 duration_min = 180.0     # minutes to record
 dt = 0.1               # seconds between averaged samples
-NREAD = 5              # samples per averaged point
-outpath = "/home/hsdev/dechever/AIT_Verification_Data/LaserBankStability/FiberTwisting/"
-outfile = "1270_FiberTwisting_NoPatch_HalfPower_Apr20.csv"
+NREAD = 50              # samples per averaged point
+outpath = "/home/hsdev/dechever/AIT_Verification_Data/LaserBankStability/"
+#outpath = "/home/hsdev/dechever/AIT_Verification_Data/Experiment6_PIAAValidation/PIAA_Stability/"
+outfile = "2000_LFLLaser_425mA_ThroughSystem_Jun29.csv"
+#outfile = "1530SLD_PIAAIn_OvernightStability2.csv"
 
 # --------------------
 # Acquisition
@@ -43,7 +45,7 @@ try:
                 writer.writerow([f"{t:.6f}", f"{p:.6f}"])
 
                 remaining = t_end - now
-                print(f"\rRunning... {t:6.1f}s elapsed, {remaining:6.1f}s remaining",
+                print(f"\rRunning... {t:6.1f}s elapsed, {remaining:6.1f}s remaining, current = {p:6.3f}",
                       end="", flush=True)
 
                 time.sleep(dt)
