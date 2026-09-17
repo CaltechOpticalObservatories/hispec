@@ -1,7 +1,7 @@
 # RackMet — EDS OneWire environmental logger for the electronics racks
 #
 # Usage:
-#   daemons/hsmet/rackmet -c config/hsmet/hsmet_hkcalrack.yaml
+#   daemons/hsmet/onewire -c config/hsmet/hsmet_hkcalrack.yaml
 #
 # Each entry under `sensors:` names one device by its sequence number: its
 # 1-based position in the logger's reply, which is fixed for a given rack.
