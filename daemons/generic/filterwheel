@@ -79,6 +79,10 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
         try:
             self.dev.initialize()
+            # The sensor LED leaks stray light, so start dark, and skip the
+            # EEPROM write when it is already off
+            if self.dev.get_light():
+                self.dev.set_light(False)
             self.logger.debug("Initialized %s", self.daemon_desc)
         except (OSError, ValueError) as e:
             self.logger.error("error: %s", e)
@@ -111,6 +115,10 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                         setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
                         validator=self._check_named,
                         description="Set and get named position of FilterWheel.")
+        self.keyword_registry.bool("islighton",
+                        getter=self.keyword_wrapper(self.get_light, key="islighton"),
+                        setter=self.keyword_wrapper(self.set_light, key="islighton"),
+                        description="Set and get the LED state of FilterWheel.")
         self.keyword_registry.int("softmin",
                         getter=lambda: self._soft_min,
                         setter=lambda v: setattr(self, "_soft_min", int(v)),
@@ -201,6 +209,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                 "connected": self.dev.is_connected(),
                 "position": position.get("position"),
                 "named_pos": position.get("named_pos"),
+                "islighton": self.dev.get_light(),
                 "min_limit": limits.get("1")[0],
                 "max_limit": limits.get("1")[1],
             }
@@ -242,6 +251,38 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "position": int(pos)}
+
+    def get_light(self):
+        '''gets position sensor LED state'''
+        if not self.dev.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            light = self.dev.get_light()
+            if light is None:
+                return {"ok": False, "error": "Failed to read position sensor LED"}
+            self.logger.debug("get_light: %s", light)
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "islighton": light}
+
+    def set_light(self, on):
+        '''sets position sensor LED state'''
+        if not self.dev.is_connected():
+            return {"ok": False, "error": "Not connected to hardware"}
+
+        try:
+            on = bool(on)
+            if not self.dev.set_light(on):
+                return {"ok": False, "error": f"Failed to set position sensor LED to {on}"}
+            self.logger.debug("set_light: %s", on)
+        except (OSError, ValueError) as e:
+            self.logger.error("error: %s", e)
+            self.state['error'] = str(e)
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "islighton": on}
 
     def goto_named_pos(self, name):
         '''moves to named position'''
