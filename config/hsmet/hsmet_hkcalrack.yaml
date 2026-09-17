@@ -1,7 +1,7 @@
 # RackMet — EDS OneWire environmental logger for the electronics racks
 #
 # Usage:
-#   daemons/hsmet/rackmet -c config/hsmet/hsmet_yjcalrack.yaml
+#   daemons/hsmet/rackmet -c config/hsmet/hsmet_hkcalrack.yaml
 #
 # Each entry under `sensors:` names one device by its sequence number: its
 # 1-based position in the logger's reply, which is fixed for a given rack.
@@ -16,16 +16,16 @@
 #
 # To confirm the order on the bus:
 #   python -c "from hispec.driver.onewire.onewire import ONEWIRE; \
-#              ow = ONEWIRE(); ow.connect('hs1wireblue', 80); ow.get_data(); \
+#              ow = ONEWIRE(); ow.connect('hs1wirered', 80); ow.get_data(); \
 #              print([(i, s['rom_id'], s['device_type']) for i, s \
 #                     in enumerate(ow.ow_data.read_sensors(), start=1)])"
 
-peer_id: yjcalrack
+peer_id: hkcalrack
 group_id: hsmet
 
 hardware:
-  # hs1wireblue
-  ip_address: 192.168.29.154
+  # hs1wirered
+  ip_address: 192.168.29.140
   tcp_port: 80
   # Sensors wired to the bus. A reply carrying any other number is logged as a
   # warning, and a `seq:` past this is rejected at startup.
@@ -42,19 +42,19 @@ polling:
 
 sensors:
   - seq: 1
-    keyword: LeftMid
-  - seq: 2
-    keyword: CalUnit
-  - seq: 3
-    keyword: RightMid
-  - seq: 4
     keyword: LeftTop
-  - seq: 5
-    keyword: ExchRet
-  - seq: 6
-    keyword: SRS
-  - seq: 7
+  - seq: 2
     keyword: RightTop
+  - seq: 3
+    keyword: RearEtalon
+  - seq: 4
+    keyword: LeftLow
+  - seq: 5
+    keyword: RightMid
+  - seq: 6
+    keyword: RightLow
+  - seq: 7
+    keyword: FrontMid
 
 logging:
   level: INFO
