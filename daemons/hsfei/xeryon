@@ -1,0 +1,489 @@
+#!/usr/bin/env python3
+"""
+HSFEI Xeryon Daemon
+
+Exposes the axes of one Xeryon XD controller as libby keywords. Which axes
+exist, what they are called and where they can go all come from the config,
+so one daemon serves the FAMs, the PIAA deploy stages and anything else on a
+Xeryon controller.
+"""
+
+import argparse
+import sys
+import threading
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from libby import KeywordRegistry
+
+import hispec
+from hispec import HispecDaemon
+from hispec.driver.xeryon import XeryonController
+
+# Referencing drives the stage until it finds the encoder index
+HOME_TIMEOUT_S = 120.0
+
+DEFAULT_POSITION_TOLERANCE = 0.01
+
+
+def _as_float(v) -> Optional[float]:
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_settings_file(configured: Optional[str]) -> Optional[str]:
+    """Resolve the controller's settings file from the config.
+
+    A relative path is taken as relative to the installed hispec package, so
+    a config can point at the copy that ships with the driver
+    (`hispec/driver/xeryon/config/...`) and still work from any working
+    directory. Absolute paths are used as given.
+    """
+    if not configured:
+        return None
+    path = Path(configured).expanduser()
+    if not path.is_absolute():
+        path = Path(hispec.__file__).resolve().parents[1] / path
+    if not path.is_file():
+        raise FileNotFoundError(f"settings file not found: {path}")
+    return str(path)
+
+
+@dataclass(frozen=True)
+class _AxisConfig:
+    """One axis of the controller, as the config describes it."""
+
+    letter: str
+    stage: str
+    name: str = ""
+    suffix: str = ""
+    units: str = "mm"
+    exposed: bool = True
+    softmin: Optional[float] = None
+    softmax: Optional[float] = None
+    named_positions: Dict[str, float] = field(default_factory=dict)
+
+    @classmethod
+    def from_spec(cls, spec: Dict[str, Any], is_only: bool) -> "_AxisConfig":
+        """Build an axis config from one entry of the config's stage list."""
+        letter = str(spec.get("axis", "A")).upper()
+        if not spec.get("stage"):
+            raise ValueError(f"axis {letter}: config key 'stage' is required")
+        name = str(spec.get("name", ""))
+        return cls(
+            letter=letter,
+            stage=str(spec["stage"]),
+            name=name,
+            suffix="" if is_only else str(spec.get("suffix", name)),
+            units=str(spec.get("units", "mm")),
+            exposed=bool(spec.get("expose", True)),
+            softmin=_as_float(spec.get("softmin")),
+            softmax=_as_float(spec.get("softmax")),
+            named_positions=spec.get("named_positions") or {},
+        )
+
+
+class _Stage:
+    """One Xeryon axis and the keywords it exposes."""
+
+    def __init__(self, daemon: "XeryonDaemon", config: _AxisConfig):
+        self.daemon = daemon
+        self.config = config
+        self._softmin = config.softmin
+        self._softmax = config.softmax
+        self._move_lock = threading.Lock()
+
+    @property
+    def controller(self) -> XeryonController:
+        """Convenience accessor for the daemon's controller."""
+        return self.daemon.controller
+
+    @property
+    def letter(self) -> str:
+        """Axis letter, as the controller names it."""
+        return self.config.letter
+
+    @property
+    def label(self) -> str:
+        """Name for this axis in messages: its keyword suffix, else its letter."""
+        return self.config.suffix or self.config.letter
+
+    def register_keywords(self, registry: KeywordRegistry) -> None:
+        """Add this axis's keywords to the given KeywordRegistry."""
+        s = self.config.suffix
+        units = self.config.units
+        registry.bool(f"isreferenced{s}",
+                      getter=self.is_referenced,
+                      setter=self._set_referenced,
+                      timeout_s=HOME_TIMEOUT_S,
+                      description="Axis has found its encoder index; write true to reference it.")
+        registry.bool(f"isloopclosed{s}",
+                      getter=self.is_loop_closed,
+                      setter=self.set_loop_closed,
+                      description="Axis is under closed-loop control.")
+        registry.bool(f"ismoving{s}",
+                      getter=self.is_moving,
+                      description="Axis is moving.")
+        registry.float(f"positionvalue{s}",
+                       getter=self.get_position,
+                       setter=self._set_position,
+                       validator=self._check_soft_limits,
+                       units=units,
+                       description="Axis position in engineering units.")
+        registry.float(f"softmin{s}",
+                       getter=lambda: self._softmin,
+                       setter=lambda v: setattr(self, "_softmin", v),
+                       units=units,
+                       nullable=True,
+                       description="Software lower limit; null to clear.")
+        registry.float(f"softmax{s}",
+                       getter=lambda: self._softmax,
+                       setter=lambda v: setattr(self, "_softmax", v),
+                       units=units,
+                       nullable=True,
+                       description="Software upper limit; null to clear.")
+        registry.float(f"hardmin{s}",
+                       getter=lambda: self._hard_limits()[0],
+                       units=units,
+                       nullable=True,
+                       description="Travel minimum, from the controller's settings.")
+        registry.float(f"hardmax{s}",
+                       getter=lambda: self._hard_limits()[1],
+                       units=units,
+                       nullable=True,
+                       description="Travel maximum, from the controller's settings.")
+        if self.config.named_positions:
+            registry.string(f"positionnamed{s}",
+                            getter=self._current_named,
+                            setter=self._goto_named,
+                            validator=self._check_named,
+                            description="Named position from the config; "
+                                        "'custom' when the axis is elsewhere.")
+
+    def is_referenced(self) -> bool:
+        """Return whether the axis has found its encoder index."""
+        return self.controller.is_homed(self.letter)
+
+    def is_loop_closed(self) -> bool:
+        """Return whether the axis is under closed-loop control."""
+        return self.controller.is_loop_closed(self.letter)
+
+    def set_loop_closed(self, enable: bool) -> None:
+        """Put the axis under closed-loop control, or take it out."""
+        self.controller.close_loop(self.letter, enable=bool(enable))
+
+    def is_moving(self) -> bool:
+        """Return whether the axis is moving."""
+        return self.controller.is_moving(self.letter)
+
+    def get_position(self) -> Optional[float]:
+        """Return the axis position in engineering units."""
+        return self.controller.get_pos(self.letter)
+
+    def halt(self) -> None:
+        """Halt motion on this axis."""
+        try:
+            self.controller.stop(self.letter)
+        except Exception as e:  # pylint: disable=W0718
+            self.daemon.logger.error("halt on %r failed: %s", self.label, e)
+
+    def _hard_limits(self) -> tuple:
+        limits = self.controller.get_limits() or {}
+        return limits.get(self.letter, (None, None))
+
+    def _check_soft_limits(self, v: float) -> Optional[str]:
+        if self._softmin is not None and v < self._softmin:
+            return f"target {v} below softmin {self._softmin}"
+        if self._softmax is not None and v > self._softmax:
+            return f"target {v} above softmax {self._softmax}"
+        return None
+
+    def _check_named(self, name: str) -> Optional[str]:
+        if not name:
+            return "value must be a non-empty string"
+        if name not in self.config.named_positions:
+            return (f"unknown named position '{name}'; "
+                    f"available: {list(self.config.named_positions.keys())}")
+        return None
+
+    def _current_named(self) -> str:
+        position = self.get_position()
+        if position is None:
+            return "custom"
+        for name, target in self.config.named_positions.items():
+            if abs(position - float(target)) <= self.daemon.position_tolerance:
+                return name
+        return "custom"
+
+    def _goto_named(self, name: str) -> None:
+        target = float(self.config.named_positions[name])
+        err = self._check_soft_limits(target)
+        if err:
+            raise RuntimeError(err)
+        self._set_position(target)
+
+    def _set_position(self, v: float) -> None:
+        with self._move_lock:
+            if self.is_moving():
+                raise RuntimeError("axis is already moving; halt or wait for completion")
+            if not self.controller.is_loop_closed(self.letter):
+                raise RuntimeError("servo loop is open; close it before moving")
+            self.controller.set_pos(v, self.letter)
+
+    def _set_referenced(self, value: bool) -> None:
+        """Reference the axis; reject false, an index search cannot be undone."""
+        if not value:
+            raise RuntimeError("cannot clear referenced state; write true to reference")
+        with self._move_lock:
+            if self.is_moving():
+                raise RuntimeError("axis is already moving; halt or wait for completion")
+            if not self.controller.home(self.letter, blocking=True):
+                raise RuntimeError("index not found")
+
+
+class XeryonDaemon(HispecDaemon):  # pylint: disable=W0223
+    """Daemon for controlling Xeryon piezo stages via keywords."""
+
+    def __init__(self):
+        super().__init__()
+
+        self.ip_address = None
+        self.tcp_port = None
+        self.com_port = None
+        self.position_tolerance = DEFAULT_POSITION_TOLERANCE
+        self.controller: Optional[XeryonController] = None
+        self.stages: List[_Stage] = []
+        self.named_positions: Dict[str, List[float]] = {}
+
+    def on_start(self, _libby):
+        """Called when the daemon starts - register keywords and connect."""
+        # from_config populates _config after __init__, so read it here
+        self.ip_address = self.get_config("hardware.ip_address")
+        self.tcp_port = self.get_config("hardware.tcp_port")
+        self.com_port = self.get_config("hardware.com_port")
+        self.position_tolerance = _as_float(
+            self.get_config("hardware.position_tolerance")) or DEFAULT_POSITION_TOLERANCE
+        self.named_positions = self._config.get("named_positions", {}) or {}
+        self.stages = self._build_stages()
+        settings_file = _resolve_settings_file(self.get_config("hardware.settings_file"))
+        self.logger.info("Using Xeryon settings file %s", settings_file)
+        self.controller = XeryonController(settings_file=settings_file, log=True)
+        for stage in self.stages:
+            self.controller.add_axis(stage.letter, stage.config.stage,
+                                     units=stage.config.units)
+
+        exposed = self._exposed_stages()
+        self.logger.info("Starting %s daemon with %d axis/axes (%d exposed)",
+                         self.peer_id, len(self.stages), len(exposed))
+
+        for stage in exposed:
+            stage.register_keywords(self.keyword_registry)
+        if len(exposed) > 1:
+            self._register_consolidated_keywords()
+        self.keyword_registry.bool("isconnected",
+                                   getter=self._is_connected,
+                                   setter=self._set_connected,
+                                   description="Daemon's connection to the Xeryon controller; "
+                                               "write true to connect, false to disconnect.")
+        self.keyword_registry.string("error",
+                                     getter=self._error_string,
+                                     description="Active faults, per axis.")
+        self.keyword_registry.trigger("halt",
+                                      action=self._halt_all,
+                                      description="Halt motion on all axes.")
+        self.keyword_registry.trigger("shutdown",
+                                      action=self._shutdown,
+                                      description="Gracefully stop this daemon; "
+                                                  "refused while an axis is moving.")
+
+        if not (self.ip_address and self.tcp_port) and not self.com_port:
+            self.logger.error("No hardware ip_address/tcp_port or com_port specified")
+            return
+
+        try:
+            self._connect_hardware()
+            self.logger.info("Daemon started successfully and connected to hardware")
+        except Exception as e:  # pylint: disable=W0718
+            self.logger.error("Failed to connect to hardware: %s", e)
+            self.logger.warning("Daemon will start but hardware is not available")
+
+    def on_stop(self, _libby=None):
+        """Cleanup when the daemon shuts down."""
+        self.logger.info("Shutting down %s daemon", self.peer_id)
+        if self.controller is None:
+            return
+        try:
+            self.controller.disconnect()
+            self.logger.info("Disconnected from Xeryon controller")
+        except Exception as e:  # pylint: disable=W0718
+            self.logger.error("Error disconnecting: %s", e)
+
+    def _build_stages(self) -> List[_Stage]:
+        stages_cfg = self._config.get("stages")
+        if not stages_cfg:
+            raise ValueError("config must list the controller's axes under 'stages'")
+        is_only = len(stages_cfg) == 1
+        return [_Stage(self, _AxisConfig.from_spec(spec, is_only)) for spec in stages_cfg]
+
+    def _exposed_stages(self) -> List[_Stage]:
+        """Return the stages that publish keywords.
+
+        An axis with nothing wired to it still has to be configured, since
+        the driver identifies axes by their position in the list, but it has
+        no business appearing in the keyword namespace.
+        """
+        return [stage for stage in self.stages if stage.config.exposed]
+
+    def _connect_hardware(self):
+        target = f"{self.ip_address}:{self.tcp_port}" if self.ip_address else self.com_port
+        self.logger.info("Connecting to Xeryon controller at %s", target)
+        if self.ip_address:
+            self.controller.connect(host=self.ip_address, port=int(self.tcp_port))
+        else:
+            self.controller.connect(com_port=self.com_port)
+
+    def _is_connected(self) -> bool:
+        return bool(self.controller is not None and self.controller.is_connected())
+
+    def _set_connected(self, value: bool) -> None:
+        if value:
+            if self._is_connected():
+                return
+            self._connect_hardware()
+        else:
+            self.controller.disconnect()
+
+    def _error_string(self) -> str:
+        """Combine the active faults of every axis, or return an empty string."""
+        if not self._is_connected():
+            return "not connected"
+        try:
+            faults = [f"{stage.label}: {fault}"
+                      for stage, fault in ((s, self.controller.get_last_error(s.letter))
+                                           for s in self._exposed_stages()) if fault]
+            return " | ".join(faults)
+        except Exception as e:  # pylint: disable=W0718
+            return f"error read failed: {e}"
+
+    def _halt_all(self) -> None:
+        for stage in self._exposed_stages():
+            stage.halt()
+
+    def _shutdown(self) -> None:
+        """Stop the daemon, refusing while an axis is still moving."""
+        try:
+            moving = any(stage.is_moving() for stage in self._exposed_stages())
+        except Exception:  # pylint: disable=W0718
+            # An unreachable controller must not leave the daemon unstoppable
+            moving = False
+        if moving:
+            raise RuntimeError("an axis is moving; halt before shutting down")
+        self.logger.info("Shutting down on keyword request")
+        self.request_stop()
+
+    def _register_consolidated_keywords(self) -> None:
+        """Register whole-mechanism isreferenced/isloopclosed/ismoving, and
+        positionnamed when the config names positions across all axes."""
+        stages = self._exposed_stages()
+        self.keyword_registry.bool(
+            "isreferenced",
+            getter=lambda: all(stage.is_referenced() for stage in stages),
+            setter=self._set_all_referenced,
+            timeout_s=HOME_TIMEOUT_S,
+            description="All axes have found their encoder index; "
+                        "write true to reference all.")
+        self.keyword_registry.bool(
+            "isloopclosed",
+            getter=lambda: all(stage.is_loop_closed() for stage in stages),
+            setter=self._set_all_loops_closed,
+            description="All axes are under closed-loop control; "
+                        "write to set every axis.")
+        self.keyword_registry.bool(
+            "ismoving",
+            getter=lambda: any(stage.is_moving() for stage in stages),
+            description="Any axis is moving.")
+        if self.named_positions:
+            self.keyword_registry.string(
+                "positionnamed",
+                getter=self._current_named,
+                setter=self._goto_named,
+                validator=self._check_named,
+                description="Named position from the config, one value per axis; "
+                            "'custom' when the mechanism is elsewhere.")
+
+    def _set_all_referenced(self, value: bool) -> None:
+        """Setter for the consolidated isreferenced: reference every axis."""
+        for stage in self._exposed_stages():
+            stage._set_referenced(value)  # pylint: disable=W0212
+
+    def _set_all_loops_closed(self, value: bool) -> None:
+        """Setter for the consolidated isloopclosed: set every axis's loop."""
+        for stage in self._exposed_stages():
+            stage.set_loop_closed(value)
+
+    def _check_named(self, name: str) -> Optional[str]:
+        if not name:
+            return "value must be a non-empty string"
+        if name not in self.named_positions:
+            return (f"unknown named position '{name}'; "
+                    f"available: {list(self.named_positions.keys())}")
+        targets = self.named_positions[name]
+        stages = self._exposed_stages()
+        if len(targets) != len(stages):
+            return (f"named position '{name}' has {len(targets)} values, "
+                    f"expected {len(stages)}")
+        for stage, target in zip(stages, targets):
+            err = stage._check_soft_limits(float(target))  # pylint: disable=W0212
+            if err:
+                return f"{stage.label}: {err}"
+        return None
+
+    def _current_named(self) -> str:
+        """Return the named position every axis matches, else 'custom'."""
+        stages = self._exposed_stages()
+        positions = [stage.get_position() for stage in stages]
+        if any(p is None for p in positions):
+            return "custom"
+        for name, targets in self.named_positions.items():
+            if len(targets) == len(positions) and all(
+                    abs(p - float(t)) <= self.position_tolerance
+                    for p, t in zip(positions, targets)):
+                return name
+        return "custom"
+
+    def _goto_named(self, name: str) -> None:
+        """Move every axis to the position the config gives it under this name."""
+        for stage, target in zip(self._exposed_stages(), self.named_positions[name]):
+            stage._set_position(float(target))  # pylint: disable=W0212
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(description='HSFEI Xeryon Motion Daemon')
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        daemon = XeryonDaemon.from_config_file(args.config)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e:  # pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,43 @@
+# PIAA lens deploy, RED and BLUE in/out, on one Xeryon XD-M-3 controller,
+# resource hsfei_15. Only two of its three axes are wired.
+#
+# Usage:
+#   daemons/hsfei/xeryon -c config/hsfei/hsfei_piaadeploy.yaml
+#
+# TODO: fill in ip_address/tcp_port, confirm which axis is red and which is
+# blue, and measure the in/out positions.
+# If the controller turns out to report a third axis, add it here with
+# `expose: false` so its data isn't filed against axis A.
+
+peer_id: piaadeploy
+group_id: hsfei
+
+hardware:
+  ip_address:
+  tcp_port:
+  settings_file: hispec/driver/xeryon/config/settings_FEI_XD24514_20250902.txt
+  position_tolerance: 0.01  # mm
+
+stages:
+  - name: red
+    suffix: r
+    axis: A
+    stage: XLS_5_3N          # XLS-3-80-5
+    units: mm
+    softmin: -25.0
+    softmax: 25.0
+  - name: blue
+    suffix: b
+    axis: B
+    stage: XLS_5_3N          # XLS-3-80-5
+    units: mm
+    softmin: -25.0
+    softmax: 25.0
+    # positionnamedb appears once these are measured, likewise
+    # positionnamedr for the axis above:
+    # named_positions:
+    #   in: 0.0
+    #   out: 0.0
+
+logging:
+  level: INFO
