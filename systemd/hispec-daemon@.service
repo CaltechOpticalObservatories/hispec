@@ -29,6 +29,10 @@ User=hispec
 Group=hispec
 
 EnvironmentFile=/etc/hispec/instances/%i.env
+# Optional, root-only, shared by every instance: for secrets that must not sit
+# in the instance files above, since /etc/hispec/instances is group-readable by
+# hispec-ops. systemd reads this as root before dropping to User= below.
+EnvironmentFile=-/etc/hispec/secrets.env
 # Drivers write their own .log next to the working directory, so this has to
 # be writable by User= above; the repo checkout is not
 WorkingDirectory=/var/log/hispec

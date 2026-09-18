@@ -17,7 +17,7 @@ or the [daemon inventory][inventory] to find a specific mechanism.
 
 | Path | Contents |
 | --- | --- |
-| `daemons/` | Deployable device daemons. `generic/` are config-driven and shared across subsystems; `hsfei/`, `hscal/` are subsystem-specific. |
+| `daemons/` | Deployable device daemons. `generic/` are config-driven and shared across subsystems; `hsfei/`, `hscal/` are subsystem-specific. `generic/keygrabber` is the exception that drives no hardware: it records the other daemons' keywords into InfluxDB for Grafana. |
 | `config/` | One YAML file per deployed daemon instance, organised by subsystem. |
 | `src/hispec/` | Installable package: the `HispecDaemon` base class and the `driver/` submodules. |
 | `systemd/` | Template unit, per-instance env files and installer. See [systemd/README.md](systemd/README.md). |
