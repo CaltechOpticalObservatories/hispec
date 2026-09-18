@@ -1,0 +1,52 @@
+# BLUE Fiber Alignment Mechanism (FAMb), one Xeryon XD-M-3 three-axis
+# controller, resource hsfei_18.
+#
+# Usage:
+#   daemons/hsfei/xeryon -c config/hsfei/hsfei_yjfam.yaml
+#
+# Controller XD24508 by elimination: XD24494 answers as the red FAM and
+# XD24514 holds the PIAA deploy pair. Confirm by reading SRNO back, which
+# needs ECHO=1 on the controller.
+#
+# TODO: fill in ip_address/tcp_port.
+# TODO: confirm the axis-to-keyword mapping below; letters and travel come
+# from the controller's settings file, the foc/sel/vert names do not.
+
+peer_id: yjfam
+group_id: hsfei
+
+hardware:
+  ip_address:
+  tcp_port:
+  settings_file: hispec/driver/xeryon/config/settings_FEI_XD24508_20250902.txt
+  position_tolerance: 0.005  # mm
+
+stages:
+  - name: vert
+    suffix: y
+    axis: A
+    stage: XLS_5_3N          # XVP-80-5, 5 nm encoder like the XLS stages
+    units: mm
+    softmin: -5.0
+    softmax: 5.0
+  - name: sel
+    suffix: x
+    axis: B
+    stage: XLS_5_3N          # XLS-3-80-5
+    units: mm
+    softmin: -25.0
+    softmax: 25.0
+  - name: foc
+    suffix: f
+    axis: C
+    stage: XLS_5_3N          # XLS-3-40-5
+    units: mm
+    softmin: -12.5
+    softmax: 12.5
+
+# One value per axis, in the order above. Left empty until the fiber
+# positions are measured; an entry here moves all three axes at once.
+named_positions: {}
+
+logging:
+  level: INFO

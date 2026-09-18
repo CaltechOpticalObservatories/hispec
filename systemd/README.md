@@ -52,6 +52,13 @@ sudo systemctl enable --now hispec-daemon@hsfei_atcpress   # admin-only step
 systemctl start hispec-daemon@hsfei_atcpress               # no sudo needed after that
 ```
 
+A config may name further files. The `hsfei/xeryon` instances each point at
+their controller's settings file, which the Xeryon Windows interface
+generates and the daemon reads for unit conversion and travel limits. Those
+ship with the driver, and the path in the config is relative to the installed
+`hispec` package, so there is nothing extra to deploy and nothing that
+depends on the unit's working directory.
+
 For a new daemon/config not yet in the table, add its config under
 `config/<subsystem>/`, write a matching `systemd/instances/<name>.env`
 (`HISPEC_DAEMON=...`, `HISPEC_CONFIG=...`), deploy both the same way, then
@@ -83,6 +90,9 @@ daemon (e.g. two lakeshores) just means two env files with different
 | `hsfei_ms`            | `hsfei/pi-daemon`        | `config/hsfei/hsfei_ms.yaml`            |
 | `hsfei_piaagimb`      | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimb.yaml`      |
 | `hsfei_piaagimr`      | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimr.yaml`      |
+| `hsfei_hkfam`         | `hsfei/xeryon`           | `config/hsfei/hsfei_hkfam.yaml`         |
+| `hsfei_piaadeploy`    | `hsfei/xeryon`           | `config/hsfei/hsfei_piaadeploy.yaml`    |
+| `hsfei_yjfam`         | `hsfei/xeryon`           | `config/hsfei/hsfei_yjfam.yaml`         |
 
 (`config/example/pdu.yaml` has no instance file yet.)
 

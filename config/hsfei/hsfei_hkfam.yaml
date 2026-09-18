@@ -1,0 +1,47 @@
+# RED Fiber Alignment Mechanism (FAMr), one Xeryon XD-M-3 three-axis
+# controller, serial XD24494 (firmware 40316), resource hsfei_19.
+#
+# Usage:
+#   daemons/hsfei/xeryon -c config/hsfei/hsfei_hkfam.yaml
+#
+# TODO: confirm the axis-to-keyword mapping below; the letters and travel are
+# read from the controller, the foc/sel/vert names are not.
+
+peer_id: hkfam
+group_id: hsfei
+
+hardware:
+  ip_address: 192.168.29.100
+  tcp_port: 10015
+  settings_file: hispec/driver/xeryon/config/settings_FEI_XD24494_20260831.txt
+  position_tolerance: 0.005  # mm
+
+stages:
+  - name: vert
+    suffix: y
+    axis: A
+    stage: XLS_5_3N          # XVP-80-5, 5 nm encoder like the XLS stages
+    units: mm
+    softmin: -5.0
+    softmax: 5.0
+  - name: sel
+    suffix: x
+    axis: B
+    stage: XLS_5_3N          # XLS-3-80-5
+    units: mm
+    softmin: -25.0
+    softmax: 25.0
+  - name: foc
+    suffix: f
+    axis: C
+    stage: XLS_5_3N          # XLS-3-40-5
+    units: mm
+    softmin: -12.5
+    softmax: 12.5
+
+# One value per axis, in the order above. Left empty until the fiber
+# positions are measured; an entry here moves all three axes at once.
+named_positions: {}
+
+logging:
+  level: INFO
