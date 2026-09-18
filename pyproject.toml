@@ -24,7 +24,8 @@ dependencies = [
     "libximc",
     "scipy",
     "pyyaml",
-    "libby@git+https://github.com/CaltechOpticalObservatories/libby.git",
+    # influxdb extra: needed by daemons/generic/keygrabber
+    "libby[influxdb]@git+https://github.com/CaltechOpticalObservatories/libby.git",
     "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base"
 ]
 

@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""
+Keyword Archiver Daemon
+
+Polls keywords from the other HISPEC daemons and writes them to InfluxDB for
+Grafana. The daemon itself lives in libby, since nothing about it is
+instrument-specific; this shim exists so the systemd unit template, which runs
+``daemons/<subdir>/<script>``, can launch it like any other HISPEC daemon.
+
+Needs libby's optional extra: ``pip install 'libby[influxdb]'``.
+"""
+
+from libby.keygrabber.main import main
+
+if __name__ == '__main__':
+    raise SystemExit(main())

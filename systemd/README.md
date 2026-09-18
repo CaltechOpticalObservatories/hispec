@@ -24,8 +24,9 @@ sudo ./systemd/install.sh
 
 `install.sh` creates an unprivileged `hispec` user, a `hispec-ops` group,
 `/etc/hispec/{,instances/}` and `/var/log/hispec/` (group-writable by
-`hispec-ops`), a venv at `/opt/hispec/venv` with the repo `pip install -e`d
-into it, installs `hispec-daemon@.service`, and installs a polkit rule
+`hispec-ops`), a root-only `/etc/hispec/secrets.env`, a venv at
+`/opt/hispec/venv` with the repo `pip install -e`d into it, installs
+`hispec-daemon@.service`, and installs a polkit rule
 (`systemd/polkit/49-hispec-daemons.rules`) letting `hispec-ops` members
 start/stop/restart `hispec-daemon@*` units without sudo. Override
 `HISPEC_REPO_DIR` / `HISPEC_VENV_DIR` for different paths.
@@ -58,6 +59,44 @@ generates and the daemon reads for unit conversion and travel limits. Those
 ship with the driver, and the path in the config is relative to the installed
 `hispec` package, so there is nothing extra to deploy and nothing that
 depends on the unit's working directory.
+
+### Secrets
+
+`/etc/hispec/instances/*.env` is group-readable by every `hispec-ops` member,
+which is right for configs and wrong for a credential. Every unit also reads
+`/etc/hispec/secrets.env` if it exists, which `install.sh` creates root-only
+(0600), so a secret goes there instead:
+
+```bash
+sudo tee -a /etc/hispec/secrets.env <<'EOF'
+HISPEC_INFLUX_TOKEN=<InfluxDB write token>
+EOF
+sudo systemctl restart hispec-daemon@hispec_keygrabber
+```
+
+Only `generic/keygrabber` needs one today. A config file names the variable it
+expects rather than holding the value, so the value never reaches git.
+
+### The keyword archiver
+
+`hispec_keygrabber` is the one instance that reads the other daemons rather
+than any hardware, writing their keywords to InfluxDB for Grafana. Two extra
+steps beyond the recipe above:
+
+```bash
+/opt/hispec/venv/bin/pip install 'libby[influxdb]'   # optional extra
+sudo tee -a /etc/hispec/secrets.env                  # the token, as above
+```
+
+It needs no hardware, owns no device, and can be restarted freely. Pausing it
+does not need a restart at all:
+
+```bash
+libby modify hispec.keygrabber.enabled=false     # stop collecting, stay up
+libby show   hispec.keygrabber.%                 # counters and health
+libby show   hispec.keygrabber.%.%               # per-collection cadence
+libby modify hispec.keygrabber.reload=1          # re-read the config file
+```
 
 For a new daemon/config not yet in the table, add its config under
 `config/<subsystem>/`, write a matching `systemd/instances/<name>.env`

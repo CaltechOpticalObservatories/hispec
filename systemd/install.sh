@@ -42,6 +42,21 @@ install -d -o hispec -g hispec-ops -m 2775 /etc/hispec
 install -d -o hispec -g hispec-ops -m 2775 /etc/hispec/instances
 install -d -o hispec -g hispec-ops -m 2750 /var/log/hispec
 
+# Shared secrets, read by every unit if present. Root-only on purpose: the
+# instance files above are group-readable by hispec-ops, which is right for
+# configs and wrong for a database token.
+if [[ ! -e /etc/hispec/secrets.env ]]; then
+    cat > /etc/hispec/secrets.env <<'EOF'
+# Environment for every hispec-daemon@ instance. Root-only; keep secrets here
+# rather than in /etc/hispec/instances/*.env, which operators can read.
+#
+# HISPEC_INFLUX_TOKEN=<InfluxDB write token, for generic/keygrabber>
+EOF
+    echo "created /etc/hispec/secrets.env"
+fi
+chown root:root /etc/hispec/secrets.env
+chmod 0600 /etc/hispec/secrets.env
+
 # Python environment (editable install so `git pull` picks up code changes
 # without reinstalling).
 if [[ ! -x "$VENV_DIR/bin/python3" ]]; then

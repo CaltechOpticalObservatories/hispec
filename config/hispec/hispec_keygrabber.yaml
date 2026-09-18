@@ -1,0 +1,134 @@
+# Keyword Archiver — polls the HISPEC daemons and writes to InfluxDB for Grafana
+#
+# Usage:
+#   daemons/generic/keygrabber -c config/hispec/hispec_keygrabber.yaml
+#
+# Needs libby's optional extra on the host: pip install 'libby[influxdb]'
+# The InfluxDB token comes from the environment, never from this file; the
+# systemd instance file is where it gets set.
+
+peer_id: keygrabber
+group_id: hispec
+
+sink:
+  type: influxdb
+  url: http://localhost:8086
+  org: hispec
+  bucket: telemetry
+  token_env: HISPEC_INFLUX_TOKEN
+
+# Concurrent reads. Collections are read in parallel up to this many at once,
+# but a single daemon still answers one request at a time, so raising this only
+# helps spread reads across peers.
+workers: 4
+
+defaults:
+  interval_s: 30.0
+  timeout_s: 2.0
+  refresh_s: 300.0
+
+# Each collection reads one peer. "%" takes everything readable, minus the
+# defaults libby excludes (uptime, lasterror). Narrow a collection's keywords
+# list once a dashboard shows which ones matter; that costs nothing to change,
+# since a reload re-reads this file.
+collections:
+
+  # Motion: positions and limits move during an observation, so read faster
+  adc:
+    peer: hsfei.adc
+    keywords: ["%"]
+    interval_s: 5.0
+  atcl:
+    peer: hsfei.atcl
+    keywords: ["%"]
+    interval_s: 5.0
+  atcp:
+    peer: hsfei.atcp
+    keywords: ["%"]
+    interval_s: 5.0
+  feipo:
+    peer: hsfei.feipo
+    keywords: ["%"]
+    interval_s: 5.0
+  lsm:
+    peer: hsfei.lsm
+    keywords: ["%"]
+    interval_s: 5.0
+  ms:
+    peer: hsfei.ms
+    keywords: ["%"]
+    interval_s: 5.0
+  piaagimb:
+    peer: hsfei.piaagimb
+    keywords: ["%"]
+    interval_s: 5.0
+  piaagimr:
+    peer: hsfei.piaagimr
+    keywords: ["%"]
+    interval_s: 5.0
+
+  piaadeploy:
+    peer: hsfei.piaadeploy
+    keywords: ["%"]
+    interval_s: 5.0
+  yjfam:
+    peer: hsfei.yjfam
+    keywords: ["%"]
+    interval_s: 5.0
+  hkfam:
+    peer: hsfei.hkfam
+    keywords: ["%"]
+    interval_s: 5.0
+
+  # Filter wheels and attenuators: discrete positions, changed rarely
+  atcfw:
+    peer: hsfei.atcfw
+    keywords: ["%"]
+  hkcalfwheel1:
+    peer: hscal.hkcalfwheel1
+    keywords: ["%"]
+  hkcalfwheel2:
+    peer: hscal.hkcalfwheel2
+    keywords: ["%"]
+  hkgcellfwheel:
+    peer: hscal.hkgcellfwheel
+    keywords: ["%"]
+  yjcalfwheel1:
+    peer: hscal.yjcalfwheel1
+    keywords: ["%"]
+  yjcalfwheel2:
+    peer: hscal.yjcalfwheel2
+    keywords: ["%"]
+  hketatten:
+    peer: hscal.hketatten
+    keywords: ["%"]
+
+  # Thermal: slow-moving, but the long-term trend is the point
+  atctherm:
+    peer: hsfei.atctherm
+    keywords: ["%"]
+  hkettherm:
+    peer: hscal.hkettherm
+    keywords: ["%"]
+  yjettherm:
+    peer: hscal.yjettherm
+    keywords: ["%"]
+  gcellheater1:
+    peer: hscal.gcellheater1
+    keywords: ["%"]
+  gcellheater2:
+    peer: hscal.gcellheater2
+    keywords: ["%"]
+
+  # Cryo and vacuum: slowest of all, and the trend that matters over weeks
+  atccryo:
+    peer: hsfei.atccryo
+    keywords: ["%"]
+    interval_s: 60.0
+  atcpress:
+    peer: hsfei.atcpress
+    keywords: ["%"]
+    interval_s: 60.0
+
+logging:
+  level: INFO
