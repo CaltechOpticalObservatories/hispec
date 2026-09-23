@@ -1,0 +1,14 @@
+# Acquisition and tracking camera — H2RG on an Archon, driven in process
+# through the camera_interface extension
+#
+# Usage:
+#   daemons/generic/camera -c config/hsfei/hsfei_atcam.yaml
+
+peer_id: atcam
+group_id: hsfei
+
+camera:
+  # camerad .cfg describing the Archon, the ACF and the frame outputs
+  config_file: /usr/local/etc/hispecatc.cfg
+  instrument: hispec.driver.tracking_camera.keywords.Instrument
+  nframes: 1
