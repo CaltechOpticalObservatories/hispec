@@ -69,9 +69,10 @@ flowchart TB
     end
 
     subgraph daemonlayer["daemons/ — device daemons"]
-        GEN["generic/<br/>filterwheel, lakeshore,<br/>inficon, srsthermal, pdu"]
+        GEN["generic/<br/>filterwheel, lakeshore,<br/>inficon, srsthermal"]
         FEI["hsfei/<br/>pi-daemon, adc, atccryo,<br/>piaa-gimbalmount"]
         CAL["hscal/<br/>smc8_attenuator"]
+        PWR["hspower/<br/>pdu"]
     end
 
     subgraph pkg["src/hispec — installable package"]
@@ -94,13 +95,16 @@ flowchart TB
     RMQ --> GEN
     RMQ --> FEI
     RMQ --> CAL
+    RMQ --> PWR
 
     GEN --> BASE
     FEI --> BASE
     CAL --> BASE
+    PWR --> BASE
     GEN --> DRV
     FEI --> DRV
     CAL --> DRV
+    PWR --> DRV
 
     BASE --> LD
     LD --> KR
@@ -110,6 +114,7 @@ flowchart TB
     CONF -.-> GEN
     CONF -.-> FEI
     CONF -.-> CAL
+    CONF -.-> PWR
 ```
 
 Reading the stack from the bottom:

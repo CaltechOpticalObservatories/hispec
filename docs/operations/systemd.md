@@ -195,8 +195,21 @@ EOF
 systemctl restart hispec@hispec_keygrabber
 ```
 
+`generic/keygrabber` and `hspower/pdu` need one. The nine PDU instances share
+a single Telnet login, so two variables cover all of them:
+
+```bash
+sudo tee -a /etc/hispec/secrets.env <<'EOF'
+HISPEC_PDU_USERNAME=<PDU login>
+HISPEC_PDU_PASSWORD=<PDU password>
+EOF
+```
+
 A config file names the variable it expects rather than holding the value, so
-the value never reaches git. Only `generic/keygrabber` needs one today.
+the value never reaches git. For the PDU that is `hardware.username_env` and
+`hardware.password_env`; an instance with its own login just names different
+variables. Inline `hardware.username` / `hardware.password` still work for a
+bench test, but the daemon logs a warning against committing them.
 
 ## Troubleshooting
 
@@ -335,8 +348,22 @@ access to `/opt/hispec/app`, so either run as `hispec` or ask an admin.
 | `hsfei_piaadeploy` | `hsfei/xeryon` | `config/hsfei/hsfei_piaadeploy.yaml` |
 | `hsfei_yjfam` | `hsfei/xeryon` | `config/hsfei/hsfei_yjfam.yaml` |
 | `hispec_keygrabber` | `generic/keygrabber` | `config/hispec/hispec_keygrabber.yaml` |
+| `hspower_fei1` | `hspower/pdu` | `config/hspower/hspower_fei1.yaml` |
+| `hspower_fei2` | `hspower/pdu` | `config/hspower/hspower_fei2.yaml` |
+| `hspower_cal1` | `hspower/pdu` | `config/hspower/hspower_cal1.yaml` |
+| `hspower_cal2` | `hspower/pdu` | `config/hspower/hspower_cal2.yaml` |
+| `hspower_cal3` | `hspower/pdu` | `config/hspower/hspower_cal3.yaml` |
+| `hspower_cal4` | `hspower/pdu` | `config/hspower/hspower_cal4.yaml` |
+| `hspower_fib1` | `hspower/pdu` | `config/hspower/hspower_fib1.yaml` |
+| `hspower_bspec1` | `hspower/pdu` | `config/hspower/hspower_bspec1.yaml` |
+| `hspower_rspec1` | `hspower/pdu` | `config/hspower/hspower_rspec1.yaml` |
 
-(`config/example/pdu.yaml` has no instance file yet.)
+The nine `hspower_*` instances are the Eaton PDUs, each named for where its
+unit is: two in the FEI, four in the CAL, and one each in the FIB, BSPEC and
+RSPEC. They all need the Telnet login in `/etc/hispec/secrets.env` (above)
+before they can connect, and the ones whose address is not yet known carry a
+TODO in their config — those start and serve their keywords, but report
+`missing PDU connection parameters` until an address is filled in.
 
 Some configs name further files. The `hsfei/xeryon` instances each point at
 their controller's settings file, which the Xeryon Windows interface generates

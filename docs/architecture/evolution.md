@@ -44,8 +44,10 @@ files, compiled by KROOT `Makefile`s into dispatchers, with service directories
 per subsystem and `init.d` scripts to start them.
 
 The surviving artefacts are `daemons/hsowenv` (1-Wire environment),
-`daemons/hsdewar` (Lakeshore dewar control), `daemons/hspower`, `daemons/hsssd`,
-plus `Makefile`, `Mk.instrument`, `init.d/` and `qt/`.
+`daemons/hsdewar` (Lakeshore dewar control), `daemons/hsssd`, plus `Makefile`,
+`Mk.instrument`, `init.d/` and `qt/`. `daemons/hspower` was one of them until
+its KROOT scaffolding was removed and the directory reused for the libby PDU
+daemon.
 
 **Why it moved on.** KROOT ties development to a summit-like environment: the
 build needs `/kroot` and Keck-internal modules (`DFW`, `SerialStream`) that do
@@ -130,7 +132,6 @@ These directories are from Era 1, are not built, and are not run:
 |---|---|---|
 | `daemons/hsowenv` | KTL 1-Wire environment service | Dead. Last touched Aug 2025 as part of a directory move. |
 | `daemons/hsdewar` | KTL Lakeshore dewar dispatcher | Dead. Superseded by `daemons/generic/lakeshore`. |
-| `daemons/hspower` | KTL power service | Dead. Superseded by `daemons/generic/pdu`. |
 | `daemons/hsssd` | KTL spectrograph service | Dead. |
 | `Makefile`, `Mk.instrument` | KROOT build | Dead. Still references KPF in a comment. |
 | `init.d/` | KTL service startup | Dead. Superseded by `systemd/`. |
@@ -140,6 +141,12 @@ They have been left in place rather than deleted because the XML keyword
 definitions still document the intended keyword sets for subsystems whose libby
 daemons have not been written — `hsssd` in particular describes the
 spectrograph. Treat them as design reference, not as code.
+
+`daemons/hspower` is the one that has been through this: its KTL power service
+— `Makefile`, `Mk.service`, the `.conf.in` configs and the `.xml.in` keyword
+templates — is gone, and the directory now holds the libby `pdu` daemon,
+`pdu_capabilities.py` and `pdu_models/` instead. The old templates are still in
+git history if the strip- and outlet-level keyword names are ever wanted.
 
 Two other stale references worth knowing about: `pyproject.toml` still ignores
 the Keck-internal `DFW` and `SerialStream` modules for pylint's benefit, and the
