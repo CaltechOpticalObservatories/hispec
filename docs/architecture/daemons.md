@@ -181,5 +181,5 @@ The mechanics, in the order they are done:
 4. Add `config/<subsystem>/<instance>.yaml`.
 5. Add `systemd/instances/<instance>.env` naming the script and the deployed
    config path.
-6. Add the row to the instance table in `systemd/README.md` and to the daemon
+6. Add the row to the instance table in {doc}`../operations/systemd` and to the daemon
    inventory above.

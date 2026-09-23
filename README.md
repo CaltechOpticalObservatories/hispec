@@ -10,8 +10,12 @@ Architecture, build notes and deployment references are published at
 Start with the [architecture overview][arch] for how the system fits together,
 or the [daemon inventory][inventory] to find a specific mechanism.
 
+If you are running the instrument, see [running the daemons with
+systemd][systemd-ops].
+
 [arch]: https://caltechopticalobservatories.github.io/hispec/architecture/overview.html
 [inventory]: https://caltechopticalobservatories.github.io/hispec/architecture/daemons.html
+[systemd-ops]: https://caltechopticalobservatories.github.io/hispec/operations/systemd.html
 
 ## Structure
 
@@ -20,14 +24,14 @@ or the [daemon inventory][inventory] to find a specific mechanism.
 | `daemons/` | Deployable device daemons. `generic/` are config-driven and shared across subsystems; `hsfei/`, `hscal/` are subsystem-specific. `generic/keygrabber` is the exception that drives no hardware: it records the other daemons' keywords into InfluxDB for Grafana. |
 | `config/` | One YAML file per deployed daemon instance, organised by subsystem. |
 | `src/hispec/` | Installable package: the `HispecDaemon` base class and the `driver/` submodules. |
-| `systemd/` | Template unit, per-instance env files and installer. See [systemd/README.md](systemd/README.md). |
+| `systemd/` | Template unit, per-instance env files, operator commands and installer. See [Running the daemons with systemd][systemd-ops]. |
 | `docs/` | Sphinx documentation sources. |
 | `tests/` | Driver unit tests. |
 | `etc/` | Vendored externals: `camera-interface`, `PIPython`. |
 | `scripts/` | Engineering and performance-analysis scripts. |
 
 `Makefile`, `Mk.instrument`, `init.d/`, `qt/` and `daemons/hs{owenv,dewar,power,ssd}/`
-are from the original KROOT/KTL build and are no longer used — see
+are from the original KROOT/KTL build and are no longer used; see
 [Architecture Evolution][evolution].
 
 [evolution]: https://caltechopticalobservatories.github.io/hispec/architecture/evolution.html

@@ -14,6 +14,9 @@ If you are new to the software, start with the :doc:`architecture overview
 the :doc:`daemon inventory <architecture/daemons>` to find the piece you care
 about.
 
+If you are running the instrument, :doc:`running the daemons with systemd
+<operations/systemd>` covers starting, stopping, watching and debugging them.
+
 If you are setting up a machine, start with the host-machine build page. Use
 the FEI/RTC build page for subsystem-specific installation and configuration
 details.
@@ -23,6 +26,12 @@ details.
    :maxdepth: 2
 
    architecture/index
+
+.. toctree::
+   :caption: Operations
+   :maxdepth: 2
+
+   operations/systemd
 
 .. toctree::
    :caption: Build Notes
@@ -37,6 +46,5 @@ Planned Documentation Areas
 
 These sections are placeholders for the next round of documentation pages:
 
-* operations and troubleshooting procedures
 * developer setup and contribution workflow
 * hardware interface notes per subsystem

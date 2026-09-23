@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Start the FEI daemons.
+#
+# With no arguments it starts every hsfei_* instance deployed on this host,
+# i.e. every /etc/hispec/instances/hsfei_*.env. Name instances explicitly to
+# start only those. No sudo needed if you are in hispec-ops.
+#
+#   hispec-fei-start                      # all deployed FEI daemons
+#   hispec-fei-start hsfei_adc hsfei_ms   # just these two
+#   hispec-fei-start --dry-run            # print what would be started
+#
+# Already-running instances are left alone, not restarted. Exits non-zero if
+# any instance failed to come up, after trying all of them.
+
+set -uo pipefail
+
+INSTANCE_DIR=${HISPEC_INSTANCE_DIR:-/etc/hispec/instances}
+PREFIX=${HISPEC_PREFIX:-hsfei_}
+dry_run=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -n|--dry-run) dry_run=1; shift ;;
+        -h|--help)    awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
+        -*)           echo "hispec-fei-start: unknown option $1" >&2; exit 1 ;;
+        *)            break ;;
+    esac
+done
+
+if [[ $# -gt 0 ]]; then
+    instances=("$@")
+else
+    instances=()
+    for env_file in "$INSTANCE_DIR/$PREFIX"*.env; do
+        [[ -f $env_file ]] || continue
+        name=${env_file##*/}
+        instances+=("${name%.env}")
+    done
+fi
+
+if [[ ${#instances[@]} -eq 0 ]]; then
+    echo "hispec-fei-start: no $PREFIX* instances deployed in $INSTANCE_DIR" >&2
+    exit 1
+fi
+
+failed=()
+for name in "${instances[@]}"; do
+    unit="hispec@$name.service"
+    if [[ $dry_run -eq 1 ]]; then
+        echo "would start $unit"
+        continue
+    fi
+    if systemctl is-active --quiet "$unit"; then
+        printf '%-24s already running\n' "$name"
+        continue
+    fi
+    if systemctl start "$unit"; then
+        printf '%-24s started\n' "$name"
+    else
+        printf '%-24s FAILED (journalctl -u %s -n 50)\n' "$name" "$unit"
+        failed+=("$name")
+    fi
+done
+
+if [[ ${#failed[@]} -gt 0 ]]; then
+    echo
+    echo "${#failed[@]} of ${#instances[@]} failed to start: ${failed[*]}" >&2
+    exit 1
+fi
