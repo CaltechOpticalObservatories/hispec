@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# Check this host's hispec systemd setup and say what is wrong.
+#
+#   hispec-doctor
+#
+# Exits 0 if everything an operator needs is in place, 1 otherwise.
+
+set -uo pipefail
+
+REPO_DIR=${HISPEC_REPO_DIR:-/opt/hispec/app}
+VENV_DIR=${HISPEC_VENV_DIR:-/opt/hispec/venv}
+INSTANCE_DIR=${HISPEC_INSTANCE_DIR:-/etc/hispec/instances}
+
+if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+    awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"
+    exit 0
+fi
+
+problems=0
+
+if [[ -t 1 ]]; then
+    C_OK=$'\033[32m'; C_BAD=$'\033[31m'; C_WARN=$'\033[33m'; C_OFF=$'\033[0m'
+else
+    C_OK=; C_BAD=; C_WARN=; C_OFF=
+fi
+
+ok()   { printf '  %sok%s    %s\n' "$C_OK" "$C_OFF" "$1"; }
+bad()  { printf '  %sFAIL%s  %s\n' "$C_BAD" "$C_OFF" "$1"; problems=$((problems + 1)); }
+warn() { printf '  %swarn%s  %s\n' "$C_WARN" "$C_OFF" "$1"; }
+hint() { printf '        → %s\n' "$1"; }
+
+echo "hispec-doctor: $(hostname), running as $(id -un)"
+
+echo
+echo "Your account"
+if [[ $EUID -eq 0 ]]; then
+    warn "running as root, so the permission checks below say nothing about operators"
+    hint "re-run as your own user: hispec-doctor"
+fi
+if ! getent group hispec-ops >/dev/null 2>&1; then
+    bad "group hispec-ops does not exist"
+    hint "an admin needs to run systemd/install.sh on this host"
+elif id -nG | tr ' ' '\n' | grep -qx hispec-ops; then
+    ok "you are in hispec-ops"
+else
+    bad "you are NOT in hispec-ops — this is why systemctl asks for a password"
+    hint "admin: sudo usermod -aG hispec-ops,systemd-journal $(id -un)"
+    hint "then log out and back in (or run: newgrp hispec-ops)"
+fi
+if id -nG | tr ' ' '\n' | grep -qx systemd-journal; then
+    ok "you are in systemd-journal (can read other units' logs)"
+else
+    warn "you are not in systemd-journal; journalctl -u hispec@... will be empty"
+    hint "admin: sudo usermod -aG systemd-journal $(id -un)"
+fi
+
+echo
+echo "Unit and polkit"
+if [[ -f /etc/systemd/system/hispec@.service ]]; then
+    ok "/etc/systemd/system/hispec@.service installed"
+    if [[ -f $REPO_DIR/systemd/hispec@.service ]] &&
+       ! cmp -s /etc/systemd/system/hispec@.service "$REPO_DIR/systemd/hispec@.service"; then
+        warn "installed unit differs from $REPO_DIR/systemd/hispec@.service"
+        hint "admin: sudo $REPO_DIR/systemd/install.sh"
+    fi
+else
+    bad "/etc/systemd/system/hispec@.service is missing"
+    hint "admin: sudo $REPO_DIR/systemd/install.sh"
+fi
+if [[ -f /etc/systemd/system/hispec-daemon@.service ]]; then
+    warn "the old hispec-daemon@.service is still installed"
+    hint "admin: sudo $REPO_DIR/systemd/install.sh migrates instances to hispec@"
+fi
+if [[ -f /etc/polkit-1/rules.d/49-hispec.rules ]]; then
+    ok "/etc/polkit-1/rules.d/49-hispec.rules installed"
+    if ! grep -q 'indexOf("hispec@")' /etc/polkit-1/rules.d/49-hispec.rules; then
+        bad "the installed polkit rule does not match hispec@ units"
+        hint "it is probably the pre-rename copy; admin: sudo $REPO_DIR/systemd/install.sh"
+    fi
+else
+    bad "/etc/polkit-1/rules.d/49-hispec.rules is missing — every start/stop will prompt"
+    hint "admin: sudo $REPO_DIR/systemd/install.sh"
+fi
+if [[ -f /etc/polkit-1/rules.d/49-hispec-daemons.rules ]]; then
+    warn "the old 49-hispec-daemons.rules is still installed (harmless, matches nothing now)"
+    hint "admin: sudo rm /etc/polkit-1/rules.d/49-hispec-daemons.rules"
+fi
+if command -v pkaction >/dev/null; then
+    polkit_version=$(pkaction --version 2>/dev/null | awk '{print $NF}')
+    # JavaScript .rules files need polkit 0.106+; older polkit ignores them
+    # silently and every operator gets an auth prompt instead.
+    if [[ -n $polkit_version ]] &&
+       [[ $(printf '%s\n0.106\n' "$polkit_version" | sort -V | head -1) == "0.106" ]]; then
+        ok "polkit $polkit_version supports JavaScript .rules"
+    else
+        bad "polkit ${polkit_version:-unknown} is too old for .rules files (need 0.106+)"
+        hint "the rule is ignored silently; operators will keep getting auth prompts"
+    fi
+else
+    warn "pkaction not found; cannot check the polkit version"
+fi
+if systemctl is-active --quiet polkit.service 2>/dev/null ||
+   systemctl is-active --quiet polkitd.service 2>/dev/null; then
+    ok "polkit is running"
+else
+    warn "polkit does not look like it is running"
+    hint "admin: sudo systemctl start polkit"
+fi
+if [[ -f /etc/sudoers.d/hispec-ops ]]; then
+    ok "/etc/sudoers.d/hispec-ops installed (passwordless hispec-enable)"
+else
+    warn "no /etc/sudoers.d/hispec-ops; enabling an instance at boot needs an admin"
+    hint "admin: sudo $REPO_DIR/systemd/install.sh"
+fi
+
+echo
+echo "Paths"
+for dir in /etc/hispec "$INSTANCE_DIR" /var/log/hispec; do
+    if [[ -d $dir ]]; then
+        ok "$dir exists ($(stat -c '%U:%G %a' "$dir" 2>/dev/null || echo '?'))"
+    else
+        bad "$dir is missing"
+        hint "admin: sudo $REPO_DIR/systemd/install.sh"
+    fi
+done
+[[ -d $REPO_DIR ]] && ok "$REPO_DIR checked out" || bad "$REPO_DIR is missing"
+[[ -x $VENV_DIR/bin/python3 ]] && ok "$VENV_DIR venv present" || bad "$VENV_DIR/bin/python3 is missing"
+
+echo
+echo "Deployed instances"
+shopt -s nullglob
+env_files=("$INSTANCE_DIR"/*.env)
+shopt -u nullglob
+if [[ ${#env_files[@]} -eq 0 ]]; then
+    warn "no instance files in $INSTANCE_DIR — nothing is deployed on this host"
+else
+    for env_file in "${env_files[@]}"; do
+        name=${env_file##*/}; name=${name%.env}
+        config=$(sed -n 's/^HISPEC_CONFIG=//p' "$env_file" | tail -1)
+        script=$(sed -n 's/^HISPEC_DAEMON=//p' "$env_file" | tail -1)
+        state=$(systemctl is-active "hispec@$name.service" 2>/dev/null)
+        if [[ -z $script ]]; then
+            bad "$name: $env_file sets no HISPEC_DAEMON"
+        elif [[ ! -f $REPO_DIR/daemons/$script ]]; then
+            bad "$name: daemon script $REPO_DIR/daemons/$script does not exist"
+        elif [[ -z $config || ! -f $config ]]; then
+            bad "$name: config ${config:-<unset>} does not exist"
+            hint "cp $REPO_DIR/config/<subsystem>/$name.yaml ${config:-/etc/hispec/$name.yaml}"
+        elif [[ $state == active ]]; then
+            ok "$name: running"
+        else
+            warn "$name: $state"
+            hint "hispec-fei-start $name    # or: systemctl start hispec@$name"
+            hint "journalctl -u hispec@$name -n 50"
+        fi
+    done
+fi
+
+echo
+if [[ $problems -eq 0 ]]; then
+    echo "No problems found."
+else
+    echo "$problems problem(s) found — see the FAIL lines above."
+    exit 1
+fi

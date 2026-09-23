@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Enable (or disable) hispec@<instance> units at boot.
+#
+# `systemctl enable` needs the org.freedesktop.systemd1.manage-unit-files
+# polkit action, which polkit cannot scope to a single unit by name. Granting
+# it to hispec-ops would grant enable/disable on every unit on the host. This
+# helper is the narrow alternative: it runs as root via a sudoers drop-in that
+# is NOPASSWD for hispec-ops (see install.sh), and it only ever touches
+# hispec@<name> for a name that already has an instance file deployed.
+#
+#   hispec-enable hsfei_adc hsfei_ms      # enable at boot (does not start)
+#   hispec-enable --now hsfei_adc         # enable and start
+#   hispec-enable --disable hsfei_adc     # disable at boot (does not stop)
+
+set -euo pipefail
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+INSTANCE_DIR=/etc/hispec/instances
+
+verb=enable
+now=()
+
+usage() {
+    awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"
+    exit "${1:-0}"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --disable) verb=disable; shift ;;
+        --now)     now=(--now); shift ;;
+        -h|--help) usage 0 ;;
+        --*)       echo "hispec-enable: unknown option $1" >&2; usage 1 ;;
+        *)         break ;;
+    esac
+done
+
+[[ $# -gt 0 ]] || usage 1
+
+# Validate before doing anything, so a typo in the third name does not leave
+# the first two half-applied.
+for name in "$@"; do
+    if [[ ! $name =~ ^[a-z][a-z0-9_]*$ ]]; then
+        echo "hispec-enable: refusing '$name': not a valid instance name" >&2
+        exit 1
+    fi
+    if [[ $verb == enable && ! -f "$INSTANCE_DIR/$name.env" ]]; then
+        echo "hispec-enable: no $INSTANCE_DIR/$name.env; deploy the instance file first" >&2
+        exit 1
+    fi
+done
+
+for name in "$@"; do
+    systemctl "$verb" ${now[@]+"${now[@]}"} "hispec@$name.service"
+done

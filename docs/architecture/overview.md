@@ -200,10 +200,10 @@ for a mechanism are the same string.
 flowchart LR
     subgraph host["instrument host"]
         direction TB
-        UNIT["hispec-daemon@.service<br/>one systemd template unit"]
-        I1["hispec-daemon@hsfei_atcfw"]
-        I2["hispec-daemon@hsfei_ms"]
-        I3["hispec-daemon@hscal_hketatten"]
+        UNIT["hispec@.service<br/>one systemd template unit"]
+        I1["hispec@hsfei_atcfw"]
+        I2["hispec@hsfei_ms"]
+        I3["hispec@hscal_hketatten"]
         IN["..."]
         UNIT -.instantiates.-> I1
         UNIT -.instantiates.-> I2
@@ -224,8 +224,8 @@ flowchart LR
     I1 --> JOURNAL["journald / /var/log/hispec"]
 ```
 
-One systemd template unit, `hispec-daemon@.service`, runs every daemon. An
-instance `hispec-daemon@<name>` reads `/etc/hispec/instances/<name>.env`, which
+One systemd template unit, `hispec@.service`, runs every daemon. An
+instance `hispec@<name>` reads `/etc/hispec/instances/<name>.env`, which
 names the daemon script (`HISPEC_DAEMON`, relative to `daemons/`) and its config
 (`HISPEC_CONFIG`). Running a second unit of the same hardware model — two
 Lakeshores, five filter wheels — is two env files pointing at the same script
@@ -234,11 +234,11 @@ with different configs.
 The unit runs as an unprivileged `hispec` user with `NoNewPrivileges`,
 `ProtectSystem=full`, `ProtectHome` and `PrivateTmp`, restarts on failure, and
 logs to the journal unless a config sets `logging.file`. A polkit rule grants
-the `hispec-ops` group start/stop/restart on `hispec-daemon@*` without sudo, so
+the `hispec-ops` group start/stop/restart on `hispec@*` without sudo, so
 day-to-day operation needs no root.
 
-Full deployment instructions, including the instance table, are in
-[`systemd/README.md`](https://github.com/CaltechOpticalObservatories/hispec/blob/main/systemd/README.md).
+Full deployment instructions, the instance table and the operator
+troubleshooting guide are in {doc}`../operations/systemd`.
 
 Host build procedures are documented separately under
 {doc}`../build_notes/host_machine_build_notes` and

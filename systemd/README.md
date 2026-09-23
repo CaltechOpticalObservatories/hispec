@@ -1,160 +1,46 @@
-# Running daemons under systemd
+# systemd
 
-One template unit, `hispec-daemon@.service`, runs any `daemons/**` script
-that's a `HispecDaemon` subclass taking `-c <config.yaml>` and blocking in
-`daemon.serve()` — the shared `daemons/generic/*` scripts (inficon,
-lakeshore, filterwheel, ...) and the subsystem-specific ones
-(`daemons/hsfei/*`, `daemons/hscal/*`).
+Everything needed to run the HISPEC daemons as systemd services.
 
-Each running daemon is an instance, `hispec-daemon@<name>`, backed by an env
-file at `/etc/hispec/instances/<name>.env`:
+**Usage, deployment and troubleshooting are documented at
+[Running the HISPEC Daemons with systemd][ops].** That page is the one to read
+and the one to send people to; this file only describes what is in this
+directory.
 
-```sh
-HISPEC_DAEMON=<path relative to daemons/, e.g. generic/inficon or hsfei/adc>
-HISPEC_CONFIG=<absolute path to that instance's config.yaml>
-```
+[ops]: https://caltechopticalobservatories.github.io/hispec/operations/systemd.html
 
-## Setup
+| Path | What it is |
+| --- | --- |
+| `hispec@.service` | The template unit. One file runs every daemon; `hispec@<name>` is an instance of it. Installed to `/etc/systemd/system/`. |
+| `instances/<name>.env` | Per-instance settings: `HISPEC_DAEMON` (script, relative to `daemons/`) and `HISPEC_CONFIG` (deployed config path). Deployed to `/etc/hispec/instances/`. |
+| `polkit/49-hispec.rules` | Lets `hispec-ops` members start/stop/restart `hispec@*` without sudo. Installed to `/etc/polkit-1/rules.d/`. |
+| `bin/hispec-fei-start` | Start every deployed `hsfei_*` daemon. Installed to `/usr/local/bin/`. |
+| `bin/hispec-fei-stop` | Stop them, in reverse order. Installed to `/usr/local/bin/`. |
+| `bin/hispec-doctor` | Diagnose a host or an account. Run this first when something does not work. Installed to `/usr/local/bin/`. |
+| `bin/hispec-enable` | Enable/disable instances at boot without a password prompt, which `systemctl enable` cannot be granted per-unit. Installed to `/usr/local/sbin/`, invoked via `sudo` by a NOPASSWD drop-in. |
+| `install.sh` | Idempotent host setup: users, groups, directories, venv, and all of the above. Run as root. |
 
-```bash
-sudo git clone <repo-url> /opt/hispec/app
-cd /opt/hispec/app && git submodule update --init --recursive
-sudo ./systemd/install.sh
-```
-
-`install.sh` creates an unprivileged `hispec` user, a `hispec-ops` group,
-`/etc/hispec/{,instances/}` and `/var/log/hispec/` (group-writable by
-`hispec-ops`), a root-only `/etc/hispec/secrets.env`, a venv at
-`/opt/hispec/venv` with the repo `pip install -e`d into it, installs
-`hispec-daemon@.service`, and installs a polkit rule
-(`systemd/polkit/49-hispec-daemons.rules`) letting `hispec-ops` members
-start/stop/restart `hispec-daemon@*` units without sudo. Override
-`HISPEC_REPO_DIR` / `HISPEC_VENV_DIR` for different paths.
-
-The polkit rule is in the JavaScript `.rules` format, which needs polkit
-0.106 or newer (Ubuntu 22.04 and later). On an older host it is ignored
-silently, with no error, and operators just get an auth prompt instead.
-
-**No sudo day to day:** once an admin has run `install.sh` and added you —
-`usermod -aG hispec-ops,systemd-journal <you>` (log out/in, or `newgrp
-hispec-ops`, to pick it up) — you can create/edit files under `/etc/hispec/`
-and control any `hispec-daemon@*` unit yourself. Only installing/updating
-the unit file, the polkit rule, and `systemctl enable/disable` (which
-changes boot behavior) still need an admin — see `install.sh`'s output.
-
-## Deploying an instance
-
-To bring one up (no sudo needed for these two once you're in `hispec-ops`):
+## Quick reference
 
 ```bash
-cp config/hsfei/hsfei_atcpress.yaml /etc/hispec/hsfei_atcpress.yaml
-cp systemd/instances/hsfei_atcpress.env /etc/hispec/instances/hsfei_atcpress.env
-sudo systemctl enable --now hispec-daemon@hsfei_atcpress   # admin-only step
-systemctl start hispec-daemon@hsfei_atcpress               # no sudo needed after that
+sudo ./systemd/install.sh alice bob   # host setup, enrolling two operators
+
+systemctl start hispec@hsfei_adc      # no sudo, once you are in hispec-ops
+journalctl -u hispec@hsfei_adc -f
+hispec-fei-start                      # the whole FEI subsystem
+hispec-doctor                         # why isn't it working?
 ```
 
-A config may name further files. The `hsfei/xeryon` instances each point at
-their controller's settings file, which the Xeryon Windows interface
-generates and the daemon reads for unit conversion and travel limits. Those
-ship with the driver, and the path in the config is relative to the installed
-`hispec` package, so there is nothing extra to deploy and nothing that
-depends on the unit's working directory.
+Each of `bin/*` also responds to `--help`.
 
-### Secrets
+## Adding an instance
 
-`/etc/hispec/instances/*.env` is group-readable by every `hispec-ops` member,
-which is right for configs and wrong for a credential. Every unit also reads
-`/etc/hispec/secrets.env` if it exists, which `install.sh` creates root-only
-(0600), so a secret goes there instead:
+1. Add the config at `config/<subsystem>/<name>.yaml`.
+2. Add `instances/<name>.env` naming the daemon script and the deployed config
+   path.
+3. Add the row to the instance table in [the operations page][ops] and to the
+   inventory in `docs/architecture/daemons.md`.
 
-```bash
-sudo tee -a /etc/hispec/secrets.env <<'EOF'
-HISPEC_INFLUX_TOKEN=<InfluxDB write token>
-EOF
-sudo systemctl restart hispec-daemon@hispec_keygrabber
-```
-
-Only `generic/keygrabber` needs one today. A config file names the variable it
-expects rather than holding the value, so the value never reaches git.
-
-### The keyword archiver
-
-`hispec_keygrabber` is the one instance that reads the other daemons rather
-than any hardware, writing their keywords to InfluxDB for Grafana. Two extra
-steps beyond the recipe above:
-
-```bash
-/opt/hispec/venv/bin/pip install 'libby[influxdb]'   # optional extra
-sudo tee -a /etc/hispec/secrets.env                  # the token, as above
-```
-
-It needs no hardware, owns no device, and can be restarted freely. Pausing it
-does not need a restart at all:
-
-```bash
-libby modify hispec.keygrabber.enabled=false     # stop collecting, stay up
-libby show   hispec.keygrabber.%                 # counters and health
-libby show   hispec.keygrabber.%.%               # per-collection cadence
-libby modify hispec.keygrabber.reload=1          # re-read the config file
-```
-
-For a new daemon/config not yet in the table, add its config under
-`config/<subsystem>/`, write a matching `systemd/instances/<name>.env`
-(`HISPEC_DAEMON=...`, `HISPEC_CONFIG=...`), deploy both the same way, then
-have an admin `enable --now` it once. Running two instances of the same
-daemon (e.g. two lakeshores) just means two env files with different
-`HISPEC_CONFIG`s — see `hscal_gcellheater1`/`2` below.
-
-| instance              | daemon                   | config                                  |
-| --------------------- | ------------------------ | ---------------------------------------- |
-| `hscal_hkcalfwheel1`  | `generic/filterwheel`    | `config/hscal/hscal_hkcalfwheel1.yaml`  |
-| `hscal_hkcalfwheel2`  | `generic/filterwheel`    | `config/hscal/hscal_hkcalfwheel2.yaml`  |
-| `hscal_hkgcellfwheel` | `generic/filterwheel`    | `config/hscal/hscal_hkgcellfwheel.yaml` |
-| `hscal_yjcalfwheel1`  | `generic/filterwheel`    | `config/hscal/hscal_yjcalfwheel1.yaml`  |
-| `hscal_yjcalfwheel2`  | `generic/filterwheel`    | `config/hscal/hscal_yjcalfwheel2.yaml`  |
-| `hsfei_atcfw`         | `generic/filterwheel`    | `config/hsfei/hsfei_atcfw.yaml`         |
-| `hsfei_atcpress`      | `generic/inficon`        | `config/hsfei/hsfei_atcpress.yaml`      |
-| `hscal_gcellheater1`  | `generic/lakeshore`      | `config/hscal/hscal_gcellheater1.yaml`  |
-| `hscal_gcellheater2`  | `generic/lakeshore`      | `config/hscal/hscal_gcellheater2.yaml`  |
-| `hsfei_atctherm`      | `generic/lakeshore`      | `config/hsfei/hsfei_atctherm.yaml`      |
-| `hscal_hkettherm`     | `generic/srsthermal`     | `config/hscal/hscal_hkettherm.yaml`     |
-| `hscal_yjettherm`     | `generic/srsthermal`     | `config/hscal/hscal_yjettherm.yaml`     |
-| `hscal_hketatten`     | `hscal/smc8_attenuator`  | `config/hscal/hscal_hketatten.yaml`     |
-| `hsfei_adc`           | `hsfei/adc`              | `config/hsfei/hsfei_adc.yaml`           |
-| `hsfei_atccryo`       | `hsfei/atccryo`          | `config/hsfei/hsfei_atccryo.yaml`       |
-| `hsfei_atcl`          | `hsfei/pi-daemon`        | `config/hsfei/hsfei_atcl.yaml`          |
-| `hsfei_atcp`          | `hsfei/pi-daemon`        | `config/hsfei/hsfei_atcp.yaml`          |
-| `hsfei_feipo`         | `hsfei/pi-daemon`        | `config/hsfei/hsfei_feipo.yaml`         |
-| `hsfei_lsm`           | `hsfei/pi-daemon`        | `config/hsfei/hsfei_lsm.yaml`           |
-| `hsfei_ms`            | `hsfei/pi-daemon`        | `config/hsfei/hsfei_ms.yaml`            |
-| `hsfei_piaagimb`      | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimb.yaml`      |
-| `hsfei_piaagimr`      | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimr.yaml`      |
-| `hsfei_hkfam`         | `hsfei/xeryon`           | `config/hsfei/hsfei_hkfam.yaml`         |
-| `hsfei_piaadeploy`    | `hsfei/xeryon`           | `config/hsfei/hsfei_piaadeploy.yaml`    |
-| `hsfei_yjfam`         | `hsfei/xeryon`           | `config/hsfei/hsfei_yjfam.yaml`         |
-
-(`config/example/pdu.yaml` has no instance file yet.)
-
-## Day to day
-
-No sudo needed for any of this once you're in `hispec-ops`:
-
-```bash
-systemctl status hispec-daemon@<name>
-journalctl -u hispec-daemon@<name> -f
-systemctl restart hispec-daemon@<name>
-systemctl stop hispec-daemon@<name>
-```
-
-`systemctl disable --now hispec-daemon@<name>` (stop and don't start on
-boot) still needs an admin, since polkit can't scope enable/disable to one
-unit by name.
-
-By default the daemon logs to stdout/stderr, which lands in the journal. If
-a config sets `logging.file` instead, logs go there — `/var/log/hispec/` is
-writable by `hispec` and readable by `hispec-ops`.
-
-To pick up code changes: `git -C /opt/hispec/app pull` (needs write access
-to `/opt/hispec/app`, so either run as `hispec` or have an admin do it),
-then restart each running instance. The venv install is editable, so only
-re-run `pip install` if dependencies changed.
+Running two of the same hardware model (two Lakeshores, five filter wheels) is
+two `.env` files pointing at the same script with different configs, not new
+code.

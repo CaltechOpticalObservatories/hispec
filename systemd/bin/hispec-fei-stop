@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Stop the FEI daemons.
+#
+# With no arguments it stops every hsfei_* instance deployed on this host,
+# i.e. every /etc/hispec/instances/hsfei_*.env, in reverse of start order.
+# Name instances explicitly to stop only those. No sudo needed if you are in
+# hispec-ops.
+#
+#   hispec-fei-stop                      # all deployed FEI daemons
+#   hispec-fei-stop hsfei_adc hsfei_ms   # just these two
+#   hispec-fei-stop --dry-run            # print what would be stopped
+#
+# This stops the units for now; they still start at boot. Use
+# `hispec-enable --disable <name>` to take one out of the boot set.
+
+set -uo pipefail
+
+INSTANCE_DIR=${HISPEC_INSTANCE_DIR:-/etc/hispec/instances}
+PREFIX=${HISPEC_PREFIX:-hsfei_}
+dry_run=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -n|--dry-run) dry_run=1; shift ;;
+        -h|--help)    awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
+        -*)           echo "hispec-fei-stop: unknown option $1" >&2; exit 1 ;;
+        *)            break ;;
+    esac
+done
+
+if [[ $# -gt 0 ]]; then
+    instances=("$@")
+else
+    instances=()
+    for env_file in "$INSTANCE_DIR/$PREFIX"*.env; do
+        [[ -f $env_file ]] || continue
+        name=${env_file##*/}
+        instances+=("${name%.env}")
+    done
+    # Reverse, so a stop undoes a start in the opposite order.
+    for ((i = 0, j = ${#instances[@]} - 1; i < j; i++, j--)); do
+        tmp=${instances[i]}; instances[i]=${instances[j]}; instances[j]=$tmp
+    done
+fi
+
+if [[ ${#instances[@]} -eq 0 ]]; then
+    echo "hispec-fei-stop: no $PREFIX* instances deployed in $INSTANCE_DIR" >&2
+    exit 1
+fi
+
+failed=()
+for name in "${instances[@]}"; do
+    unit="hispec@$name.service"
+    if [[ $dry_run -eq 1 ]]; then
+        echo "would stop $unit"
+        continue
+    fi
+    if ! systemctl is-active --quiet "$unit"; then
+        printf '%-24s not running\n' "$name"
+        continue
+    fi
+    if systemctl stop "$unit"; then
+        printf '%-24s stopped\n' "$name"
+    else
+        printf '%-24s FAILED to stop (journalctl -u %s -n 50)\n' "$name" "$unit"
+        failed+=("$name")
+    fi
+done
+
+if [[ ${#failed[@]} -gt 0 ]]; then
+    echo
+    echo "${#failed[@]} of ${#instances[@]} failed to stop: ${failed[*]}" >&2
+    exit 1
+fi
