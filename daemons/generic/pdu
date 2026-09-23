@@ -405,7 +405,7 @@ def main():
         sys.exit(2)
 
     try:
-        daemon = Pdu.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon = Pdu.from_config_file(args.config)
         daemon.serve()
     except KeyboardInterrupt:
         print("\nDaemon interrupted by user")
