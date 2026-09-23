@@ -247,7 +247,7 @@ def main():
         sys.exit(2)
 
     try:
-        daemon = LakeshoreDaemon.from_config_file(args.config, daemon_id=args.daemon_id)
+        daemon = LakeshoreDaemon.from_config_file(args.config)
         daemon.serve()
     except KeyboardInterrupt:
         print("\nDaemon interrupted by user")
