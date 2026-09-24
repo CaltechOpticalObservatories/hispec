@@ -10,7 +10,10 @@ whenever a daemon is added.
 Daemons are split by reusability, not by subsystem. `daemons/generic/` holds
 daemons whose behaviour is fully determined by config and which are therefore
 shared across subsystems; `daemons/<subsystem>/` holds daemons tied to one
-subsystem's hardware or to mechanism-specific logic.
+subsystem's hardware or to mechanism-specific logic. `hspower/pdu` is the one
+exception to that rule: it is as config-driven as the generic daemons, but
+every instance of it belongs to the `hspower` service, so it sits there with
+its `pdu_models/` capability files.
 
 | Daemon | Driver | Hardware | Deployed instances |
 |---|---|---|---|
@@ -18,15 +21,16 @@ subsystem's hardware or to mechanism-specific logic.
 | `generic/lakeshore` | `lakeshore.lakeshore` | Lakeshore 336/224 temperature controller | `hsfei_atctherm`, `hscal_gcellheater1/2` |
 | `generic/srsthermal` | `srs.ptc10` | SRS PTC10 thermal controller | `hscal_hkettherm`, `hscal_yjettherm` |
 | `generic/inficon` | `inficon.inficonvgc502` | Inficon VGC502 vacuum gauge controller | `hsfei_atcpress` |
-| `generic/pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | none yet (example config only) |
 | `hsfei/pi-daemon` | `pi.PIControllerBase` | PI C-663 / C-863 / E-754 motion controllers | `hsfei_atcl`, `hsfei_atcp`, `hsfei_feipo`, `hsfei_lsm`, `hsfei_ms` |
 | `hsfei/adc` | `newport.smc100pp` | Newport SMC100PP ADC prism rotators | `hsfei_adc` |
 | `hsfei/atccryo` | `sunpower.sunpower_cryocooler` | Sunpower cryocooler | `hsfei_atccryo` |
 | `hsfei/piaa-gimbalmount` | `thorlabs.ppc102` | Thorlabs PPC102 piezo gimbal mount | `hsfei_piaagimb`, `hsfei_piaagimr` |
 | `hscal/smc8_attenuator` | `standa.smc8` | Standa SMC8 (libximc) attenuator | `hscal_hketatten` |
+| `hspower/pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | `hspower_fei1/2`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
 
-Twenty-two instances are currently defined under `systemd/instances/`, running
-ten distinct daemon scripts — the config-driven design paying off directly.
+Thirty-five instances are currently defined under `systemd/instances/`,
+running twelve distinct daemon scripts — the config-driven design paying off
+directly.
 
 ## Subsystem view
 
@@ -63,6 +67,35 @@ the gas cell.
 | `hscal_gcellheater1` / `2` | gas cell heaters |
 | `hscal_hkettherm` / `hscal_yjettherm` | etalon thermal control |
 | `hscal_hketatten` | HK etalon attenuator |
+
+### `hspower` — power distribution
+
+Every Eaton PDU in the instrument is one `hspower/pdu` instance, and they all
+live in this one service rather than with the subsystem they power, so that
+outlet control is in a single place. Each is named for where the unit is.
+
+| Instance | PDU |
+|---|---|
+| `hspower_fei1` / `hspower_fei2` | FEI, two units (`feieaton1`, `feieaton2`) |
+| `hspower_cal1` – `hspower_cal4` | CAL, four units |
+| `hspower_fib1` | FIB |
+| `hspower_bspec1` | BSPEC (`blueeaton1`) |
+| `hspower_rspec1` | RSPEC |
+
+The addresses for the CAL, FIB and RSPEC units are not documented anywhere in
+the repo yet, so those configs carry a TODO and no `ip_address`; such an
+instance starts and serves its keywords, reporting `missing PDU connection
+parameters` through its `error` keyword, and connects once an address is
+filled in. `outlet_count` is likewise a placeholder of 8 in every config
+until each unit is confirmed as an EMAT-08 or an EMAT-10 — it decides how
+many outlet keyword blocks the daemon registers.
+
+The Telnet login is not in the configs. They name the environment variables
+holding it (`hardware.username_env`, `hardware.password_env`, both pointing
+at `HISPEC_PDU_*` today), which systemd supplies from root-only
+`/etc/hispec/secrets.env` — the same arrangement the keygrabber uses for its
+InfluxDB token. An inline `hardware.username` / `hardware.password` still
+works for a bench test and logs a warning against committing it.
 
 ### Placeholder subsystems
 
@@ -146,9 +179,9 @@ and so on.
 
 ## Config inventory
 
-`config/<subsystem>/<instance>.yaml`, one file per instance, twenty-two files
-at present — one for each deployed systemd instance. `config/example/` holds
-templates for daemons not yet deployed.
+`config/<subsystem>/<instance>.yaml`, one file per instance, forty-four
+files at present — thirty-five of them backing a deployed systemd instance.
+`config/example/` holds templates for daemons not yet deployed.
 
 Config is the source of truth for:
 

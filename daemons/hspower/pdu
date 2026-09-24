@@ -19,6 +19,7 @@ Notes on the driver contract (pdu/src/emat08_10.py) that shape this daemon:
 
 import argparse
 import json
+import os
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -204,8 +205,8 @@ class Pdu(HispecDaemon): #pylint: disable = W0223
         """Starts up daemon and initializes the hardware device."""
         self.host = self.get_config("hardware.ip_address")
         self.port = self._opt_int(self.get_config("hardware.tcp_port")) or 23
-        self.username = self.get_config("hardware.username")
-        self.password = self.get_config("hardware.password")
+        self.username = self._credential("username")
+        self.password = self._credential("password")
         self.daemon_desc = self.get_config("peer_id") or self.daemon_desc
 
         self.model = self.get_config("hardware.model")
@@ -229,7 +230,8 @@ class Pdu(HispecDaemon): #pylint: disable = W0223
 
         if not (self.host and self.username and self.password):
             self.logger.error(
-                "hardware.ip_address, hardware.username and hardware.password are all required")
+                "hardware.ip_address, and a username and password (either "
+                "hardware.<name> or hardware.<name>_env), are all required")
             self.state['error'] = 'missing PDU connection parameters'
             return
 
@@ -363,6 +365,33 @@ class Pdu(HispecDaemon): #pylint: disable = W0223
         self.logger.error("Error: %s", message)
         self.state['error'] = message
         return {"ok": False, "error": message}
+
+    def _credential(self, name: str) -> Optional[str]:
+        """Read one Telnet credential from config, or from the environment.
+
+        ``hardware.<name>`` holds the value outright, which is fine on a bench
+        but not in a config that gets committed; ``hardware.<name>_env`` instead
+        names an environment variable holding it, the way the keygrabber's
+        InfluxDB token is kept out of git (see docs/operations/systemd.md). The inline
+        value wins when both are set.
+        """
+        value = self.get_config(f"hardware.{name}")
+        if value:
+            self.logger.warning(
+                "hardware.%s holds the value inline; prefer hardware.%s_env, which names "
+                "an environment variable, so the credential stays out of the config file",
+                name, name)
+            return str(value)
+
+        env_name = self.get_config(f"hardware.{name}_env")
+        if not env_name:
+            return None
+        value = os.environ.get(str(env_name))
+        if not value:
+            self.logger.error("hardware.%s_env names %s, which is unset or empty",
+                              name, env_name)
+            return None
+        return value
 
     def _opt_int(self, value) -> Optional[int]:
         """Normalize a config value to an int, or None when it is unset/invalid."""
