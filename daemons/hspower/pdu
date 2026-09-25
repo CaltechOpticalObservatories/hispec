@@ -279,6 +279,9 @@ class Pdu(HispecDaemon): #pylint: disable = W0223
         self.keyword_registry.string("status",
                         getter=self.keyword_wrapper(self.status, key="status"),
                         description="JSON status summary of the PDU and all outlets.")
+        self.keyword_registry.trigger("shutdown",
+                        action=self._shutdown,
+                        description="Shutdown the daemon now.")
 
         for outlet in self.outlets:
             outlet.register_keywords(self.keyword_registry)
@@ -350,6 +353,13 @@ class Pdu(HispecDaemon): #pylint: disable = W0223
         except Exception as e: # pylint: disable=W0718
             return self._fail(str(e))
         return {"ok": True, "status": json.dumps(status)}
+
+    def _shutdown(self):
+        """Shutdown the daemon"""
+        self.logger.info("Shutting down")
+        if self.dev is not None:
+            self.dev.disconnect()
+        self.request_stop()
 
     def _get_device_str(self, item: str) -> str:
         """Read a device-level (no outlet number) string item from the driver."""
