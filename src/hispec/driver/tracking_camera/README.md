@@ -6,9 +6,9 @@ everything common to any camerad camera.
 
 ## Prerequisite
 
-pycamerad wraps `camera_interface`, a pybind11 module built from
+pycamerad wraps a pybind11 module built from
 [camera-interface](https://github.com/CaltechOpticalObservatories/camera-interface),
-checked out here as the `etc/camera-interface` submodule. It is a compiled
+checked out here as the `external/camera-interface` submodule. It is a compiled
 extension built per instrument rather than a package on an index, so it cannot
 be a dependency in `pyproject.toml` and has to be installed separately.
 
@@ -16,17 +16,19 @@ Install it into whichever environment you run hispec from, alongside hispec
 itself:
 
 ```bash
-pip install ./etc/camera-interface \
-  --config-settings=cmake.define.INSTRUMENT=hispec_tracking_camera
+pip install ./external/camera-interface/packaging/tracking
 ```
 
-Add `--config-settings=cmake.define.ENABLE_SHM_OUTPUT=ON` for the
+That package fixes the instrument and names the module
+`camera_interface_tracking`, which is what `TrackingCamera.MODULE_NAME` loads.
+Building a second instrument under its own name lets both live in one
+environment. Add `--config-settings=cmake.define.ENABLE_SHM_OUTPUT=ON` for the
 shared-memory output, and `cmake.define.ImageStreamIO_DIR=<dir>` if
 ImageStreamIO is not under `/usr/local/lib/cmake`.
 
-`import camera_interface` then works with no `PYTHONPATH`, and `camerad` is on
-`PATH` whenever that environment is active. pybind11 is fetched into an
-isolated build environment, so it never has to be installed by hand.
+The import then works with no `PYTHONPATH`, and `camerad` is on `PATH`
+whenever that environment is active. pybind11 is fetched into an isolated
+build environment, so it never has to be installed by hand.
 
 ### Build dependencies
 
