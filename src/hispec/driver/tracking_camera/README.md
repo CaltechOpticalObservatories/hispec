@@ -8,7 +8,7 @@ everything common to any camerad camera.
 
 pycamerad wraps a pybind11 module built from
 [camera-interface](https://github.com/CaltechOpticalObservatories/camera-interface),
-checked out here as the `extern/camera-interface` submodule. It is a compiled
+checked out here as the `external/camera-interface` submodule. It is a compiled
 extension built per instrument rather than a package on an index, so it cannot
 be a dependency in `pyproject.toml` and has to be installed separately.
 
@@ -16,7 +16,7 @@ Install it into whichever environment you run hispec from, alongside hispec
 itself:
 
 ```bash
-pip install ./extern/camera-interface/packaging/tracking
+pip install ./external/camera-interface/packaging/tracking
 ```
 
 That package fixes the instrument and names the module

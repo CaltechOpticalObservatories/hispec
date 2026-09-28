@@ -46,11 +46,11 @@
 	path = src/hispec/driver/newport
 	url = https://github.com/COO-Utilities/newport
 	branch = main
-[submodule "etc/PIPython"]
-	path = etc/PIPython
+[submodule "external/PIPython"]
+	path = external/PIPython
 	url = https://github.com/PI-PhysikInstrumente/PIPython
-[submodule "extern/camera-interface"]
-	path = extern/camera-interface
+[submodule "external/camera-interface"]
+	path = external/camera-interface
 	url = https://github.com/CaltechOpticalObservatories/camera-interface
 	branch = main
 [submodule "src/hispec/driver/pdu"]
