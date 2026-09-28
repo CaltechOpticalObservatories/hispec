@@ -2,7 +2,7 @@
 #
 # Mirrors kroot/util/kpdu/defs/eaton_emat0810.def, translated from that
 # file's HAS_OUTLET_*/HAS_STRIP_* KTL-template flags into the flags used by
-# daemons/generic/pdu's keyword-generation logic (_Outlet.register_keywords()
+# daemons/hspower/pdu's keyword-generation logic (_Outlet.register_keywords()
 # and Pdu._register_keywords()). One file per PDU model, named by model key
 # (the value used for hardware.model in a deployment's config), the same way
 # kpdu has one .def file per model.
