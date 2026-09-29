@@ -141,6 +141,10 @@ class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
                                   setter=self._set_nframes,
                                   validator=self._check_nframes,
                                   description="Frame count used by expose.")
+        self.keyword_registry.bool("datacube",
+                                   getter=self._get_datacube,
+                                   setter=self._set_datacube,
+                                   description="Write a frame sequence as one FITS cube.")
         self.keyword_registry.trigger("expose",
                                       action=self._expose,
                                       description="Start nframes exposures; watch state.")
@@ -186,6 +190,12 @@ class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
 
     def _set_nframes(self, value: int) -> None:
         self.nframes = int(value)
+
+    def _get_datacube(self) -> bool:
+        return bool(self._require_camera().datacube())
+
+    def _set_datacube(self, value: bool) -> None:
+        self._require_camera().datacube(bool(value))
 
     def _expose(self) -> None:
         """Start a counted run and return; progress shows in state."""
