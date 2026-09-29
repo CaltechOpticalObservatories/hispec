@@ -11,18 +11,35 @@ import argparse
 import importlib
 import sys
 import threading
+import time
+from dataclasses import dataclass
 from typing import Any, List, Optional
 
 from hispec.daemon import HispecDaemon  # pylint: disable=E0611
 from hispec.driver.pycamerad import Camerad, ModuleNotAvailable  # pylint: disable=E0611
 
-# An exposure blocks the RPC, so the keyword needs a timeout longer than one
-EXPOSE_TIMEOUT_S = 3600.0
+# initialize talks to the controller, so it needs longer than an RPC default
+INITIALIZE_TIMEOUT_S = 300.0
+
+# The writer is asynchronous, so the path appears shortly after the run ends
+LASTFRAME_WAIT_S = 5.0
+LASTFRAME_POLL_S = 0.05
 
 STATE_NOCAMERA = "nocamera"
 STATE_IDLE = "idle"
 STATE_EXPOSING = "exposing"
+STATE_ABORTING = "aborting"
 STATE_ERROR = "error"
+
+
+@dataclass
+class _Run:
+    """What the current or most recent exposure run is doing."""
+
+    state: str = STATE_NOCAMERA
+    worker: Optional[threading.Thread] = None
+    lastframe: str = ""
+    aborting: bool = False
 
 
 class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
@@ -35,9 +52,9 @@ class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
         self.instrument = None
         self.config_file = None
         self.nframes = 1
-        self._state = STATE_NOCAMERA
         self._isopen = False
         self._command_lock = threading.Lock()
+        self._run = _Run()
 
     ### lifecycle
 
@@ -69,7 +86,7 @@ class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
         if self.camera is None:
             return
         try:
-            if self._state == STATE_EXPOSING:
+            if self._run.state == STATE_EXPOSING:
                 self.camera.abort()
             self.camera.close()
         except (RuntimeError, OSError) as exc:
@@ -92,14 +109,14 @@ class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
     def _build_camera(self) -> None:
         camera_class = getattr(self.instrument, "camera_class", Camerad)
         self.camera = camera_class.from_config(self.config_file)
-        self._state = STATE_IDLE
+        self._run.state = STATE_IDLE
 
     ### generic keywords
 
     def _register_keywords(self) -> None:
         self.keyword_registry.string("state",
-                                     getter=lambda: self._state,
-                                     description="nocamera, idle, exposing or error.")
+                                     getter=lambda: self._run.state,
+                                     description="nocamera, idle, exposing, aborting or error.")
         self.keyword_registry.bool("isconnected",
                                    getter=lambda: self.camera is not None,
                                    description="Camera object exists for this config.")
@@ -112,7 +129,7 @@ class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
                                    description="Detector power is on.")
         self.keyword_registry.trigger("initialize",
                                       action=self._initialize,
-                                      timeout_s=EXPOSE_TIMEOUT_S,
+                                      timeout_s=INITIALIZE_TIMEOUT_S,
                                       description="Open, load firmware and power on.")
         self.keyword_registry.float("exptime",
                                     getter=self._get_exptime,
@@ -126,13 +143,12 @@ class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
                                   description="Frame count used by expose.")
         self.keyword_registry.trigger("expose",
                                       action=self._expose,
-                                      timeout_s=EXPOSE_TIMEOUT_S,
-                                      description="Take nframes exposures.")
+                                      description="Start nframes exposures; watch state.")
         self.keyword_registry.trigger("abort",
                                       action=self._abort,
                                       description="Abort the running exposure.")
         self.keyword_registry.string("lastframe",
-                                     getter=self._last_frame,
+                                     getter=lambda: self._run.lastframe,
                                      description="Path of the last file written.")
 
     def _require_camera(self) -> Camerad:
@@ -152,7 +168,7 @@ class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
         with self._command_lock:
             camera.initialize()
             self._isopen = True
-            self._state = STATE_IDLE
+            self._run.state = STATE_IDLE
 
     def _get_exptime(self) -> float:
         return float(self._require_camera().exptime())
@@ -172,26 +188,55 @@ class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
         self.nframes = int(value)
 
     def _expose(self) -> None:
-        camera = self._require_camera()
+        """Start a counted run and return; progress shows in state."""
+        self._require_camera()
         with self._command_lock:
-            self._state = STATE_EXPOSING
-            try:
-                camera.expose(self.nframes)
-            except RuntimeError:
-                self._state = STATE_ERROR
-                raise
-            finally:
-                if self._state == STATE_EXPOSING:
-                    self._state = STATE_IDLE
+            if self._run.worker is not None and self._run.worker.is_alive():
+                raise RuntimeError(f"already {self._run.state}; abort first")
+            self._run.aborting = False
+            self._run.state = STATE_EXPOSING
+            self._run.worker = threading.Thread(target=self._run_exposure,
+                                            args=(self.nframes,),
+                                            name="expose", daemon=True)
+            self._run.worker.start()
 
-    def _abort(self) -> None:
-        self._require_camera().abort()
+    def _run_exposure(self, count: int) -> None:
+        try:
+            self.camera.expose(count)
+        except RuntimeError as exc:
+            # An aborted run fails too, but on request, so it is not an error
+            if self._run.aborting:
+                self.logger.info("Exposure aborted")
+                self._run.state = STATE_IDLE
+                return
+            self.logger.error("Exposure failed: %s", exc)
+            self._run.state = STATE_ERROR
+            return
+        self._run.lastframe = self._await_written(self._run.lastframe)
+        self._run.state = STATE_IDLE
 
-    def _last_frame(self) -> str:
+    def _await_written(self, previous: str) -> str:
+        """Wait briefly for the writer to report a new path."""
+        deadline = time.monotonic() + LASTFRAME_WAIT_S
+        while time.monotonic() < deadline:
+            current = self._written_path()
+            if current and current != previous:
+                return current
+            time.sleep(LASTFRAME_POLL_S)
+        return previous
+
+    def _written_path(self) -> str:
         written: List[str] = [output.last_written
-                              for output in self._require_camera().output_status()
+                              for output in self.camera.output_status()
                               if output.last_written]
         return written[-1] if written else ""
+
+    def _abort(self) -> None:
+        camera = self._require_camera()
+        if self._run.state == STATE_EXPOSING:
+            self._run.aborting = True
+            self._run.state = STATE_ABORTING
+        camera.abort()
 
 
 def main():
