@@ -64,6 +64,12 @@ class Instrument:
                          units="pixel",
                          description=f"Guiding ROI {name}, inclusive; "
                                      f"writable in {GUIDING} mode.")
+        registry.string("guidingroi",
+                        getter=self._get_guidingroi,
+                        setter=self._set_guidingroi,
+                        validator=self._check_guidingroi,
+                        description="Guiding ROI as \"y0 y1 x0 x1\", inclusive, applied "
+                                    f"in one step; writable in {GUIDING} mode.")
         registry.int("subframeheight",
                      getter=lambda: self._geometry().height,
                      setter=self._size_setter("height"),
@@ -146,6 +152,26 @@ class Instrument:
             self._bounds = (bounds["y0"], bounds["y1"], bounds["x0"], bounds["x1"])
             self._apply()
         return setter
+
+    def _get_guidingroi(self) -> str:
+        geometry = self._geometry()
+        return " ".join(str(getattr(geometry, axis)) for axis in ("y0", "y1", "x0", "x1"))
+
+    def _check_guidingroi(self, value: Any) -> Optional[str]:
+        parts = str(value).split()
+        if len(parts) != 4 or not all(p.lstrip("-").isdigit() for p in parts):
+            return "guidingroi must be four integers: y0 y1 x0 x1"
+        y0, y1, x0, x1 = (int(p) for p in parts)
+        if y0 >= y1 or x0 >= x1:
+            return "guidingroi bounds must be increasing: y0 < y1 and x0 < x1"
+        return None
+
+    def _set_guidingroi(self, value: str) -> None:
+        if self._subframemode != GUIDING:
+            raise RuntimeError(f"guidingroi is writable in {GUIDING} mode only")
+        y0, y1, x0, x1 = (int(p) for p in str(value).split())
+        self._bounds = (y0, y1, x0, x1)
+        self._apply()
 
     def _size_setter(self, name: str):
         def setter(value: int) -> None:
