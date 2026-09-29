@@ -52,6 +52,8 @@ class Geometry:
 class TrackingCamera(Camerad):
     """The HISPEC tracking camera, adding its instrument commands."""
 
+    MODULE_NAME = "camera_interface_tracking"
+
     ### lifecycle
 
     def initialize(self) -> None:
