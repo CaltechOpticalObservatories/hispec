@@ -25,6 +25,7 @@ its `pdu_models/` capability files.
 | `hsfei/adc` | `newport.smc100pp` | Newport SMC100PP ADC prism rotators | `hsfei_adc` |
 | `hsfei/atccryo` | `sunpower.sunpower_cryocooler` | Sunpower cryocooler | `hsfei_atccryo` |
 | `hsfei/piaa-gimbalmount` | `thorlabs.ppc102` | Thorlabs PPC102 piezo gimbal mount | `hsfei_piaagimb`, `hsfei_piaagimr` |
+| `hsfei/xeryon` | `xeryon.XeryonController` | Xeryon XD-M-3 piezo motion controllers | `hsfei_hkfam`, `hsfei_piaadeploy`, `hsfei_yjfam` |
 | `hscal/smc8_attenuator` | `standa.smc8` | Standa SMC8 (libximc) attenuator | `hscal_hketatten` |
 | `hspower/pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | `hspower_fei1/2`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
 
@@ -49,6 +50,8 @@ camera) environment.
 | `hsfei_atcp` | ATC pickoff stage |
 | `hsfei_adc` | atmospheric dispersion corrector, two prism rotators |
 | `hsfei_piaagimb` / `hsfei_piaagimr` | PIAA gimbal mounts, blue and red |
+| `hsfei_piaadeploy` | PIAA lens deploy, blue and red in/out |
+| `hsfei_yjfam` / `hsfei_hkfam` | fiber alignment mechanisms, blue and red |
 | `hsfei_atcfw` | ATC filter wheel |
 | `hsfei_atctherm` | ATC temperature control |
 | `hsfei_atcpress` | ATC vacuum pressure |
