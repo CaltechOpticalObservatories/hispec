@@ -211,6 +211,18 @@ the value never reaches git. For the PDU that is `hardware.username_env` and
 variables. Inline `hardware.username` / `hardware.password` still work for a
 bench test, but the daemon logs a warning against committing them.
 
+Any top-level config key can also be replaced by a `LIBBY_<KEY>` variable,
+which suits a value that is itself a secret. `HispecDaemon` names the broker
+but holds no password, so every host supplies one:
+
+```bash
+sudo tee -a /etc/hispec/secrets.env <<'EOF'
+LIBBY_RABBITMQ_URL=amqp://<user>:<password>@131.215.200.214
+EOF
+```
+
+Without it a daemon is refused with `ACCESS_REFUSED ... mechanism PLAIN`.
+
 ## Troubleshooting
 
 Start here:
