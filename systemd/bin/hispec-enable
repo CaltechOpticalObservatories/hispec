@@ -8,6 +8,11 @@
 # is NOPASSWD for hispec-ops (see install.sh), and it only ever touches
 # hispec@<name> for a name that already has an instance file deployed.
 #
+# Operators normally reach it through `hispec enable` / `hispec deploy`, which
+# call it as `sudo -n hispec-enable ...`. It stays a standalone root-owned
+# script rather than part of the CLI because the CLI runs from the venv, which
+# the hispec user can write to, and root must not run code from there.
+#
 #   hispec-enable hsfei_adc hsfei_ms      # enable at boot (does not start)
 #   hispec-enable --now hsfei_adc         # enable and start
 #   hispec-enable --disable hsfei_adc     # disable at boot (does not stop)

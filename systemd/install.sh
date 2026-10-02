@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# One-time host setup for running the hispec daemons under systemd.
+# Host setup for running the hispec daemons under systemd. For admins / IT.
 # Run as root. Safe to re-run: it converges the host onto the current repo.
 #
 #   sudo ./systemd/install.sh                    # set the host up
 #   sudo ./systemd/install.sh alice bob          # ... and enrol two operators
 #   sudo HISPEC_OPS_USERS="alice bob" ./systemd/install.sh   # same thing
+#
+# Re-run it to enrol operators, after a dependency or unit-file change, or to
+# repair a host. It is NOT part of adding a daemon: once a host is set up,
+# operators do that themselves with `hispec deploy <name>`, no root needed.
 #
 # Operators named here are added to hispec-ops and systemd-journal, which is
 # what lets them start/stop/restart daemons and read logs without a password.
@@ -99,12 +103,15 @@ install -m 0644 "$REPO_DIR/systemd/hispec@.service" /etc/systemd/system/hispec@.
 [[ -d /etc/polkit-1/rules.d ]] || install -d -m 0750 /etc/polkit-1/rules.d
 install -m 0644 "$REPO_DIR/systemd/polkit/49-hispec.rules" /etc/polkit-1/rules.d/49-hispec.rules
 
-# Operator commands.
+# Operator commands. `hispec` is a thin wrapper around the CLI in the venv,
+# so the CLI follows `git pull` without a reinstall. hispec-enable is a copy,
+# not a link into the repo: it runs as root, so it must not be something the
+# hispec user or a `git pull` can change.
 install -d -m 0755 /usr/local/bin /usr/local/sbin
-install -m 0755 "$REPO_DIR/systemd/bin/hispec-fei-start" /usr/local/bin/hispec-fei-start
-install -m 0755 "$REPO_DIR/systemd/bin/hispec-fei-stop"  /usr/local/bin/hispec-fei-stop
-install -m 0755 "$REPO_DIR/systemd/bin/hispec-doctor"    /usr/local/bin/hispec-doctor
-install -m 0755 "$REPO_DIR/systemd/bin/hispec-enable"    /usr/local/sbin/hispec-enable
+install -m 0755 "$REPO_DIR/systemd/bin/hispec"        /usr/local/bin/hispec
+install -m 0755 "$REPO_DIR/systemd/bin/hispec-enable" /usr/local/sbin/hispec-enable
+# Retired in favour of `hispec start|stop|doctor`.
+rm -f /usr/local/bin/hispec-fei-start /usr/local/bin/hispec-fei-stop /usr/local/bin/hispec-doctor
 
 # Passwordless enable/disable, scoped to that one helper. Polkit cannot scope
 # manage-unit-files to a unit name, so `systemctl enable hispec@x` would
@@ -177,20 +184,21 @@ done
 if [[ -n $pending ]]; then
     echo
     echo "Deployed but not set to start at boot:$pending"
-    echo "  hispec-enable --now$pending"
+    echo "  hispec enable --now$pending"
 fi
 
 cat <<EOF
 
-Operators in hispec-ops can, with no password:
-  - create/edit /etc/hispec/*.yaml and /etc/hispec/instances/*.env
-  - systemctl start|stop|restart hispec@<name>, and hispec-fei-start/stop
-  - hispec-enable [--now|--disable] <name>
-  - journalctl -u hispec@<name>
+Operators in hispec-ops can now, with no password and no further install.sh:
+  - hispec deploy <name>          add a daemon (or: hispec deploy --new)
+  - hispec start|stop|restart <name|subsystem>
+  - hispec enable|disable <name>
+  - hispec status, hispec logs <name>
+  - edit /etc/hispec/*.yaml
 
 To enrol more operators later:
   sudo $REPO_DIR/systemd/install.sh <username> ...
 
-If systemctl still asks for a password, run 'hispec-doctor' as that user.
+If anything still asks for a password, run 'hispec doctor' as that user.
 Full instructions: docs/operations/systemd.md
 EOF

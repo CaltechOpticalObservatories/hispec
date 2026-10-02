@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Front door for the hispec CLI (src/hispec/cli), installed to /usr/local/bin.
+#
+# The CLI itself lives in the venv, installed editable from the repo, so a
+# `git pull` updates it with no reinstall. This wrapper only exists so that a
+# missing or broken venv produces an instruction rather than "command not
+# found", since `hispec doctor` is exactly what people run when things break.
+
+VENV_DIR=${HISPEC_VENV_DIR:-/opt/hispec/venv}
+REPO_DIR=${HISPEC_REPO_DIR:-/opt/hispec/app}
+
+if [[ ! -x $VENV_DIR/bin/hispec ]]; then
+    echo "hispec: $VENV_DIR/bin/hispec is missing; the venv needs (re)installing." >&2
+    echo "  admin: sudo $REPO_DIR/systemd/install.sh" >&2
+    exit 1
+fi
+exec "$VENV_DIR/bin/hispec" "$@"
