@@ -245,6 +245,58 @@ Edit ``/etc/hosts`` to include the private network entries for HISPEC, ordered n
    192.168.29.153 bluelantronix
    192.168.29.154 hs1wireblue
 
+MQTT Broker Setup
+-----------------
+
+Install the Mosquitto broker and command-line clients, and enable the broker to start on boot:
+
+.. code-block:: bash
+
+   sudo apt install -y mosquitto mosquitto-clients
+   sudo systemctl enable mosquitto
+
+Configure the Listener
+~~~~~~~~~~~~~~~~~~~~~~
+
+Create ``/etc/mosquitto/conf.d/hispec.conf`` with the listener for the host the broker is served from:
+
+.. code-block:: text
+
+   listener 1883 hispec.caltech.edu
+   allow_anonymous true
+
+.. note::
+   The listener address depends on where HISPEC is hosted. ``hispec.caltech.edu`` is the current host;
+   replace it with the address of the machine running the broker.
+
+Restart the broker to apply the configuration and confirm it is running:
+
+.. code-block:: bash
+
+   sudo systemctl restart mosquitto
+   sudo systemctl status mosquitto
+
+Test the Broker
+~~~~~~~~~~~~~~~
+
+In one terminal, subscribe to a test topic:
+
+.. code-block:: bash
+
+   mosquitto_sub -h hispec.caltech.edu -p 1883 -t "test/topic" -v
+
+In a second terminal, publish a message to the same topic:
+
+.. code-block:: bash
+
+   mosquitto_pub -h hispec.caltech.edu -p 1883 -t "test/topic" -m "Hello"
+
+The subscriber terminal should print:
+
+.. code-block:: text
+
+   test/topic Hello
+
 Disable Unnecessary Services
 ----------------------------
 
