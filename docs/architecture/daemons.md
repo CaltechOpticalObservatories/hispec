@@ -219,3 +219,5 @@ The mechanics, in the order they are done:
    config path.
 6. Add the row to the instance table in {doc}`../operations/systemd` and to the daemon
    inventory above.
+7. Commit, then on the host `git pull` and `hispec deploy <instance>`, which
+   copies both files into `/etc/hispec`, enables and starts it.

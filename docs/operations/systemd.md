@@ -5,7 +5,13 @@ This page is what you need to start, stop, watch and debug them. It assumes no
 prior systemd knowledge.
 
 If you only want the commands, jump to [Everyday commands](#everyday-commands).
+To add a daemon to a host, see [Deploying an instance](#deploying-an-instance).
 If something is broken, jump to [Troubleshooting](#troubleshooting).
+
+Everything an operator does goes through one command, `hispec`. `hispec --help`
+lists the subcommands and each takes `--help`. Setting a host up in the first
+place is a separate, one-time job for an admin; see
+[Host setup](#host-setup-admins).
 
 ## The idea in one minute
 
@@ -47,7 +53,8 @@ most common source of confusion here.
 | `enable` | adds it to the set that comes up at boot | at the next boot; `enable` on its own starts nothing |
 
 `enable --now` does both. You want `start` for day-to-day work. You want
-`enable` once, when an instance is first deployed and should survive reboots.
+`enable` once, when an instance is first deployed and should survive reboots;
+`hispec deploy` does that for you.
 
 ## Everyday commands
 
@@ -56,45 +63,53 @@ are being asked for a password, see
 [systemctl keeps asking for a password](#systemctl-keeps-asking-for-a-password).
 
 ```bash
-systemctl status  hispec@hsfei_adc     # is it up? what was the last log line?
-systemctl start   hispec@hsfei_adc     # start it
-systemctl stop    hispec@hsfei_adc     # stop it
-systemctl restart hispec@hsfei_adc     # stop then start, e.g. after a config edit
+hispec status                    # every deployed daemon: running? at boot? since when?
+hispec start   hsfei_adc         # start it
+hispec stop    hsfei_adc         # stop it
+hispec restart hsfei_adc         # stop then start, e.g. after a config edit
 
-journalctl -u hispec@hsfei_adc -f      # follow the log live (Ctrl-C to quit)
-journalctl -u hispec@hsfei_adc -n 100  # the last 100 lines
-journalctl -u hispec@hsfei_adc --since "1 hour ago"
+hispec logs hsfei_adc -f         # follow the log live (Ctrl-C to quit)
+hispec logs hsfei_adc -n 500     # the last 500 lines (default 100)
+hispec logs hsfei_adc --since "1 hour ago"
 ```
 
-To see everything at once:
+`hispec status` looks like this:
+
+```
+INSTANCE        STATE         BOOT      SINCE                DAEMON
+hsfei_adc       active        enabled   2026-09-21 09:14:02  hsfei/adc
+hsfei_atcfw     failed        enabled   2026-09-21 09:20:41  generic/filterwheel
+hsfei_ms        inactive      disabled                       hsfei/pi-daemon
+
+20 more in the repo, not deployed here (hispec status --all; hispec deploy --new)
+```
+
+These are wrappers around `systemctl` and `journalctl`, and the plain commands
+still work if you prefer them: `systemctl start hispec@hsfei_adc`,
+`journalctl -u hispec@hsfei_adc -f`, `systemctl list-units 'hispec@*'`.
+
+### Starting and stopping a whole subsystem
+
+Wherever `hispec` takes an instance name it also takes a subsystem, written
+either in full or without the `hs`, or `all`:
 
 ```bash
-systemctl list-units 'hispec@*'            # all currently loaded instances
-systemctl list-units 'hispec@*' --failed   # only the broken ones
-systemctl list-unit-files 'hispec@*'       # which are set to start at boot
+hispec start fei                 # every deployed hsfei_* daemon
+hispec stop fei                  # all of them, in reverse order
+hispec restart cal               # every hscal_* daemon
+hispec start power fei           # PDUs first, then the FEI
+hispec stop power fei            # FEI first, then the PDUs
+hispec start hsfei_adc hsfei_ms  # or name the ones you want
+hispec start --dry-run fei       # print what it would do, do nothing
+hispec status fei                # just the FEI
 ```
 
-### Starting and stopping the FEI as a group
-
-The FEI has a dozen daemons and you rarely want just one of them. Two scripts
-wrap the whole subsystem:
-
-```bash
-hispec-fei-start                       # start every deployed hsfei_* daemon
-hispec-fei-stop                        # stop them all, in reverse order
-hispec-fei-start hsfei_adc hsfei_ms    # or name the ones you want
-hispec-fei-start --dry-run             # print what it would do, do nothing
-```
-
-They work off whatever is deployed in `/etc/hispec/instances/`, so they stay
-correct as instances are added without anyone editing the scripts. Instances
-that are already in the desired state are skipped rather than restarted, and
-both scripts exit non-zero (after trying every instance) if any of them
-failed, so they are safe to use from another script.
-
-There is no equivalent for `hscal` yet; the same scripts will do it with
-`HISPEC_PREFIX=hscal_ hispec-fei-start`, which is a stopgap rather than a
-feature.
+Names are matched against what is deployed in `/etc/hispec/instances/`, so
+these stay correct as instances are added without anyone editing anything.
+`start` leaves already-running daemons alone and `stop` skips stopped ones. If
+any instance fails, both carry on with the rest and then exit non-zero, so they
+are safe to use from another script. `start` goes in the order you name things;
+`stop` goes in the reverse order, so a stop undoes a start.
 
 ### Reading `systemctl status`
 
@@ -124,62 +139,95 @@ daemon; whether they survive a reboot depends on the host's journal
 configuration.
 
 ```bash
-journalctl -u hispec@hsfei_adc -f              # live
-journalctl -u hispec@hsfei_adc -p err          # errors only
-journalctl -u 'hispec@*' --since today         # every HISPEC daemon at once
+hispec logs hsfei_adc -f                       # live
+hispec logs hsfei_adc -p err                   # errors only
+hispec logs fei -f                             # the whole FEI, interleaved
+hispec logs all --since today                  # every HISPEC daemon at once
 ```
 
 If a daemon's YAML config sets `logging.file`, that daemon writes to a file
 under `/var/log/hispec/` instead, and the journal will be nearly empty for it.
 
 Reading other users' journal entries requires being in the `systemd-journal`
-group. If `journalctl -u hispec@...` prints nothing at all for a daemon you can
-see running, that is the reason. Run `hispec-doctor`.
+group. If `hispec logs` prints nothing at all for a daemon you can see running,
+that is the reason. Run `hispec doctor`.
 
 ## Deploying an instance
 
-Two files, then one enable. The first two steps need no `sudo`:
+One command, no `sudo`, no `install.sh` and no `systemctl daemon-reload`:
 
 ```bash
-# 1. the config, with real hardware values filled in
-cp /opt/hispec/app/config/hsfei/hsfei_atcpress.yaml /etc/hispec/hsfei_atcpress.yaml
-
-# 2. the instance file that points the template at that config
-cp /opt/hispec/app/systemd/instances/hsfei_atcpress.env \
-   /etc/hispec/instances/hsfei_atcpress.env
-
-# 3. start it now and at every boot
-hispec-enable --now hsfei_atcpress
+hispec deploy hsfei_atcpress
 ```
 
-`hispec-enable` is a small helper that exists because `systemctl enable` cannot
-be granted per-unit (see [the note on
-enable/disable](#why-enable-is-a-helper-and-not-just-systemctl)). It refuses
-any name that does not already have an instance file deployed.
+```
+hsfei_atcpress
+  copied       /etc/hispec/instances/hsfei_atcpress.env
+  copied       /etc/hispec/hsfei_atcpress.yaml
+enabled at boot: hsfei_atcpress
+
+hsfei_atcpress           started
+```
+
+That copies the instance's two files from the repo into `/etc/hispec`, adds it
+to the boot set, and starts it. Deploy several at once by naming them, or
+deploy everything the repo defines that this host does not have yet:
 
 ```bash
-hispec-enable hsfei_adc hsfei_ms     # add to the boot set, don't start now
-hispec-enable --now hsfei_adc        # add to the boot set and start
-hispec-enable --disable hsfei_adc    # remove from the boot set, leave it running
+hispec deploy hsfei_adc hsfei_ms
+hispec deploy --new              # e.g. after a git pull added instances
+hispec deploy --new --dry-run    # see what that would do first
 ```
 
-Stopping and disabling are independent: `systemctl stop` takes a daemon down
-until you start it again or the host reboots; `hispec-enable --disable` keeps
-it from coming back at boot.
+A deployed config is never overwritten by default. Once it is on a host it
+holds that host's real ports and addresses, so if it differs from the repo
+copy, `deploy` keeps it and says so; `--force` replaces it. The `.env` instance
+file is different. It only says which script to run and where the config is,
+so it always follows the repo. If a daemon was already running when its files
+changed, `deploy` prints the `hispec restart` that picks them up.
+
+Two more options: `--no-start` copies and enables but does not start, for
+example to fill in a config first. `--no-enable` starts the daemon without
+adding it to the boot set.
+
+Why no `daemon-reload`? `hispec@.service` is a template. systemd reads
+`/etc/hispec/instances/<name>.env` when the instance starts, not when units are
+loaded, so a new instance is just a new file. `daemon-reload` is only needed
+when the template itself changes, and `install.sh` does it then.
+
+### Boot set
+
+```bash
+hispec enable hsfei_adc hsfei_ms     # add to the boot set, don't start now
+hispec enable --now hsfei_adc        # add to the boot set and start
+hispec disable hsfei_adc             # remove from the boot set, leave it running
+hispec disable --now hsfei_adc       # remove from the boot set and stop
+```
+
+Stopping and disabling are independent: `hispec stop` takes a daemon down
+until you start it again or the host reboots; `hispec disable` keeps it from
+coming back at boot. `enable` and `disable` go through a small root helper (see
+[the note on enable/disable](#why-enable-is-a-helper-and-not-just-systemctl)),
+which is why plain `systemctl enable` asks for a password and `hispec enable`
+does not.
 
 ### Adding a daemon that has no instance file yet
 
-Add the config under `config/<subsystem>/` in the repo, write the matching
-`systemd/instances/<name>.env`:
+In the repo, add the config under `config/<subsystem>/<name>.yaml` and write the
+matching `systemd/instances/<name>.env`:
 
 ```sh
 HISPEC_DAEMON=<path relative to daemons/, e.g. generic/inficon or hsfei/adc>
 HISPEC_CONFIG=/etc/hispec/<name>.yaml
 ```
 
-commit both, then deploy them as above. Also add the row to the table in
-[Deployed instances](#deployed-instances) and to the inventory in
-{doc}`../architecture/daemons`.
+Also add the row to the table in [Deployed instances](#deployed-instances) and
+to the inventory in {doc}`../architecture/daemons`. Commit, then on the host:
+
+```bash
+git -C /opt/hispec/app pull
+hispec deploy <name>
+```
 
 ### Secrets
 
@@ -228,13 +276,17 @@ Without it a daemon is refused with `ACCESS_REFUSED ... mechanism PLAIN`.
 Start here:
 
 ```bash
-hispec-doctor
+hispec doctor
 ```
 
-It checks your group membership, the installed unit and polkit rule, the
-directories, and every deployed instance, and prints the exact command to fix
-whatever it finds. Run it as yourself, not under `sudo`, which would hide the
-permission problems it is looking for.
+It checks your group membership, the installed unit and polkit rule, whether
+you can enable without a password, the directories, and every deployed
+instance, and prints the exact command to fix whatever it finds. Run it as
+yourself, not under `sudo`, which would hide the permission problems it is
+looking for.
+
+If `hispec` itself says the venv is missing, an admin needs to re-run
+`install.sh`.
 
 ### systemctl keeps asking for a password
 
@@ -254,15 +306,15 @@ of likelihood:
    hispec-ops`. An admin adds you with
    `sudo /opt/hispec/app/systemd/install.sh <your-username>`; you then have to
    log out and back in for it to take effect.
-2. **You ran `enable`, not `start`.** `systemctl enable` and `disable` need a
-   different permission that polkit cannot restrict to one unit, so they always
-   prompt. Use `hispec-enable` instead, which does not.
+2. **You ran `systemctl enable`, not `start`.** `systemctl enable` and
+   `disable` need a different permission that polkit cannot restrict to one
+   unit, so they always prompt. Use `hispec enable` instead, which does not.
 3. **The polkit rule is not installed**, or is the pre-rename copy that still
-   matches `hispec-daemon@`. `hispec-doctor` reports both; the fix is for an
+   matches `hispec-daemon@`. `hispec doctor` reports both; the fix is for an
    admin to re-run `install.sh`.
 4. **The host's polkit is older than 0.106.** JavaScript `.rules` files are
    ignored silently by older versions: no error, just a prompt every time.
-   `hispec-doctor` checks the version.
+   `hispec doctor` checks the version.
 
 You should never need `sudo` to start, stop, restart or look at a HISPEC
 daemon. If you do, something in the list above is wrong; please fix it rather
@@ -273,7 +325,7 @@ root-owned log files that then break the next non-root start.
 
 ```bash
 systemctl status hispec@<name>
-journalctl -u hispec@<name> -n 50
+hispec logs <name>
 ```
 
 Common causes, in the order they bite:
@@ -283,8 +335,8 @@ Common causes, in the order they bite:
   file name exactly.
 - **`No such file or directory`** on the config: `HISPEC_CONFIG` points
   somewhere that does not exist. The config has to be deployed to `/etc/hispec/`
-  separately from the `.env`; copying one and forgetting the other is the usual
-  mistake.
+  as well as the `.env`. `hispec deploy <name>` copies both; copying one by
+  hand and forgetting the other is the usual mistake.
 - **A serial port or USB error**: the device is unplugged, powered off, or
   claimed by another process. Two instances pointing at the same port will do
   this to each other, and so will a daemon left running from a manual test.
@@ -301,7 +353,7 @@ Common causes, in the order they bite:
 its own. The journal has the traceback:
 
 ```bash
-journalctl -u hispec@<name> -n 200 --no-pager
+hispec logs <name> -n 200
 ```
 
 After 5 failures in 60 seconds systemd stops retrying and leaves the unit
@@ -309,13 +361,13 @@ After 5 failures in 60 seconds systemd stops retrying and leaves the unit
 
 ```bash
 systemctl reset-failed hispec@<name>
-systemctl start hispec@<name>
+hispec start <name>
 ```
 
 ### A config change has not taken effect
 
 The config is read at startup. Edit `/etc/hispec/<name>.yaml`, then
-`systemctl restart hispec@<name>`. Editing the copy in the repo under
+`hispec restart <name>`. Editing the copy in the repo under
 `config/` changes nothing on a running host; the deployed copy under
 `/etc/hispec/` is what the daemon reads.
 
@@ -323,12 +375,14 @@ The config is read at startup. Edit `/etc/hispec/<name>.yaml`, then
 
 ```bash
 git -C /opt/hispec/app pull
-systemctl restart hispec@<name>      # or hispec-fei-start after a stop
+hispec restart <name>                # or: hispec restart fei
+hispec deploy --new                  # if the pull added instances
 ```
 
-The venv install is editable, so a `pull` is enough unless dependencies
-changed, in which case an admin re-runs `install.sh`. Pulling needs write
-access to `/opt/hispec/app`, so either run as `hispec` or ask an admin.
+The venv install is editable, so a `pull` is enough, and it updates the
+`hispec` command too. An admin only needs to re-run `install.sh` if
+dependencies or `hispec@.service` changed. Pulling needs write access to
+`/opt/hispec/app`, so either run as `hispec` or ask an admin.
 
 ## Deployed instances
 
@@ -404,14 +458,24 @@ libby modify hispec.keygrabber.reload=1          # re-read the config file
 
 ## Host setup (admins)
 
+This section is for whoever administers the host (IT / systems). It needs root.
+Operators never need it to add, start or deploy daemons.
+
 ```bash
 sudo git clone <repo-url> /opt/hispec/app
 cd /opt/hispec/app && sudo git submodule update --init --recursive
 sudo ./systemd/install.sh alice bob          # operator usernames
 ```
 
-`install.sh` is idempotent. Re-run it after a repo update, to enrol more
-operators, or to repair a host. It:
+`install.sh` is idempotent. Re-run it:
+
+- to enrol more operators (`sudo ./systemd/install.sh carol`);
+- after a pull that changed dependencies in `pyproject.toml`, or
+  `hispec@.service`, the polkit rule or `hispec-enable` under `systemd/`;
+- to repair a host `hispec doctor` says is broken.
+
+You do **not** need it to add a daemon or to pick up code changes;
+[`hispec deploy`](#deploying-an-instance) and a `git pull` cover those. It:
 
 - creates the `hispec-ops` group and the unprivileged `hispec` system user the
   daemons run as;
@@ -421,15 +485,21 @@ operators, or to repair a host. It:
   rest;
 - creates a root-only `/etc/hispec/secrets.env`;
 - creates the venv at `/opt/hispec/venv` with the repo `pip install -e`'d into
-  it;
-- installs `hispec@.service`, the polkit rule, the sudoers drop-in, and the
-  `hispec-fei-start` / `hispec-fei-stop` / `hispec-doctor` / `hispec-enable`
-  commands;
+  it, which also provides the `hispec` CLI;
+- installs `hispec@.service` (then runs `daemon-reload`), the polkit rule, the
+  sudoers drop-in, `/usr/local/bin/hispec` and `/usr/local/sbin/hispec-enable`;
+- removes the retired `hispec-fei-start`, `hispec-fei-stop` and `hispec-doctor`
+  scripts (now `hispec start fei`, `hispec stop fei` and `hispec doctor`);
 - migrates any instance still running under the old `hispec-daemon@` name,
   preserving whether it was enabled and whether it was up;
 - lists instances that are deployed but not set to start at boot.
 
 `HISPEC_REPO_DIR` and `HISPEC_VENV_DIR` override the paths.
+
+`/usr/local/bin/hispec` is a tiny wrapper that runs the CLI from the venv. The
+CLI lives in `src/hispec/cli/`, uses only the standard library so that
+`hispec doctor` works on a half-broken venv, and, being an editable install,
+follows `git pull`.
 
 ### What the unit does
 
@@ -452,10 +522,15 @@ unit name with it. A polkit rule for it would grant `hispec-ops` enable/disable
 on every unit on the host, which is too much.
 
 So enable/disable goes through `/usr/local/sbin/hispec-enable` instead, a root
-helper with a `NOPASSWD` sudoers entry scoped to that one path. The helper
-validates the instance name against `^[a-z][a-z0-9_]*$` and requires a deployed
-instance file before it will touch anything, which is the scoping polkit could
-not express.
+helper with a `NOPASSWD` sudoers entry scoped to that one path; `hispec enable`
+and `hispec deploy` call it with `sudo -n`. The helper validates the instance
+name against `^[a-z][a-z0-9_]*$` and requires a deployed instance file before
+it will touch anything, which is the scoping polkit could not express.
+
+The helper is a separate root-owned script rather than part of the `hispec`
+CLI on purpose. The CLI runs from the venv, which the `hispec` user can write
+to; if root ran it, anyone who could change the venv or the checkout would
+have root.
 
 The polkit `.rules` format needs polkit 0.106 or newer (Ubuntu 22.04 and
 later). On an older host it is ignored silently, with no error, and operators
