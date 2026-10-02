@@ -262,12 +262,12 @@ Create ``/etc/mosquitto/conf.d/hispec.conf`` with the listener for the host the 
 
 .. code-block:: text
 
-   listener 1883 131.215.193.168
+   listener 1883 hispec.caltech.edu
    allow_anonymous true
 
 .. note::
-   The listener address depends on where HISPEC is hosted. ``131.215.193.168`` is the current host;
-   replace it with the IP address of the machine running the broker.
+   The listener address depends on where HISPEC is hosted. ``hispec.caltech.edu`` is the current host;
+   replace it with the address of the machine running the broker.
 
 Restart the broker to apply the configuration and confirm it is running:
 
@@ -283,13 +283,13 @@ In one terminal, subscribe to a test topic:
 
 .. code-block:: bash
 
-   mosquitto_sub -h 131.215.193.168 -p 1883 -t "test/topic" -v
+   mosquitto_sub -h hispec.caltech.edu -p 1883 -t "test/topic" -v
 
 In a second terminal, publish a message to the same topic:
 
 .. code-block:: bash
 
-   mosquitto_pub -h 131.215.193.168 -p 1883 -t "test/topic" -m "Hello"
+   mosquitto_pub -h hispec.caltech.edu -p 1883 -t "test/topic" -m "Hello"
 
 The subscriber terminal should print:
 
