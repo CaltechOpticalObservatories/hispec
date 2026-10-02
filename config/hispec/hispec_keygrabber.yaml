@@ -125,6 +125,8 @@ collections:
     peer: hsfei.atccryo
     keywords: ["%"]
     interval_s: 60.0
+    # Only timeout_s/2 is allowed for the reply, and its 19 keywords take ~2.9s
+    timeout_s: 10.0
   atcpress:
     peer: hsfei.atcpress
     keywords: ["%"]
