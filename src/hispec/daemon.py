@@ -5,7 +5,7 @@ from typing import Optional
 from libby.daemon import LibbyDaemon
 
 # The shared broker, on hispec-new; credentials come from LIBBY_RABBITMQ_URL
-BROKER_URL = "amqp://131.215.200.214"
+BROKER_URL = "amqp://hispec.caltech.edu"
 
 
 class HispecDaemon(LibbyDaemon):
