@@ -240,6 +240,43 @@ def _deployed(r: Report, paths: Paths) -> None:
             r.warn(f"{name}: deployed here but not defined in {paths.repo_instances}")
 
 
+def _secrets(r: Report, paths: Paths) -> None:
+    r.section("Credentials")
+    needed = inst.required_secrets(paths)
+    present = inst.secrets_set(paths)
+    if present is None:
+        r.warn(f"cannot read {paths.secrets}, so the credentials below are unchecked")
+        r.hint("sudo hispec doctor")
+        return
+    for variable in sorted(needed):
+        if present.get(variable):
+            r.ok(f"{variable} is set")
+        else:
+            r.bad(f"{variable} is unset, needed by {'; '.join(needed[variable])}")
+            r.hint(f"add {variable}=<value> to {paths.secrets}, then restart that daemon")
+
+
+def _placement(r: Report, paths: Paths) -> None:
+    """Flag instances running on the wrong host, or claiming no host at all.
+
+    Only looks at what is deployed: which of the repo's instances a host runs
+    is an operational decision, and ``hispec status`` already lists the rest.
+    """
+    r.section("Host assignment")
+    role = inst.host_role(paths)
+    r.ok(f"this host is '{role}'")
+    unassigned = []
+    for name in inst.deployed(paths):
+        claimed = inst.assigned_host(paths.instances / f"{name}.env")
+        if claimed is None:
+            unassigned.append(name)
+        elif claimed != role:
+            r.bad(f"{name}: deployed here but assigned to '{claimed}'")
+    if unassigned:
+        r.warn(f"no {inst.HOST_KEY}, so nothing says where they belong: "
+               f"{' '.join(unassigned)}")
+
+
 def doctor(paths: Paths, _args: argparse.Namespace) -> int:
     """Run every check and exit 1 if any FAILed."""
     me = pwd.getpwuid(os.geteuid()).pw_name
@@ -250,6 +287,8 @@ def doctor(paths: Paths, _args: argparse.Namespace) -> int:
     _sudo(r, paths)
     _paths(r, paths)
     _deployed(r, paths)
+    _placement(r, paths)
+    _secrets(r, paths)
     print()
     if r.problems == 0:
         print("No problems found.")

@@ -72,20 +72,29 @@ install -d -o hispec -g hispec-ops -m 2775 /etc/hispec
 install -d -o hispec -g hispec-ops -m 2775 /etc/hispec/instances
 install -d -o hispec -g hispec-ops -m 2750 /var/log/hispec
 
-# Shared secrets, read by every unit if present. Root-only on purpose: the
-# instance files above are group-readable by hispec-ops, which is right for
-# configs and wrong for a database token.
+# Shared secrets, read by every unit if present. Group-readable rather than
+# root-only: requiring sudo for one file pushes people into putting credentials
+# in the instance files instead, which operators can already read.
 if [[ ! -e /etc/hispec/secrets.env ]]; then
     cat > /etc/hispec/secrets.env <<'EOF'
-# Environment for every hispec@ instance. Root-only; keep secrets here rather
-# than in /etc/hispec/instances/*.env, which operators can read.
-#
-# HISPEC_INFLUX_TOKEN=<InfluxDB write token, for generic/keygrabber>
+# Environment for every hispec@ instance. Keep credentials here rather than in
+# a config file, which is committed. `hispec doctor` lists the ones this host
+# needs and which daemon asks for each.
 EOF
     echo "created /etc/hispec/secrets.env"
 fi
-chown root:root /etc/hispec/secrets.env
-chmod 0600 /etc/hispec/secrets.env
+chown root:hispec-ops /etc/hispec/secrets.env
+chmod 0660 /etc/hispec/secrets.env
+
+# This host's role, which instance files name so an instance cannot be
+# deployed onto the wrong machine. Pin it with HISPEC_HOST_ROLE when the
+# hostname is not what the instance files say.
+if [[ ! -e /etc/hispec/host ]]; then
+    echo "${HISPEC_HOST_ROLE:-$(hostname -s)}" > /etc/hispec/host
+    echo "recorded host role '$(cat /etc/hispec/host)' in /etc/hispec/host"
+fi
+chown root:hispec-ops /etc/hispec/host
+chmod 0644 /etc/hispec/host
 
 # Python environment (editable install so `git pull` picks up code changes
 # without reinstalling).
