@@ -13,7 +13,7 @@ shared across subsystems; `daemons/<subsystem>/` holds daemons tied to one
 subsystem's hardware or to mechanism-specific logic. `hspower/pdu` is the one
 exception to that rule: it is as config-driven as the generic daemons, but
 every instance of it belongs to the `hspower` service, so it sits there with
-its `pdu_models/` capability files.
+its `pdu_models/` capability files and its `pdu_drivers.py` adapters.
 
 | Daemon | Driver | Hardware | Deployed instances |
 |---|---|---|---|
@@ -27,7 +27,7 @@ its `pdu_models/` capability files.
 | `hsfei/piaa-gimbalmount` | `thorlabs.ppc102` | Thorlabs PPC102 piezo gimbal mount | `hsfei_piaagimb`, `hsfei_piaagimr` |
 | `hsfei/xeryon` | `xeryon.XeryonController` | Xeryon XD-M-3 piezo motion controllers | `hsfei_hkfam`, `hsfei_piaadeploy`, `hsfei_yjfam` |
 | `hscal/smc8_attenuator` | `standa.smc8` | Standa SMC8 (libximc) attenuator | `hscal_hketatten` |
-| `hspower/pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | `hspower_fei1/2`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
+| `hspower/pdu` | `pdu.src.emat08_10`, `pdu.src.dli_dc3` | Networked PDUs: Eaton EMAT08-10, Digital Loggers DC3 | `hspower_fei1/2`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
 
 Thirty-five instances are currently defined under `systemd/instances/`,
 running twelve distinct daemon scripts — the config-driven design paying off
@@ -73,9 +73,11 @@ the gas cell.
 
 ### `hspower` — power distribution
 
-Every Eaton PDU in the instrument is one `hspower/pdu` instance, and they all
-live in this one service rather than with the subsystem they power, so that
-outlet control is in a single place. Each is named for where the unit is.
+Every networked PDU in the instrument is one `hspower/pdu` instance, and they
+all live in this one service rather than with the subsystem they power, so
+that outlet control is in a single place. Each is named for where the unit is.
+Every deployed unit is an Eaton today, but the daemon is not tied to one
+vendor: see the model dispatch described below.
 
 | Instance | PDU |
 |---|---|
@@ -99,6 +101,21 @@ at `HISPEC_PDU_*` today), which systemd supplies from root-only
 `/etc/hispec/secrets.env` — the same arrangement the keygrabber uses for its
 InfluxDB token. An inline `hardware.username` / `hardware.password` still
 works for a bench test and logs a warning against committing it.
+
+`hardware.model` is what makes one script serve every PDU. It names a file in
+`daemons/hspower/pdu_models/`, which says both which driver reaches that model
+and which optional capabilities it has: per-outlet current, power, energy
+and auto-restart, a manufacturer and a serial number. The daemon registers a
+keyword only where the model claims the capability *and* its driver adapter
+in `daemons/hspower/pdu_drivers.py` implements the calls behind it, so an
+Eaton gets the full metering block while a Digital Loggers DC3, which meters
+nothing, gets the outlet basics alone. A capability no adapter serves yet,
+such as the EMAT's strip-wide readings, is a startup warning rather than a
+keyword that fails on its first read.
+
+Supporting another PDU therefore means adding a capability file, and an
+adapter next to `EatonEmatDriver` and `DliDc3Driver` if its driver is not
+already covered. The daemon script itself does not change.
 
 ### Placeholder subsystems
 
@@ -173,12 +190,12 @@ position and voltage units, per-axis and combined loop-closed state, and a full
 soft/hard limit matrix in both units — `softmaxx`, `softminvolty`, `hardmaxx`
 and so on.
 
-**`pdu`** registers device-level keywords (`model`, `manufacturer`, `firmware`,
-`serial`, `outletcount`, `status`) plus a per-outlet block —
-`outletstate<n>`, `outletname<n>`, `outletcurrent<n>`, `outletpower<n>`,
-`outletenergy<n>`, `outletautorestart<n>`, `outletswitchable<n>`,
-`resetstatistics<n>` — with the set of outlets and their capabilities read from
-`pdu_models/*.yaml`.
+**`pdu`** registers device-level keywords (`model`, `firmware`, `outletcount`,
+`status`, and `manufacturer` / `serial` where the model reports them) plus a
+per-outlet block of `outletstate<n>`, `outletname<n>`, `outletswitchable<n>`,
+and, on a metering model, `outletcurrent<n>`, `outletpower<n>`,
+`outletenergy<n>`, `outletautorestart<n>` and `resetstatistics<n>`. The outlet
+count comes from config and the capabilities from `pdu_models/*.yaml`.
 
 ## Config inventory
 
