@@ -1,5 +1,5 @@
 ==============================================================
-HISPEC RTC Build: Headless Real-time Ubuntu 24.04 FEI Server
+HISPEC RTC Build: Headless Real-time Ubuntu 26  .04 FEI Server
 ==============================================================
 
 :Authors: Elijah A-B, Dan Ech
@@ -11,7 +11,7 @@ HISPEC RTC Build: Headless Real-time Ubuntu 24.04 FEI Server
 :Supersedes: ``fei_server_build_notes.rst``, ``rtc_buildnote.rst``
 
 .. contents:: Table of Contents
-   :depth: 2
+   :depth: 1
    :local:
 
 ----
@@ -22,7 +22,7 @@ HISPEC RTC Build: Headless Real-time Ubuntu 24.04 FEI Server
 This document merges the FEI server build notes and the TCC / real-time kernel
 build notes into a single **headless RTC** recipe.
 
-The OS is **Real-time Ubuntu 24.04 LTS** — Ubuntu with Canonical's
+The OS is **Real-time Ubuntu 26.04 LTS** — Ubuntu with Canonical's
 ``PREEMPT_RT`` kernel, deployed through an **Ubuntu Pro** subscription
 (§5). This is a genuine real-time operating system, not a tuned generic
 kernel: ``PREEMPT_RT`` replaces the default scheduler with a fully preemptible
@@ -35,7 +35,7 @@ hard CPU shielding, Intel TCC enabled in firmware, and background services
 stripped — dedicated to the camera/controller loop.
 
 .. note::
-   Real-time Ubuntu 24.04 is based on upstream kernel v6.8 with the
+   Real-time Ubuntu 26.04 is based on upstream kernel v6.8 with the
    ``PREEMPT_RT`` patchset applied, on ``amd64`` and ``arm64``. Ubuntu Pro is
    free for personal and small-scale commercial use on up to 5 machines;
    Caltech/COO deployments should use the institutional subscription.
@@ -70,7 +70,7 @@ All drives are erased before starting — this is a **0% → 100%** build.
 USB Drive A: Ubuntu Installer
 -----------------------------
 
-* **OS:** Ubuntu **Server** 24.04.1 LTS (``.iso``, not Desktop)
+* **OS:** Ubuntu **Server** 26.04    LTS (``.iso``, not Desktop)
 * **Source:** official Ubuntu download
 * **Format:** bootable ISO (``dd`` / Rufus / balenaEtcher)
 
@@ -103,10 +103,14 @@ Record these before install; several later steps depend on them.
      - Value / How to obtain
    * - CPU physical core count
      - ``lscpu | grep -E '^Core|^Socket'`` — needed for core shielding
+     - CLAUDE LOOK HERE*Result of this command was "hsfei@hsfei:~$ lscpu | grep -E '^Core|^Socket'
+Core(s) per socket:                      14
+Socket(s):                              1"
    * - Boot / OS drive
-     - Samsung 990 Pro 1 TB (NVMe)
+     - Raid Controller: BroadCom MegaRaid 9520-2M2
+     - Samsung 990 Pro 1 TB x 2 (NVMe) in hardware Raid 1 (RAID 1) using controller
    * - Data drive(s)
-     - 2 TB — RAID 1 pending (:ref:`section-pending`)
+     - 2 TB — SSD, formatted ``ext4``, mounted at ``/data`` (RAID PENDING)
    * - Management NIC
      - ``ip -br link`` — the interface carrying ``192.168.29.0/24``
    * - Archon fiber NIC
@@ -118,8 +122,15 @@ Record these before install; several later steps depend on them.
 
 .. _section-os-install:
 
-2. OS Installation (Ubuntu Server 24.04.1)
+2. OS Installation (Ubuntu Server 26.04)
 ==========================================
+
+* **Hardware RAID 1:** The two 1 TB NVMe drives are configured in a hardware 
+   RAID 1 array using the Broadcom MegaRAID controller. The RAID is set up during
+   the BIOS/UEFI boot sequence before the OS installation begins. Ensure that the
+   RAID is healthy and recognized by the installer, you can verify this in the 
+   RAID controller's BIOS utility and by seeing a single 1 TB storage device 
+   available for the OS installation.
 
 Installation Parameters
 -----------------------
@@ -134,24 +145,16 @@ Installation Parameters
   build stops here.
 
 .. important::
-   The old FEI note selected the default "Popular Snaps". For the pseudo-RTC,
-   select **none**. ``snapd`` timers are a jitter source and are disabled in
+   For "Popular Snaps" option. For the pseudo-RTC, select **none**. ``snapd`` 
+   timers are a jitter source and are disabled in
    :ref:`section-services`.
 
 Storage Configuration
 ---------------------
 
 * **Primary drive:** Samsung 990 Pro (1 TB) — root filesystem
-* **Secondary 2 TB drive:** formatted ``ext4``, mounted at ``/usr``
+* **Secondary 2 TB drive:** formatted ``ext4``, mounted at ``/data``
   *(carried over from the previous build)*
-* **Software RAID 1:** bypassed at install time — see :ref:`section-pending`
-
-.. warning::
-   Mounting a separate device at ``/usr`` requires the initramfs to mount it
-   before ``switch_root``. It works on 24.04, but it is a non-standard layout.
-   If the RAID rebuild in :ref:`section-pending` gives you an excuse to
-   re-partition, prefer keeping ``/usr`` on root and mounting the 2 TB drive at
-   ``/data`` or ``/srv``.
 
 Credentials
 -----------
@@ -169,7 +172,7 @@ First Boot
 
 ----
 
-3. Identity: Hostname, Users, Groups
+1. Identity: Hostname, Users, Groups
 ====================================
 
 Hostname
@@ -331,7 +334,7 @@ This is the step that makes the machine an RTC. Everything after it is tuning.
 5.1 What You Get
 ----------------
 
-Canonical's ``realtime-kernel`` is Ubuntu 24.04 with the upstream
+Canonical's ``realtime-kernel`` is Ubuntu 26.04 with the upstream
 ``PREEMPT_RT`` patchset on kernel v6.8:
 
 * **Fully preemptible kernel** — priority-based scheduling replaces the default
@@ -362,56 +365,24 @@ The RT kernel is delivered only through Ubuntu Pro (``elijahab`` account).
    ``HISTCONTROL=ignorespace`` with a leading space. If a token has ever been
    echoed into a shared file, rotate it.
 
-5.3 Choose the Kernel Variant
------------------------------
-
-Two variants matter here. **Pick before enabling** — switching later means
-another kernel install and reboot.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 78
-
-   * - Variant
-     - Use when
-   * - *(default)*
-     - Generic ``PREEMPT_RT`` for ``amd64``/``arm64``. Vendor-neutral.
-   * - ``intel-iotg``
-     - Intel platform, and you want Intel **TCC** and **TSN** support built in.
-       Validated on Intel Atom® X6000E and 11th/12th/13th Gen Intel® Core™.
-
-.. important::
-   **This build enables TCC Mode in BIOS (§6), so ``intel-iotg`` is very likely
-   the correct variant.** The Intel-optimized kernel is what carries the TCC and
-   TSN enablement; on the generic RT kernel you get the firmware-level TCC
-   benefits but not the kernel-side feature support.
-
-   Confirm the CPU generation against the supported list before committing::
-
-      lscpu | grep -i 'model name'
-
-List what your Pro subscription actually offers, then enable:
+5.3 Initialize RT Kernel
+----------------------
 
 .. code-block:: bash
 
-   # Generic real-time kernel
-   sudo pro enable realtime-kernel
-
-   # -- OR -- Intel IOTG optimized (TCC / TSN enabled)
-   sudo pro enable realtime-kernel --variant=intel-iotg
+   sudo apt update
+   sudo apt install ubuntu-realtime
 
 Accept the prompt to install and switch the default boot kernel.
 
-.. note::
-   The variant flag is only accepted at *enable* time. To change variants
-   afterwards, ``sudo pro disable realtime-kernel`` first.
+.. code-block:: bash
+
+   sudo reboot
 
 5.4 Verify **[reboot]**
 -----------------------
 
 .. code-block:: bash
-
-   sudo reboot
 
    # After boot:
    uname -a                     # expect PREEMPT_RT (and -realtime flavour)
@@ -426,20 +397,32 @@ Confirm the RT scheduling classes are live:
    chrt -m                      # SCHED_FIFO / SCHED_RR priority ranges
    grep -c . /proc/pressure/cpu # PSI available
 
-.. warning::
-   **Record ``uname -r`` in the as-built log now.** Out-of-tree drivers
-   (FT4222 helpers, any DKMS module) are built against a specific kernel. When
-   Pro ships an RT kernel update, those modules must be rebuilt and the
-   ``cyclictest`` baseline (§13) re-measured before the machine goes back on
-   sky.
 
-.. tip::
-   To roll back to the generic kernel for debugging, see Canonical's
-   `switch from real-time to generic kernel
-   <https://documentation.ubuntu.com/real-time/latest/how-to/switch-from-realtime-to-generic-kernel/>`_.
-   Keep a generic kernel entry in the GRUB menu as an escape hatch.
+5.5 Result of the RT Kernel Deployment(CLAUDE MAKE THIS SECTION NICE)
+--------------------------------------
+   CPU
+   └── Intel Core i5-13500E
+      └── 13th Gen Intel
 
-----
+   BIOS
+   └── TCC-capable BIOS
+
+   Ubuntu
+   └── 26.04 LTS
+
+   Kernel
+   └── 7.0.0-38-realtime
+      ├── PREEMPT_RT=y             ✓
+      ├── INTEL_TCC=y              ✓
+      ├── INTEL_TCC_COOLING=m      ✓
+      └── TSNEP=m                  ✓
+
+   Scheduler
+   ├── SCHED_FIFO 1–99              ✓
+   └── SCHED_RR   1–99              ✓
+
+   PSI
+   └── CPU pressure available       ✓
 
 6. CPU Shielding, GRUB & TCC
 ============================
@@ -450,14 +433,12 @@ GRUB Kernel Parameters
 ----------------------
 
 Six cores (**0–5**) are shielded from the OS scheduler, RCU callbacks and the
-timer tick. Edit ``/etc/default/grub``:
+timer tick. Edit ``/etc/default/grub`` using vim:
 
 .. code-block:: text
 
    GRUB_CMDLINE_LINUX_DEFAULT="quiet clocksource=tsc tsc=reliable nmi_watchdog=0 nosoftlockup isolcpus=domain,0-5 rcu_nocbs=0-5 nohz_full=0-5 irqaffinity=6-15 kthread_cpus=6-15"
 
-Adjust ``6-15`` to your actual housekeeping range —
-``cat /sys/devices/system/cpu/present`` gives the total.
 
 Parameter rationale:
 
@@ -485,24 +466,10 @@ Parameter rationale:
      - Restricts kernel threads to housekeeping cores
 
 .. warning::
-   **``irqaffinity=0`` in the original RTC note is a copy-paste bug — corrected
-   above.**
-
-   Canonical's Intel TCC tutorial uses ``isolcpus=3 … irqaffinity=0``: core 3 is
-   isolated and IRQs are sent to core **0**, which is a *housekeeping* core.
-   The original note copied that line but widened the isolated set to ``0-5``
-   while leaving ``irqaffinity=0`` unchanged — which now points every hardware
-   interrupt **into** the shielded set, at the one core the RT threads most
-   depend on.
-
-   The rule is simply that the ``irqaffinity`` range and the ``isolcpus`` range
-   must not overlap. Canonical states this directly: *"isolate one or more CPUs
+   The ``irqaffinity`` range and the ``isolcpus`` range **must not overlap**.
+   Canonical states this directly: *"isolate one or more CPUs
    to run the real-time application and the others to handle the IRQs and
    kthreads."*
-
-.. note::
-   ``splash`` was also dropped from the original line — it is meaningless on a
-   headless server.
 
 Apply and reboot:
 
@@ -520,24 +487,9 @@ Verify after boot:
    cat /sys/devices/system/cpu/nohz_full      # expect 0-5
    cat /sys/devices/system/cpu/present        # total core count
 
-Confirm no IRQ is still bound to a shielded core:
-
-.. code-block:: bash
-
-   # Any line showing only cores 0-5 in the affinity list is a problem
-   for i in /proc/irq/[0-9]*; do
-       printf '%-8s %s\n' "$(basename "$i")" "$(cat "$i"/smp_affinity_list 2>/dev/null)"
-   done | sort -k2
-
-Stray IRQs can be re-pointed at runtime (not persistent across reboot):
-
-.. code-block:: bash
-
-   echo 6-15 | sudo tee /proc/irq/<IRQ-NUMBER>/smp_affinity_list
-
-.. warning::
-   Never set an IRQ's affinity mask to zero — every IRQ must be handled by at
-   least one CPU.
+After reboot, if IRQ is still bound to a shielded core is it likely from a PCIe device.
+It is not trivial or safe to rebind PCIe devices to a different core. We leave these as
+they are and have ensured that the jitterr is within spec.
 
 Disable irqbalance
 ------------------
@@ -547,8 +499,14 @@ which silently undoes the ``irqaffinity`` boot parameter. It must be off.
 
 .. code-block:: bash
 
-   sudo systemctl disable --now irqbalance
-   systemctl status irqbalance
+   systemctl is-active irqbalance
+
+if active, disable it:
+
+.. code-block:: bash
+
+   sudo systemctl stop irqbalance
+
 
 Confine systemd Services to Housekeeping Cores
 ----------------------------------------------
@@ -559,7 +517,7 @@ future — stays off the shielded cores. Edit ``/etc/systemd/system.conf``:
 .. code-block:: ini
 
    [Manager]
-   CPUAffinity=6-15
+   CPUAffinity=6-13
 
 .. code-block:: bash
 
@@ -633,11 +591,11 @@ tutorial.
 .. _section-services:
 
 7. Service Stripping
-====================
 
-Disable background daemons, timers and update machinery. On a headless server
-several of these may already be absent — ``|| true`` keeps the block
-copy-pasteable.
+**====================**
+
+Disable unnecessary background daemons, timers and update machinery. On a headless server
+several of these may already be absent — ``|| true`` keeps the block copy-pasteable.
 
 .. code-block:: bash
 
@@ -649,20 +607,27 @@ copy-pasteable.
        bluetooth.service \
        apt-daily.timer apt-daily-upgrade.timer \
        unattended-upgrades.service \
-       motd-news.timer \
-       snapd.service snapd.socket snapd.seeded.service \
        fwupd-refresh.timer \
        man-db.timer \
-       systemd-oomd.service
+       motd-news.timer \
+       update-notifier-download.timer \
+       update-notifier-motd.timer \
+       sysstat-collect.timer \
+       sysstat-summary.timer \
+       sysstat-rotate.timer \
+       multipathd.service \
+       udisks2.service
    do
        sudo systemctl disable --now "$svc" 2>/dev/null || true
    done
 
-Also disable the periodic locate/tracker indexers if present:
+Also disable the periodic locate indexer if present:
 
 .. code-block:: bash
 
    sudo systemctl disable --now plocate-updatedb.timer 2>/dev/null || true
+
+Keep ``ua-timer.timer`` enabled for Ubuntu Pro.
 
 Audit what is left:
 
@@ -672,13 +637,15 @@ Audit what is left:
    systemctl list-timers --all
 
 .. warning::
+
    Disabling ``unattended-upgrades`` means **security patching is now manual**.
    Schedule a maintenance window; do not simply forget about it.
 
 .. note::
-   Keep ``ssh``, ``systemd-networkd``, ``systemd-timesyncd`` (or ``chrony``),
-   and ``ubuntu-advantage`` enabled. Losing SSH on a headless RTC is the one
-   unrecoverable mistake in this document.
+
+   Keep ``ssh``, ``systemd-networkd``, ``systemd-resolved``, ``chrony``, and
+   ``ubuntu-advantage`` enabled. ``thermald`` and ``networkd-dispatcher`` are
+   also retained for now pending further real-time/thermal testing.
 
 ----
 
@@ -717,7 +684,6 @@ Audit what is left:
 .. code-block:: bash
 
    sudo apt install -y \
-       cset \
        util-linux \
        rt-tests \
        linuxptp \
@@ -763,88 +729,66 @@ running Qt GUIs on an operator workstation.
    The old FEI troubleshooting note recommending it is obsolete — use
    ``qtbase5-dev`` and set ``QT_SELECT=5`` if a legacy build script demands it.
 
-8.5 KROOT / Keck Environment (optional, machine-dependent)
-----------------------------------------------------------
-
-Skip this on a pure pseudo-RTC. Install only if this box must build KROOT.
-This pulls in a large Tcl/Tk/Motif/X toolchain that is otherwise dead weight.
-
-.. code-block:: bash
-
-   sudo apt install -y \
-       openconnect \
-       subversion cvs at \
-       python-dev-is-python3 python3-docutils \
-       libxt-dev libxml2-dev libncurses-dev \
-       tcl tcl-dev tcl-thread tcllib tk tk-dev expect \
-       tclx tcl-fitstcl libpq-dev \
-       g++ gfortran \
-       libboost-dev libboost-system-dev libboost-filesystem-dev \
-       python3-tk python3-pil.imagetk \
-       libpam-dev \
-       pandoc groff rst2pdf \
-       python3-ephem \
-       pyqt5-dev-tools \
-       make m4 autoconf \
-       xorg-dev xaw3dg-dev \
-       libmotif-dev \
-       libc6-dev-i386 \
-       snmp \
-       flex flex-doc bison bison-doc
-
-----
 
 9. Python Environment
 =====================
 
 Global Shared Virtual Environment
----------------------------------
 
-A centralized deployment environment at ``/opt/hispecfei/env`` — owned by
-``hsfei``, group-writable by ``eng``. Python **3.12** ships with 24.04 and is
+**---------------------------------**
+
+A centralized deployment environment at `/opt/hispecfei/env` — owned by
+`hsfei` and writable by the `hsfei` user. Python **3.14** ships with 26.04 and is
 the required version.
 
-Run as ``hsfei``:
+Run as `hsfei`:
 
 .. code-block:: bash
 
    sudo mkdir -p /opt/hispecfei
+
    sudo python3 -m venv /opt/hispecfei/env
 
-   # Ownership: primary user hsfei, engineering group eng
-   sudo chown -R hsfei:eng /opt/hispecfei
-   sudo chmod -R 775 /opt/hispecfei
-   sudo chmod g+s /opt/hispecfei          # new files inherit the eng group
+   sudo chown -R hsfei:hsfei /opt/hispecfei
 
-   /opt/hispecfei/env/bin/pip install --upgrade pip setuptools wheel
-   /opt/hispecfei/env/bin/pip install \
-       numpy \
-       scipy \
-       matplotlib \
-       astropy \
-       pandas \
-       pyserial \
-       pipython \
-       pyzmq
+   sudo chmod -R 775 /opt/hispecfei
+
+   sudo chmod g+s /opt/hispecfei
+
+   /opt/hispecfei/env/bin/python -m pip install --upgrade pip setuptools wheel
+
+   /opt/hispecfei/env/bin/python -m pip install 
+   numpy 
+   scipy 
+   matplotlib 
+   astropy 
+   pandas 
+   pyserial 
+   pipython 
+   pyzmq
 
 .. warning::
-   Two corrections against the original FEI package list:
 
-   * ``serial`` is the **wrong** PyPI package — it is an unrelated project.
-     The Physik Instrumente / device-comms package you want is ``pyserial``
-     (imported as ``import serial``).
-   * ``cmake`` was listed as a pip install. CMake is already installed via
-     ``apt`` in §8.1; installing it again via pip creates two versions on
-     ``PATH`` and shadows the system one. Dropped.
+Two corrections against the original FEI package list:
 
-   ``PyQt5`` is also dropped from the global env — install it via ``apt``
-   (§8.4) only if Qt GUIs actually run here.
+* `serial` is the **wrong** PyPI package — it is an unrelated project.
+
+```
+ The Physik Instrumente / device-comms package you want is ``pyserial``
+ (imported as ``import serial``).
+```
+
+* `cmake` was listed as a pip install. CMake is already installed via
+`apt` in §8.1; installing it again via pip creates two versions on
+`PATH` and shadows the system one. Dropped.
+
+`PyQt5` is also dropped from the global env — install it via `apt`
+(§8.4) only if Qt GUIs actually run here.
 
 Activate by default for engineering shells:
 
 .. code-block:: bash
 
-   echo 'source /opt/hispecfei/env/bin/activate' >> /home/hsdev/.bashrc
    echo 'source /opt/hispecfei/env/bin/activate' >> /home/hsfei/.bashrc
 
 Headless Matplotlib
@@ -863,180 +807,48 @@ Scripts then write figures to disk and you retrieve them per
 :ref:`section-remote-gui`. Override interactively when tunnelling a GUI:
 ``MPLBACKEND=Qt5Agg python plot.py``.
 
-Local Engineer Virtual Environments
------------------------------------
-
-**Option A — inherit the deployed global packages:**
-
-.. code-block:: bash
-
-   python3 -m venv --system-site-packages ~/fei-venv
-   source ~/fei-venv/bin/activate
-
-**Option B — fully isolated sandbox:**
-
-.. code-block:: bash
-
-   python3 -m venv ~/fei-venv_sandbox
-   source ~/fei-venv_sandbox/bin/activate
-   pip install --upgrade pip
-
-.. note::
-   Never ``pip install`` into ``/opt/hispecfei/env`` for experimental work.
-   That environment is the deployed baseline — use Option A or B.
-
 ----
 
 .. _section-remote-gui:
 
-10. Remote GUI, Plots & Image Export
-====================================
+10. Remote GUI and Plot Access
+==============================
 
-The machine is headless. Three complementary paths get pixels off it, in
-increasing order of weight. **Prefer the lightest one that does the job.**
+The machine is headless.
 
-10.1 Files First (preferred)
-----------------------------
+Preferred workflow
+------------------
 
-For plots, FITS previews and diagnostics, write files and pull them down. No
-X server, no VNC, zero jitter on the RT cores.
+Write plots, FITS previews, and diagnostics to disk and retrieve them via SSH:
 
 .. code-block:: bash
 
-   # From your workstation
-   rsync -avz hsdev@hispecfei:/data/plots/ ./plots/
-   scp hsdev@hispecfei:/data/frames/latest.fits .
+   rsync -avz hsfei@hispecfei:/data/plots/ ./plots/
 
-Or serve a directory read-only over an SSH tunnel:
+   scp hsfei@hispecfei:/data/frames/latest.fits .
 
-.. code-block:: bash
-
-   # On hispecfei (bind to loopback only)
-   cd /data/plots && python3 -m http.server 8000 --bind 127.0.0.1
-
-   # On your workstation
-   ssh -L 8000:localhost:8000 hsdev@hispecfei
-   # then browse http://localhost:8000
-
-.. note::
-   Binding to ``127.0.0.1`` and reaching it through the SSH tunnel keeps the
-   server off the site network. Do not bind ``0.0.0.0``.
-
-10.2 SSH X11 Forwarding (single applications)
----------------------------------------------
-
-For one-off Qt/Tk tools, forward the individual window — no persistent desktop.
-
-Requires ``X11Forwarding yes`` (§3) and ``xauth`` (§8.3) on the server, and an
-X server on the client (native on Linux, XQuartz on macOS, VcXsrv/MobaXterm on
-Windows).
+Matplotlib runs headless by default (§9):
 
 .. code-block:: bash
 
-   # From your workstation
-   ssh -X hsdev@hispecfei
-   xeyes                      # smoke test
-   xdpyinfo | head            # confirms the forwarded display
+   plt.savefig("plot.png")
 
-   # -Y (trusted) only if -X trips an extension error, and only on a trusted LAN
-   ssh -Y hsdev@hispecfei
+Optional GUI access
+-------------------
 
-.. tip::
-   X11 forwarding is chatty over high-latency links. For anything that redraws
-   continuously, use VNC (§10.3) instead — it compresses far better.
-
-10.3 TigerVNC Session (persistent desktop)
-------------------------------------------
-
-For a session that survives disconnect — long-running Archon GUIs, alignment
-tools, multi-window work.
-
-**Set the VNC password** (as ``hsdev``):
+For occasional GUI applications:
 
 .. code-block:: bash
 
-   vncpasswd
+   ssh -X hsfei@hispecfei
 
-**Configure a minimal Openbox session** in ``~/.vnc/xstartup``:
-
-.. code-block:: bash
-
-   mkdir -p ~/.vnc
-   cat > ~/.vnc/xstartup <<'EOF'
-   #!/bin/sh
-   unset SESSION_MANAGER
-   unset DBUS_SESSION_BUS_ADDRESS
-   export MPLBACKEND=Qt5Agg
-   exec openbox-session
-   EOF
-   chmod +x ~/.vnc/xstartup
-
-**Start the server, pinned off the shielded cores.** This is the critical RTC
-detail — VNC must never run on cores 0–5:
-
-.. code-block:: bash
-
-   # Adjust 6-15 to your housekeeping core range
-   taskset -c 6-15 vncserver :1 \
-       -localhost yes \
-       -geometry 1920x1080 \
-       -depth 24
-
-``-localhost yes`` binds VNC to loopback only. Reach it through an SSH tunnel:
-
-.. code-block:: bash
-
-   # On your workstation
-   ssh -L 5901:localhost:5901 hsdev@hispecfei
-   # then point any VNC client at localhost:5901
-
-Stop the session:
-
-.. code-block:: bash
-
-   vncserver -kill :1
-
-**Optional — run it as a pinned systemd user service.** Create
-``/etc/systemd/system/vncserver@.service``:
-
-.. code-block:: ini
-
-   [Unit]
-   Description=TigerVNC server on display %i (housekeeping cores only)
-   After=network-online.target
-
-   [Service]
-   Type=forking
-   User=hsdev
-   WorkingDirectory=/home/hsdev
-   # Confine to housekeeping cores - keeps VNC off the shielded set
-   CPUAffinity=6-15
-   Nice=10
-   ExecStartPre=-/usr/bin/vncserver -kill :%i
-   ExecStart=/usr/bin/vncserver :%i -localhost yes -geometry 1920x1080 -depth 24
-   ExecStop=/usr/bin/vncserver -kill :%i
-   Restart=on-failure
-
-   [Install]
-   WantedBy=multi-user.target
-
-.. code-block:: bash
-
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now vncserver@1.service
+For persistent graphical sessions, use TigerVNC over an SSH tunnel.
 
 .. warning::
-   ``CPUAffinity=`` in the unit file and ``taskset`` on the command line are
-   both mandatory habits on this machine. An unpinned VNC session will migrate
-   onto an isolated core and inject latency into the camera loop — the exact
-   failure this whole build exists to prevent.
 
-.. important::
-   **Never expose VNC (5900–5910) directly to the network.** Always
-   ``-localhost yes`` + SSH tunnel. TigerVNC's native auth is weak and the
-   Archon network must stay clean.
+   Never expose VNC ports directly to the network.
+   Use ``-localhost yes`` and SSH port forwarding only.
 
-----
 
 11. Hardware Drivers & Subsystems
 =================================
@@ -1054,7 +866,7 @@ Stop the session:
       cd <path_to_unpacked_PI_driver>
       sudo ./INSTALL
 
-#. **Installer prompt responses:**
+#. Installer prompt responses:
 
    .. list-table::
       :header-rows: 1
@@ -1439,26 +1251,16 @@ scheduled on the isolated cores — recheck ``irqaffinity`` (§6) first.
 15. Pending Tasks
 =================
 
-* [ ] **RAID 1** — finalize hardware or software RAID 1 for the data drives.
-  Revisit the ``/usr``-on-second-drive layout at the same time (§2).
-* [ ] **Static IP** — confirm ``192.168.29.107`` is applied and reserved on the
-  site network (§4); the previous build was still on DHCP.
-* [ ] **Kernel variant** — confirm whether ``--variant=intel-iotg`` applies to
-  this CPU and re-enable if the generic RT kernel was installed first (§5.3).
 * [ ] **Intel CAT / Speed Shift** — evaluate if the §13 latency baseline is not
   tight enough (§6).
 * [ ] **Patching policy** — ``unattended-upgrades`` is disabled (§7); define a
   manual maintenance window.
-* [ ] **Backups** — no backup strategy defined for ``/opt/hispecfei`` or
-  instrument configuration.
 * [ ] **Software stack** — track upstream GitHub build notes for Python
   libraries, C++ sources and hardware drivers.
-* [ ] **As-built log** — record kernel version, ``camera-interface`` commit,
-  driver versions and ``cyclictest`` baselines.
 
 ----
 
-16. Final Step
+1.  Final Step
 ==============
 
 Reboot to apply kernel parameters, BIOS settings, service changes and udev
