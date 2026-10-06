@@ -66,6 +66,14 @@ def _my_groups() -> set:
     return names
 
 
+def _is_file(path: Path) -> bool:
+    """Whether path is a file, treating one we may not stat as absent."""
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
 def _group_exists(name: str) -> bool:
     try:
         grp.getgrnam(name)
@@ -136,15 +144,22 @@ def _unit_and_polkit(r: Report, paths: Paths) -> None:
     if OLD_UNIT_FILE.is_file():
         r.warn("the old hispec-daemon@.service is still installed")
         r.hint(f"{install}   # migrates instances to hispec@")
-    if POLKIT_RULE.is_file():
+    try:
+        rule = POLKIT_RULE.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        r.bad(f"{POLKIT_RULE} is missing, so every start/stop will prompt")
+        r.hint(install)
+    except OSError:
+        # rules.d is 0750 root:polkitd on some hosts, so an operator cannot
+        # even stat inside it; unreadable means unknown, not missing
+        r.warn(f"cannot read {POLKIT_RULE}, so the polkit rule is unchecked")
+        r.hint("sudo hispec doctor")
+    else:
         r.ok(f"{POLKIT_RULE} installed")
-        if 'indexOf("hispec@")' not in POLKIT_RULE.read_text(encoding="utf-8"):
+        if 'indexOf("hispec@")' not in rule:
             r.bad("the installed polkit rule does not match hispec@ units")
             r.hint(f"it is probably the pre-rename copy; {install}")
-    else:
-        r.bad(f"{POLKIT_RULE} is missing — every start/stop will prompt")
-        r.hint(install)
-    if OLD_POLKIT_RULE.is_file():
+    if _is_file(OLD_POLKIT_RULE):
         r.warn(f"the old {OLD_POLKIT_RULE.name} is still installed (harmless, matches nothing now)")
         r.hint(f"admin: sudo rm {OLD_POLKIT_RULE}")
     _polkit_daemon(r)
@@ -240,6 +255,43 @@ def _deployed(r: Report, paths: Paths) -> None:
             r.warn(f"{name}: deployed here but not defined in {paths.repo_instances}")
 
 
+def _secrets(r: Report, paths: Paths) -> None:
+    r.section("Credentials")
+    needed = inst.required_secrets(paths)
+    present = inst.secrets_set(paths)
+    if present is None:
+        r.warn(f"cannot read {paths.secrets}, so the credentials below are unchecked")
+        r.hint("sudo hispec doctor")
+        return
+    for variable in sorted(needed):
+        if present.get(variable):
+            r.ok(f"{variable} is set")
+        else:
+            r.bad(f"{variable} is unset, needed by {'; '.join(needed[variable])}")
+            r.hint(f"add {variable}=<value> to {paths.secrets}, then restart that daemon")
+
+
+def _placement(r: Report, paths: Paths) -> None:
+    """Flag instances running on the wrong host, or claiming no host at all.
+
+    Only looks at what is deployed: which of the repo's instances a host runs
+    is an operational decision, and ``hispec status`` already lists the rest.
+    """
+    r.section("Host assignment")
+    role = inst.host_role(paths)
+    r.ok(f"this host is '{role}'")
+    unassigned = []
+    for name in inst.deployed(paths):
+        claimed = inst.assigned_host(paths.instances / f"{name}.env")
+        if claimed is None:
+            unassigned.append(name)
+        elif claimed != role:
+            r.bad(f"{name}: deployed here but assigned to '{claimed}'")
+    if unassigned:
+        r.warn(f"no {inst.HOST_KEY}, so nothing says where they belong: "
+               f"{' '.join(unassigned)}")
+
+
 def doctor(paths: Paths, _args: argparse.Namespace) -> int:
     """Run every check and exit 1 if any FAILed."""
     me = pwd.getpwuid(os.geteuid()).pw_name
@@ -250,6 +302,8 @@ def doctor(paths: Paths, _args: argparse.Namespace) -> int:
     _sudo(r, paths)
     _paths(r, paths)
     _deployed(r, paths)
+    _placement(r, paths)
+    _secrets(r, paths)
     print()
     if r.problems == 0:
         print("No problems found.")

@@ -26,8 +26,12 @@ dependencies = [
     "pyyaml",
     # influxdb extra: needed by daemons/generic/keygrabber
     "libby[influxdb]@git+https://github.com/CaltechOpticalObservatories/libby.git",
-    "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base"
+    "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base",
+    "camera_daemon@git+https://github.com/COO-Utilities/camera-daemon.git"
 ]
+
+[project.scripts]
+hispec = "hispec.cli:main"
 
 [tool.pylint.main]
 # CI lints without installing the project or its dependencies, and the driver
@@ -37,6 +41,7 @@ dependencies = [
 ignored-modules = [
     # Third-party dependencies, not installed in the lint environment
     "astropy",
+    "camera_daemon",
     "libby",
     "matplotlib",
     "numpy",

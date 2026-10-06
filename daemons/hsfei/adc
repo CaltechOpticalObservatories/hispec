@@ -89,7 +89,7 @@ class _Stage:
 
     def is_moving(self) -> bool:
         """Return True if the stage is currently moving."""
-        return "MOVING" in self.controller.get_state(self.stage_id)
+        return self.controller.get_state(self.stage_id) == "MOVING."
 
     def get_position(self) -> Optional[float]:
         """Return the current stage position in degrees."""

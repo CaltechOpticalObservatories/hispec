@@ -28,7 +28,7 @@ def _resolve(paths: Paths, targets: List[str], names: List[str]) -> Optional[Lis
         if target in inst.in_repo(paths):
             _err(f"{target} is not deployed on this host; deploy it with: hispec deploy {target}")
         else:
-            _err(f"no deployed instance or subsystem matches '{target}' (see: hispec status --all)")
+            _err(f"no instance or subsystem matches '{target}' (see: hispec status --all)")
         return None
 
 
@@ -69,14 +69,22 @@ class _Deployment(NamedTuple):
     config_dst: Path
 
 
-def _deploy_plan(paths: Paths, names: List[str]) -> Optional[List[_Deployment]]:
+def _deploy_plan(paths: Paths, names: List[str],
+                 any_host: bool = False) -> Optional[List[_Deployment]]:
     """Work out every copy up front, so a bad name copies nothing at all."""
     plan = []
     problems = 0
+    role = inst.host_role(paths)
     for name in names:
         env_src = paths.repo_instances / f"{name}.env"
         if not inst.NAME_RE.match(name) or not env_src.is_file():
             _err(f"no {env_src}; is '{name}' a hispec instance? (see: hispec status --all)")
+            problems += 1
+            continue
+        claimed = inst.assigned_host(env_src)
+        if claimed and claimed != role and not any_host:
+            _err(f"{name} belongs on '{claimed}', not '{role}'; "
+                 "deploy it there, or pass --any-host")
             problems += 1
             continue
         config = inst.read_env(env_src).get("HISPEC_CONFIG", "")
@@ -127,20 +135,23 @@ def _copy(paths: Paths, plan: List[_Deployment], force: bool, dry_run: bool) -> 
 
 def deploy(paths: Paths, args: argparse.Namespace) -> int:
     """Copy instance files and configs from the repo, then enable and start."""
+    # Against the repo rather than what is deployed: putting something new on
+    # this host is the point
+    names = _resolve(paths, args.names, inst.in_repo(paths)) if args.names else []
+    if names is None:
+        return 1
     if args.new:
         have = set(inst.deployed(paths))
-        names = [n for n in inst.in_repo(paths) if n not in have] + list(args.names)
+        names = [n for n in inst.in_repo(paths) if n not in have] + names
         if not names:
             print(f"Nothing to deploy: every instance in {paths.repo_instances} "
                   "is already deployed.")
             return 0
-    elif args.names:
-        names = list(args.names)
-    else:
+    elif not names:
         _err("name the instances to deploy, or pass --new")
         return 2
 
-    plan = _deploy_plan(paths, list(dict.fromkeys(names)))
+    plan = _deploy_plan(paths, list(dict.fromkeys(names)), args.any_host)
     if plan is None:
         return 1
     updated = _copy(paths, plan, args.force, args.dry_run)

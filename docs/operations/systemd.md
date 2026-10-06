@@ -170,14 +170,20 @@ hsfei_atcpress           started
 ```
 
 That copies the instance's two files from the repo into `/etc/hispec`, adds it
-to the boot set, and starts it. Deploy several at once by naming them, or
-deploy everything the repo defines that this host does not have yet:
+to the boot set, and starts it. Deploy several at once by naming them, a whole
+subsystem, or everything the repo defines that this host does not have yet:
 
 ```bash
 hispec deploy hsfei_adc hsfei_ms
+hispec deploy fei                # every hsfei_* the repo defines
+hispec deploy all --no-start --no-enable   # refresh the files, change nothing else
 hispec deploy --new              # e.g. after a git pull added instances
 hispec deploy --new --dry-run    # see what that would do first
 ```
+
+Unlike `start` and `status`, `deploy` matches its targets against the repo
+rather than what is already on the host, since putting something new on a host
+is the point.
 
 A deployed config is never overwritten by default. Once it is on a host it
 holds that host's real ports and addresses, so if it differs from the repo
@@ -219,7 +225,14 @@ matching `systemd/instances/<name>.env`:
 ```sh
 HISPEC_DAEMON=<path relative to daemons/, e.g. generic/inficon or hsfei/adc>
 HISPEC_CONFIG=/etc/hispec/<name>.yaml
+HISPEC_HOST=<the host that runs it, e.g. hispecserver or fei>
 ```
+
+`HISPEC_HOST` is what stops an instance being deployed onto the wrong machine,
+where two daemons would reach for one device and collide on the broker.
+`hispec deploy` refuses a mismatch unless you pass `--any-host`, and `hispec
+doctor` reports anything deployed somewhere it does not belong. A host learns
+its own name from `/etc/hispec/host`, which the installer writes.
 
 Also add the row to the table in [Deployed instances](#deployed-instances) and
 to the inventory in {doc}`../architecture/daemons`. Commit, then on the host:
@@ -231,19 +244,21 @@ hispec deploy <name>
 
 ### Secrets
 
-`/etc/hispec/instances/*.env` is readable by every `hispec-ops` member, which
-is right for configs and wrong for a credential. Every unit also reads
-`/etc/hispec/secrets.env` if it exists, which is root-only (0600), so a secret
-goes there:
+Every unit reads `/etc/hispec/secrets.env` if it exists, and a credential goes
+there because that file is not in git, unlike a config. It is `hispec-ops`
+read/write (0660), so no `sudo` is needed:
 
 ```bash
-sudo tee -a /etc/hispec/secrets.env <<'EOF'
+cat >> /etc/hispec/secrets.env <<'EOF'
 HISPEC_INFLUX_TOKEN=<InfluxDB write token>
 EOF
-systemctl restart hispec@hispec_keygrabber
+hispec restart hispec_keygrabber
 ```
 
-`generic/keygrabber` and the `hspower` PDU daemons need one. The nine PDU instances share
+`hispec doctor` lists the variables this host needs and which daemon asks for
+each, derived from the deployed configs, so there is no list to keep current.
+
+`generic/keygrabber` and `hspower/pdu` need one. The nine PDU instances share
 a single Telnet login, so two variables cover all of them:
 
 ```bash
@@ -259,17 +274,22 @@ the value never reaches git. For the PDU that is `hardware.username_env` and
 variables. Inline `hardware.username` / `hardware.password` still work for a
 bench test, but the daemon logs a warning against committing them.
 
-Any top-level config key can also be replaced by a `LIBBY_<KEY>` variable,
-which suits a value that is itself a secret. `HispecDaemon` names the broker
-but holds no password, so every host supplies one:
+`HispecDaemon` names the broker but holds no password, so every host supplies
+one:
 
 ```bash
 sudo tee -a /etc/hispec/secrets.env <<'EOF'
-LIBBY_RABBITMQ_URL=amqp://<user>:<password>@131.215.200.214
+HISPEC_RABBITMQ_USER=<user>
+HISPEC_RABBITMQ_PASSWORD=<password>
 EOF
 ```
 
-Without it a daemon is refused with `ACCESS_REFUSED ... mechanism PLAIN`.
+Without them a daemon is refused with `ACCESS_REFUSED ... mechanism PLAIN`.
+
+Any top-level config key can also be replaced by a `LIBBY_<KEY>` variable, so
+`LIBBY_RABBITMQ_URL` points one host at a different broker entirely. It
+replaces the whole URL, credentials included, and wins over the two variables
+above.
 
 ## Troubleshooting
 
@@ -386,43 +406,43 @@ dependencies or `hispec@.service` changed. Pulling needs write access to
 
 ## Deployed instances
 
-| Instance | Daemon | Config |
-| --- | --- | --- |
-| `hscal_hkcalfwheel1` | `generic/filterwheel` | `config/hscal/hscal_hkcalfwheel1.yaml` |
-| `hscal_hkcalfwheel2` | `generic/filterwheel` | `config/hscal/hscal_hkcalfwheel2.yaml` |
-| `hscal_hkgcellfwheel` | `generic/filterwheel` | `config/hscal/hscal_hkgcellfwheel.yaml` |
-| `hscal_yjcalfwheel1` | `generic/filterwheel` | `config/hscal/hscal_yjcalfwheel1.yaml` |
-| `hscal_yjcalfwheel2` | `generic/filterwheel` | `config/hscal/hscal_yjcalfwheel2.yaml` |
-| `hsfei_atcfw` | `generic/filterwheel` | `config/hsfei/hsfei_atcfw.yaml` |
-| `hsfei_atcpress` | `generic/inficon` | `config/hsfei/hsfei_atcpress.yaml` |
-| `hscal_gcellheater1` | `generic/lakeshore` | `config/hscal/hscal_gcellheater1.yaml` |
-| `hscal_gcellheater2` | `generic/lakeshore` | `config/hscal/hscal_gcellheater2.yaml` |
-| `hsfei_atctherm` | `generic/lakeshore` | `config/hsfei/hsfei_atctherm.yaml` |
-| `hscal_hkettherm` | `generic/srsthermal` | `config/hscal/hscal_hkettherm.yaml` |
-| `hscal_yjettherm` | `generic/srsthermal` | `config/hscal/hscal_yjettherm.yaml` |
-| `hscal_hketatten` | `hscal/smc8_attenuator` | `config/hscal/hscal_hketatten.yaml` |
-| `hsfei_adc` | `hsfei/adc` | `config/hsfei/hsfei_adc.yaml` |
-| `hsfei_atccryo` | `hsfei/atccryo` | `config/hsfei/hsfei_atccryo.yaml` |
-| `hsfei_atcl` | `hsfei/pi-daemon` | `config/hsfei/hsfei_atcl.yaml` |
-| `hsfei_atcp` | `hsfei/pi-daemon` | `config/hsfei/hsfei_atcp.yaml` |
-| `hsfei_feipo` | `hsfei/pi-daemon` | `config/hsfei/hsfei_feipo.yaml` |
-| `hsfei_lsm` | `hsfei/pi-daemon` | `config/hsfei/hsfei_lsm.yaml` |
-| `hsfei_ms` | `hsfei/pi-daemon` | `config/hsfei/hsfei_ms.yaml` |
-| `hsfei_piaagimb` | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimb.yaml` |
-| `hsfei_piaagimr` | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimr.yaml` |
-| `hsfei_hkfam` | `hsfei/xeryon` | `config/hsfei/hsfei_hkfam.yaml` |
-| `hsfei_piaadeploy` | `hsfei/xeryon` | `config/hsfei/hsfei_piaadeploy.yaml` |
-| `hsfei_yjfam` | `hsfei/xeryon` | `config/hsfei/hsfei_yjfam.yaml` |
-| `hispec_keygrabber` | `generic/keygrabber` | `config/hispec/hispec_keygrabber.yaml` |
-| `hspower_fei1` | `hspower/eaton_pdu` | `config/hspower/hspower_fei1.yaml` |
-| `hspower_fei2` | `hspower/eaton_pdu` | `config/hspower/hspower_fei2.yaml` |
-| `hspower_cal1` | `hspower/eaton_pdu` | `config/hspower/hspower_cal1.yaml` |
-| `hspower_cal2` | `hspower/eaton_pdu` | `config/hspower/hspower_cal2.yaml` |
-| `hspower_cal3` | `hspower/eaton_pdu` | `config/hspower/hspower_cal3.yaml` |
-| `hspower_cal4` | `hspower/eaton_pdu` | `config/hspower/hspower_cal4.yaml` |
-| `hspower_fib1` | `hspower/eaton_pdu` | `config/hspower/hspower_fib1.yaml` |
-| `hspower_bspec1` | `hspower/eaton_pdu` | `config/hspower/hspower_bspec1.yaml` |
-| `hspower_rspec1` | `hspower/eaton_pdu` | `config/hspower/hspower_rspec1.yaml` |
+| Instance | Host | Daemon | Config |
+| --- | --- | --- | --- |
+| `hscal_hkcalfwheel1` | `hispecserver` | `generic/filterwheel` | `config/hscal/hscal_hkcalfwheel1.yaml` |
+| `hscal_hkcalfwheel2` | `hispecserver` | `generic/filterwheel` | `config/hscal/hscal_hkcalfwheel2.yaml` |
+| `hscal_hkgcellfwheel` | `hispecserver` | `generic/filterwheel` | `config/hscal/hscal_hkgcellfwheel.yaml` |
+| `hscal_yjcalfwheel1` | `hispecserver` | `generic/filterwheel` | `config/hscal/hscal_yjcalfwheel1.yaml` |
+| `hscal_yjcalfwheel2` | `hispecserver` | `generic/filterwheel` | `config/hscal/hscal_yjcalfwheel2.yaml` |
+| `hsfei_atcfw` | `hispecserver` | `generic/filterwheel` | `config/hsfei/hsfei_atcfw.yaml` |
+| `hsfei_atcpress` | `hispecserver` | `generic/inficon` | `config/hsfei/hsfei_atcpress.yaml` |
+| `hscal_gcellheater1` | `hispecserver` | `generic/lakeshore` | `config/hscal/hscal_gcellheater1.yaml` |
+| `hscal_gcellheater2` | `hispecserver` | `generic/lakeshore` | `config/hscal/hscal_gcellheater2.yaml` |
+| `hsfei_atctherm` | `hispecserver` | `generic/lakeshore` | `config/hsfei/hsfei_atctherm.yaml` |
+| `hscal_hkettherm` | `hispecserver` | `generic/srsthermal` | `config/hscal/hscal_hkettherm.yaml` |
+| `hscal_yjettherm` | `hispecserver` | `generic/srsthermal` | `config/hscal/hscal_yjettherm.yaml` |
+| `hscal_hketatten` | `hispecserver` | `hscal/smc8_attenuator` | `config/hscal/hscal_hketatten.yaml` |
+| `hsfei_adc` | `hispecserver` | `hsfei/adc` | `config/hsfei/hsfei_adc.yaml` |
+| `hsfei_atccryo` | `hispecserver` | `hsfei/atccryo` | `config/hsfei/hsfei_atccryo.yaml` |
+| `hsfei_atcl` | `hispecserver` | `hsfei/pi-daemon` | `config/hsfei/hsfei_atcl.yaml` |
+| `hsfei_atcp` | `hispecserver` | `hsfei/pi-daemon` | `config/hsfei/hsfei_atcp.yaml` |
+| `hsfei_feipo` | `hispecserver` | `hsfei/pi-daemon` | `config/hsfei/hsfei_feipo.yaml` |
+| `hsfei_lsm` | `hispecserver` | `hsfei/pi-daemon` | `config/hsfei/hsfei_lsm.yaml` |
+| `hsfei_ms` | `hispecserver` | `hsfei/pi-daemon` | `config/hsfei/hsfei_ms.yaml` |
+| `hsfei_piaagimb` | `hispecserver` | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimb.yaml` |
+| `hsfei_piaagimr` | `hispecserver` | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimr.yaml` |
+| `hsfei_hkfam` | `hispecserver` | `hsfei/xeryon` | `config/hsfei/hsfei_hkfam.yaml` |
+| `hsfei_piaadeploy` | `hispecserver` | `hsfei/xeryon` | `config/hsfei/hsfei_piaadeploy.yaml` |
+| `hsfei_yjfam` | `hispecserver` | `hsfei/xeryon` | `config/hsfei/hsfei_yjfam.yaml` |
+| `hispec_keygrabber` | `hispecserver` | `generic/keygrabber` | `config/hispec/hispec_keygrabber.yaml` |
+| `hspower_fei1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fei1.yaml` |
+| `hspower_fei2` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fei2.yaml` |
+| `hspower_cal1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_cal1.yaml` |
+| `hspower_cal2` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_cal2.yaml` |
+| `hspower_cal3` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_cal3.yaml` |
+| `hspower_cal4` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_cal4.yaml` |
+| `hspower_fib1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fib1.yaml` |
+| `hspower_bspec1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_bspec1.yaml` |
+| `hspower_rspec1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_rspec1.yaml` |
 
 The nine `hspower_*` instances are the Eaton PDUs, each named for where its
 unit is: two in the FEI, four in the CAL, and one each in the FIB, BSPEC and
@@ -483,7 +503,7 @@ You do **not** need it to add a daemon or to pick up code changes;
 - creates `/etc/hispec/{,instances/}` and `/var/log/hispec/`, group-owned by
   `hispec-ops` and setgid so files created by one operator stay readable by the
   rest;
-- creates a root-only `/etc/hispec/secrets.env`;
+- creates `/etc/hispec/secrets.env`, writable by `hispec-ops`;
 - creates the venv at `/opt/hispec/venv` with the repo `pip install -e`'d into
   it, which also provides the `hispec` CLI;
 - installs `hispec@.service` (then runs `daemon-reload`), the polkit rule, the
