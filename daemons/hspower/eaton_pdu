@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""
+Daemon for the Eaton EMAT-08/10 PDU, over Telnet.
+
+Everything every PDU has (config, connecting, outlet state/name/lock, the
+status keyword) comes from PduDaemon. This class says how to
+reach an Eaton, and adds the keywords only an Eaton has: per-outlet current,
+power, energy and auto-restart, plus manufacturer and serial number.
+"""
+
+from typing import Any, Dict, Optional
+
+from pdu_base import PduDaemon, main
+from hispec.driver.pdu.src.emat08_10 import EatonEMAT  # pylint: disable=E0611
+
+
+class EatonPdu(PduDaemon): #pylint: disable = W0223
+    """Daemon for one Eaton EMAT-08/10 PDU."""
+
+    default_port = 23
+
+    def __init__(self):
+        super().__init__()
+        self.dev = EatonEMAT(log=True)
+
+    def connect(self) -> bool:
+        return bool(self.dev.connect(self.host, self.port,
+                                     username=self.username, password=self.password))
+
+    def disconnect(self) -> None:
+        self.dev.disconnect()
+
+    def is_connected(self) -> bool:
+        return bool(self.dev.is_connected())
+
+    def initialize(self) -> bool:
+        return bool(self.dev.initialize())
+
+    def reported_outlet_count(self) -> Optional[int]:
+        return self.dev.outlet_count or None
+
+    def get_model(self) -> str:
+        return self._device("model")
+
+    def get_firmware(self) -> str:
+        return self._device("version")
+
+    def get_outlet_state(self, n: int) -> bool:
+        return bool(self._outlet(n, "outlet_status"))
+
+    def set_outlet_state(self, n: int, on: bool) -> None:
+        on = bool(on)
+        self._confirm(self.dev.outlet_on(n) if on else self.dev.outlet_off(n),
+                      f"switch outlet {n} {'on' if on else 'off'}")
+
+    def get_outlet_name(self, n: int) -> str:
+        return str(self._outlet(n, "name"))
+
+    def set_outlet_name(self, n: int, name: str) -> None:
+        self._confirm(self.dev.set_outlet_name(n, str(name)), f"rename outlet {n}")
+
+    def get_outlet_switchable(self, n: int) -> bool:
+        return bool(self._outlet(n, "switchable"))
+
+    def set_outlet_switchable(self, n: int, switchable: bool) -> None:
+        # The driver has no setter for Switchable, so build one from its GET
+        # template rather than repeating the OID here.
+        path = self.dev.get_outlet_commands["switchable"][0].format(n=n)
+        cmd = f"set {path} {1 if switchable else 0}"
+        self._confirm(self.dev._send_command(cmd),  # pylint: disable=protected-access
+                      f"set outlet {n} switchable state")
+
+    def get_manufacturer(self) -> str:
+        """PDU manufacturer, as reported by the hardware."""
+        return self._device("manufacturer")
+
+    def get_serial(self) -> str:
+        """PDU serial number, as reported by the hardware."""
+        return self._device("serial_number")
+
+    def get_outlet_current(self, n: int) -> float:
+        """Outlet ``n`` instantaneous current draw, in amps."""
+        return float(self._outlet(n, "current"))
+
+    def get_outlet_power(self, n: int) -> float:
+        """Outlet ``n`` instantaneous active power draw, in watts."""
+        return float(self._outlet(n, "active_power"))
+
+    def get_outlet_autorestart(self, n: int) -> int:
+        """Outlet ``n`` power-up behavior: 0 off, 1 on, 2 last state."""
+        return int(self._outlet(n, "auto_restart"))
+
+    def set_outlet_autorestart(self, n: int, value: int) -> None:
+        """Set outlet ``n`` power-up behavior, rejecting one the PDU would not take."""
+        value = int(value)
+        if value not in (0, 1, 2):
+            raise ValueError("auto-restart must be 0 (not powered), 1 (powered) or 2 (last state)")
+        self._confirm(self.dev.set_autostart(n, value), f"set outlet {n} auto-restart")
+
+    def get_outlet_energy(self, n: int) -> int:
+        """Outlet ``n`` energy since its last reset, in watt-hours."""
+        return int(self._outlet(n, "energy"))
+
+    def reset_outlet_statistics(self, n: int) -> None:
+        """Zero outlet ``n`` energy statistics on the PDU."""
+        self._confirm(self.dev.reset_statistics(n), f"reset outlet {n} statistics")
+
+    def register_device_keywords(self) -> None:
+        super().register_device_keywords()
+        self.keyword_registry.string("manufacturer",
+                        getter=self.when_connected(self.get_manufacturer),
+                        description="PDU manufacturer, as reported by the hardware.")
+        self.keyword_registry.string("serial",
+                        getter=self.when_connected(self.get_serial),
+                        description="PDU serial number, as reported by the hardware.")
+
+    def register_outlet_keywords(self, n: int) -> None:
+        super().register_outlet_keywords(n)
+        self.keyword_registry.float(f"outletcurrent{n}",
+                       getter=self.when_connected(self.get_outlet_current, n),
+                       units="A",
+                       description=f"Outlet {n} instantaneous current draw.")
+        self.keyword_registry.float(f"outletpower{n}",
+                       getter=self.when_connected(self.get_outlet_power, n),
+                       units="W",
+                       description=f"Outlet {n} instantaneous active power draw.")
+        self.keyword_registry.int(f"outletautorestart{n}",
+                     getter=self.when_connected(self.get_outlet_autorestart, n),
+                     setter=self.when_connected(self.set_outlet_autorestart, n),
+                     description=(f"Outlet {n} power-up behavior after a PDU restart: "
+                                  "0=not powered, 1=powered, 2=last state."))
+        self.keyword_registry.int(f"outletenergy{n}",
+                     getter=self.when_connected(self.get_outlet_energy, n),
+                     units="Wh",
+                     description=f"Outlet {n} cumulative energy since the last reset.")
+        self.keyword_registry.trigger(f"resetstatistics{n}",
+                         action=self.when_connected(self.reset_outlet_statistics, n),
+                         description=f"Reset the energy statistics for outlet {n}.")
+
+    def device_status(self) -> Dict[str, Any]:
+        status = super().device_status()
+        status["manufacturer"] = self.get_manufacturer()
+        status["serial"] = self.get_serial()
+        return status
+
+    def outlet_status(self, n: int) -> Dict[str, Any]:
+        status = super().outlet_status(n)
+        status["current"] = self.get_outlet_current(n)
+        status["power"] = self.get_outlet_power(n)
+        status["auto_restart"] = self.get_outlet_autorestart(n)
+        status["energy"] = self.get_outlet_energy(n)
+        return status
+
+    def _device(self, item: str) -> str:
+        """Read a device item, which the driver names without an outlet."""
+        value = self.dev.get_atomic_value(item)
+        if value is None:
+            raise RuntimeError(f"failed to read '{item}' from PDU")
+        return str(value)
+
+    def _outlet(self, n: int, item: str):
+        """Read an outlet item, which the driver names item + outlet number."""
+        value = self.dev.get_atomic_value(f"{item}{n}")
+        if value is None:
+            raise RuntimeError(f"failed to read outlet {n} {item}")
+        return value
+
+if __name__ == '__main__':
+    main(EatonPdu, "Eaton EMAT-08/10 PDU Daemon")

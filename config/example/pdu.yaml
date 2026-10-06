@@ -1,0 +1,20 @@
+# Example configuration for the Eaton EMAT-08/EMAT-10 PDU daemon
+#
+# Copy this file into the relevant subsystem's config directory
+#
+# Usage:
+#   daemons/hspower/eaton_pdu -c config/example/pdu.yaml
+
+peer_id: example_pdu
+group_id: example
+
+hardware:
+  ip_address: 192.168.29.150
+  tcp_port: 23
+  username: admin
+  password: CHANGE_ME  # do not commit real credentials
+  outlet_count: 8
+
+logging:
+  level: INFO
+  file: /tmp/example_pdu.log

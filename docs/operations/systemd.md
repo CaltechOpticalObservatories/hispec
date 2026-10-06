@@ -243,7 +243,7 @@ EOF
 systemctl restart hispec@hispec_keygrabber
 ```
 
-`generic/keygrabber` and `hspower/pdu` need one. The nine PDU instances share
+`generic/keygrabber` and the `hspower` PDU daemons need one. The nine PDU instances share
 a single Telnet login, so two variables cover all of them:
 
 ```bash
@@ -414,15 +414,15 @@ dependencies or `hispec@.service` changed. Pulling needs write access to
 | `hsfei_piaadeploy` | `hsfei/xeryon` | `config/hsfei/hsfei_piaadeploy.yaml` |
 | `hsfei_yjfam` | `hsfei/xeryon` | `config/hsfei/hsfei_yjfam.yaml` |
 | `hispec_keygrabber` | `generic/keygrabber` | `config/hispec/hispec_keygrabber.yaml` |
-| `hspower_fei1` | `hspower/pdu` | `config/hspower/hspower_fei1.yaml` |
-| `hspower_fei2` | `hspower/pdu` | `config/hspower/hspower_fei2.yaml` |
-| `hspower_cal1` | `hspower/pdu` | `config/hspower/hspower_cal1.yaml` |
-| `hspower_cal2` | `hspower/pdu` | `config/hspower/hspower_cal2.yaml` |
-| `hspower_cal3` | `hspower/pdu` | `config/hspower/hspower_cal3.yaml` |
-| `hspower_cal4` | `hspower/pdu` | `config/hspower/hspower_cal4.yaml` |
-| `hspower_fib1` | `hspower/pdu` | `config/hspower/hspower_fib1.yaml` |
-| `hspower_bspec1` | `hspower/pdu` | `config/hspower/hspower_bspec1.yaml` |
-| `hspower_rspec1` | `hspower/pdu` | `config/hspower/hspower_rspec1.yaml` |
+| `hspower_fei1` | `hspower/eaton_pdu` | `config/hspower/hspower_fei1.yaml` |
+| `hspower_fei2` | `hspower/eaton_pdu` | `config/hspower/hspower_fei2.yaml` |
+| `hspower_cal1` | `hspower/eaton_pdu` | `config/hspower/hspower_cal1.yaml` |
+| `hspower_cal2` | `hspower/eaton_pdu` | `config/hspower/hspower_cal2.yaml` |
+| `hspower_cal3` | `hspower/eaton_pdu` | `config/hspower/hspower_cal3.yaml` |
+| `hspower_cal4` | `hspower/eaton_pdu` | `config/hspower/hspower_cal4.yaml` |
+| `hspower_fib1` | `hspower/eaton_pdu` | `config/hspower/hspower_fib1.yaml` |
+| `hspower_bspec1` | `hspower/eaton_pdu` | `config/hspower/hspower_bspec1.yaml` |
+| `hspower_rspec1` | `hspower/eaton_pdu` | `config/hspower/hspower_rspec1.yaml` |
 
 The nine `hspower_*` instances are the Eaton PDUs, each named for where its
 unit is: two in the FEI, four in the CAL, and one each in the FIB, BSPEC and
