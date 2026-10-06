@@ -39,7 +39,7 @@ details.
    :titlesonly:
 
    Host Machine Build Setup <build_notes/host_machine_build_notes>
-   FEI Server and RTC Build <build_notes/fei_buildnote>
+   FEI Server and RTC Build <build_notes/FEI_build/index>
 
 Planned Documentation Areas
 ---------------------------
