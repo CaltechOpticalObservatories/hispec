@@ -66,6 +66,14 @@ def _my_groups() -> set:
     return names
 
 
+def _is_file(path: Path) -> bool:
+    """Whether path is a file, treating one we may not stat as absent."""
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
 def _group_exists(name: str) -> bool:
     try:
         grp.getgrnam(name)
@@ -136,15 +144,22 @@ def _unit_and_polkit(r: Report, paths: Paths) -> None:
     if OLD_UNIT_FILE.is_file():
         r.warn("the old hispec-daemon@.service is still installed")
         r.hint(f"{install}   # migrates instances to hispec@")
-    if POLKIT_RULE.is_file():
+    try:
+        rule = POLKIT_RULE.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        r.bad(f"{POLKIT_RULE} is missing, so every start/stop will prompt")
+        r.hint(install)
+    except OSError:
+        # rules.d is 0750 root:polkitd on some hosts, so an operator cannot
+        # even stat inside it; unreadable means unknown, not missing
+        r.warn(f"cannot read {POLKIT_RULE}, so the polkit rule is unchecked")
+        r.hint("sudo hispec doctor")
+    else:
         r.ok(f"{POLKIT_RULE} installed")
-        if 'indexOf("hispec@")' not in POLKIT_RULE.read_text(encoding="utf-8"):
+        if 'indexOf("hispec@")' not in rule:
             r.bad("the installed polkit rule does not match hispec@ units")
             r.hint(f"it is probably the pre-rename copy; {install}")
-    else:
-        r.bad(f"{POLKIT_RULE} is missing — every start/stop will prompt")
-        r.hint(install)
-    if OLD_POLKIT_RULE.is_file():
+    if _is_file(OLD_POLKIT_RULE):
         r.warn(f"the old {OLD_POLKIT_RULE.name} is still installed (harmless, matches nothing now)")
         r.hint(f"admin: sudo rm {OLD_POLKIT_RULE}")
     _polkit_daemon(r)

@@ -28,7 +28,7 @@ def _resolve(paths: Paths, targets: List[str], names: List[str]) -> Optional[Lis
         if target in inst.in_repo(paths):
             _err(f"{target} is not deployed on this host; deploy it with: hispec deploy {target}")
         else:
-            _err(f"no deployed instance or subsystem matches '{target}' (see: hispec status --all)")
+            _err(f"no instance or subsystem matches '{target}' (see: hispec status --all)")
         return None
 
 
@@ -135,16 +135,19 @@ def _copy(paths: Paths, plan: List[_Deployment], force: bool, dry_run: bool) -> 
 
 def deploy(paths: Paths, args: argparse.Namespace) -> int:
     """Copy instance files and configs from the repo, then enable and start."""
+    # Against the repo rather than what is deployed: putting something new on
+    # this host is the point
+    names = _resolve(paths, args.names, inst.in_repo(paths)) if args.names else []
+    if names is None:
+        return 1
     if args.new:
         have = set(inst.deployed(paths))
-        names = [n for n in inst.in_repo(paths) if n not in have] + list(args.names)
+        names = [n for n in inst.in_repo(paths) if n not in have] + names
         if not names:
             print(f"Nothing to deploy: every instance in {paths.repo_instances} "
                   "is already deployed.")
             return 0
-    elif args.names:
-        names = list(args.names)
-    else:
+    elif not names:
         _err("name the instances to deploy, or pass --new")
         return 2
 

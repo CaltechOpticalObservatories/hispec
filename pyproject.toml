@@ -30,6 +30,9 @@ dependencies = [
     "camera_daemon@git+https://github.com/COO-Utilities/camera-daemon.git"
 ]
 
+[project.scripts]
+hispec = "hispec.cli:main"
+
 [tool.pylint.main]
 # CI lints without installing the project or its dependencies, and the driver
 # packages live in git submodules that the lint job does not check out, so

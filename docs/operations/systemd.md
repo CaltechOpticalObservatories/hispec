@@ -170,14 +170,20 @@ hsfei_atcpress           started
 ```
 
 That copies the instance's two files from the repo into `/etc/hispec`, adds it
-to the boot set, and starts it. Deploy several at once by naming them, or
-deploy everything the repo defines that this host does not have yet:
+to the boot set, and starts it. Deploy several at once by naming them, a whole
+subsystem, or everything the repo defines that this host does not have yet:
 
 ```bash
 hispec deploy hsfei_adc hsfei_ms
+hispec deploy fei                # every hsfei_* the repo defines
+hispec deploy all --no-start --no-enable   # refresh the files, change nothing else
 hispec deploy --new              # e.g. after a git pull added instances
 hispec deploy --new --dry-run    # see what that would do first
 ```
+
+Unlike `start` and `status`, `deploy` matches its targets against the repo
+rather than what is already on the host, since putting something new on a host
+is the point.
 
 A deployed config is never overwritten by default. Once it is on a host it
 holds that host's real ports and addresses, so if it differs from the repo
