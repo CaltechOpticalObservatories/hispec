@@ -180,7 +180,9 @@ keyword per PID term.
 `cooler_error` — plus `pid_<term>` keywords for the control loop.
 
 **`inficon`** exposes `pressure1`, `pressure2`, `temperature`, `units` and
-`units_code`.
+`units_code`. The gauge's pressure unit is settable from its front panel, so
+each pressure read fetches the unit alongside the value and reports it on that
+reading rather than trusting a cached one.
 
 **`piaa-gimbalmount`** carries the largest keyword set: X/Y positions in both
 position and voltage units, per-axis and combined loop-closed state, and a full

@@ -25,6 +25,8 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         self.n_gauges = None
         self.pressure1 = None
         self.pressure2 = None
+        self._pressure1_keyword = None
+        self._pressure2_keyword = None
         self.units = None
         self.error = None
         self.controller = InficonVGC502(log=True)
@@ -46,12 +48,14 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Last error from the Inficon pressure controller.")
-        self.keyword_registry.float("pressure1",
-                                    getter=self._get_pressure1,
-                                    description="Pressure from gauge 1.")
-        self.keyword_registry.float("pressure2",
-                                    getter=self._get_pressure2,
-                                    description="Pressure from gauge 2.")
+        self._pressure1_keyword = self.keyword_registry.float(
+            "pressure1",
+            getter=self._get_pressure1,
+            description="Pressure from gauge 1.")
+        self._pressure2_keyword = self.keyword_registry.float(
+            "pressure2",
+            getter=self._get_pressure2,
+            description="Pressure from gauge 2.")
         self.keyword_registry.float("temperature",
                                     getter=self.controller.read_temperature,
                                     units="C",
@@ -115,6 +119,8 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         """Read the gauge 1 pressure from the Inficon Pressure controller"""
         try:
             self.pressure1 = self.controller.read_pressure(gauge=1)
+            # Read the unit with the value: the front panel can change it between reads
+            self._pressure1_keyword.units = self._get_pressure_units()
         except UnknownResponse as e:
             self.logger.error("Error reading pressure1: %s", e)
             self.error = str(e)
@@ -124,6 +130,7 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         """Read the gauge 2 pressure from the Inficon Pressure controller"""
         try:
             self.pressure2 = self.controller.read_pressure(gauge=2)
+            self._pressure2_keyword.units = self._get_pressure_units()
         except UnknownResponse as e:
             self.logger.error("Error reading pressure2: %s", e)
             self.error = str(e)
