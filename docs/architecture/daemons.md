@@ -10,10 +10,10 @@ whenever a daemon is added.
 Daemons are split by reusability, not by subsystem. `daemons/generic/` holds
 daemons whose behaviour is fully determined by config and which are therefore
 shared across subsystems; `daemons/<subsystem>/` holds daemons tied to one
-subsystem's hardware or to mechanism-specific logic. `hspower/pdu` is the one
-exception to that rule: it is as config-driven as the generic daemons, but
-every instance of it belongs to the `hspower` service, so it sits there with
-its `pdu_models/` capability files.
+subsystem's hardware or to mechanism-specific logic. The PDU daemons in
+`daemons/hspower/` are as config-driven as the generic daemons, but every
+instance of them belongs to the `hspower` service, so they sit there with
+their shared `pdu_base.py` base class.
 
 | Daemon | Driver | Hardware | Deployed instances |
 |---|---|---|---|
@@ -27,7 +27,7 @@ its `pdu_models/` capability files.
 | `hsfei/piaa-gimbalmount` | `thorlabs.ppc102` | Thorlabs PPC102 piezo gimbal mount | `hsfei_piaagimb`, `hsfei_piaagimr` |
 | `hsfei/xeryon` | `xeryon.XeryonController` | Xeryon XD-M-3 piezo motion controllers | `hsfei_hkfam`, `hsfei_piaadeploy`, `hsfei_yjfam` |
 | `hscal/smc8_attenuator` | `standa.smc8` | Standa SMC8 (libximc) attenuator | `hscal_hketatten` |
-| `hspower/pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | `hspower_fei1/2`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
+| `hspower/eaton_pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | `hspower_fei1/2`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
 
 Thirty-five instances are currently defined under `systemd/instances/`,
 running twelve distinct daemon scripts — the config-driven design paying off
@@ -73,9 +73,11 @@ the gas cell.
 
 ### `hspower` — power distribution
 
-Every Eaton PDU in the instrument is one `hspower/pdu` instance, and they all
-live in this one service rather than with the subsystem they power, so that
-outlet control is in a single place. Each is named for where the unit is.
+Every networked PDU in the instrument is one `hspower` instance, and they
+all live in this one service rather than with the subsystem they power, so
+that outlet control is in a single place. Each is named for where the unit is.
+Every deployed unit is an Eaton (`hspower/eaton_pdu`) today; see below for
+how to add a daemon for another PDU.
 
 | Instance | PDU |
 |---|---|
@@ -99,6 +101,18 @@ at `HISPEC_PDU_*` today), which systemd supplies from root-only
 `/etc/hispec/secrets.env` — the same arrangement the keygrabber uses for its
 InfluxDB token. An inline `hardware.username` / `hardware.password` still
 works for a bench test and logs a warning against committing it.
+
+Each PDU family gets its own daemon script, and each subclasses `PduDaemon`
+in `daemons/hspower/pdu_base.py`; `eaton_pdu`, for the Eaton EMAT-08/10, is
+the only one so far. The base class does everything common to every PDU:
+config, credentials, connecting, the `status` keyword and the outlet basics
+(`outletstate<n>`, `outletname<n>`, `outletswitchable<n>`). The script fills
+in how to talk to its hardware and registers whatever else that PDU can do,
+which for the Eaton is per-outlet metering and auto-restart.
+
+Supporting another PDU means copying `eaton_pdu`, filling in its hardware
+methods, and keeping only the extras the new PDU has. The steps are at the
+top of `pdu_base.py`.
 
 ### Placeholder subsystems
 
@@ -173,12 +187,13 @@ position and voltage units, per-axis and combined loop-closed state, and a full
 soft/hard limit matrix in both units — `softmaxx`, `softminvolty`, `hardmaxx`
 and so on.
 
-**`pdu`** registers device-level keywords (`model`, `manufacturer`, `firmware`,
-`serial`, `outletcount`, `status`) plus a per-outlet block —
-`outletstate<n>`, `outletname<n>`, `outletcurrent<n>`, `outletpower<n>`,
-`outletenergy<n>`, `outletautorestart<n>`, `outletswitchable<n>`,
-`resetstatistics<n>` — with the set of outlets and their capabilities read from
-`pdu_models/*.yaml`.
+**`eaton_pdu`** registers device-level keywords (`model`, `firmware`,
+`manufacturer`, `serial`, `outletcount`, `status`) plus a per-outlet block of
+`outletstate<n>`, `outletname<n>`, `outletswitchable<n>`, `outletcurrent<n>`,
+`outletpower<n>`, `outletenergy<n>`, `outletautorestart<n>` and
+`resetstatistics<n>`. The first three outlet keywords and `model`/`firmware`
+come from `pdu_base.py`; the rest are the Eaton's own. The outlet count comes
+from config.
 
 ## Config inventory
 

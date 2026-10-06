@@ -144,8 +144,8 @@ spectrograph. Treat them as design reference, not as code.
 
 `daemons/hspower` is the one that has been through this: its KTL power service
 — `Makefile`, `Mk.service`, the `.conf.in` configs and the `.xml.in` keyword
-templates — is gone, and the directory now holds the libby `pdu` daemon,
-`pdu_capabilities.py` and `pdu_models/` instead. The old templates are still in
+templates — is gone, and the directory now holds the libby `eaton_pdu` daemon
+and its `pdu_base.py` base class instead. The old templates are still in
 git history if the strip- and outlet-level keyword names are ever wanted.
 
 Two other stale references worth knowing about: `pyproject.toml` still ignores

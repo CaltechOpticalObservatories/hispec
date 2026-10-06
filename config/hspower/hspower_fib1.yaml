@@ -3,7 +3,7 @@
 # The single Eaton PDU in the FIB.
 #
 # Usage:
-#   daemons/hspower/pdu -c config/hspower/hspower_fib1.yaml
+#   daemons/hspower/eaton_pdu -c config/hspower/hspower_fib1.yaml
 
 peer_id: fib1
 group_id: hspower
@@ -16,9 +16,6 @@ hardware:
   # guessed address.
   ip_address:
   tcp_port: 23
-  # Model key: the stem of daemons/hspower/pdu_models/<model>.yaml, which
-  # decides which per-outlet keywords the daemon registers.
-  model: eaton_emat0810
   # TODO: confirm against the hardware. EMAT-08 has eight outlets, EMAT-10 has
   # ten, and this is what decides how many outlet keyword blocks exist; the
   # daemon logs a warning at startup if it disagrees with the count the PDU
