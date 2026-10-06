@@ -61,10 +61,42 @@ All drives are erased before starting; this is a full rebuild.
 Do this before installing the OS. The RAID volume must exist for the installer
 to see it, and disabling SMT changes the core count used for shielding.
 
+BIOS Update
+-----------
+
+Flash the MIC-770 V3 to BIOS ``M770V3WWF60XH01``. The files and Advantech's
+"AMI BIOS update (UEFI)" guide are in ``FEI_Server_BIOS_Documents.zip``.
+
+#. **Build the updater USB** (on a Windows machine; the USB is wiped):
+
+   #. Extract ``FEI_Server_BIOS_Documents.zip`` and run ``rufus-2.18.exe`` from
+      the ``MIC BIOS flash`` directory.
+   #. Select the USB under *Device*, set *Partition Scheme* to
+      **MBR for UEFI**, tick only **Quick Format**, and press *Start*. The
+      drive is empty when it finishes.
+   #. Copy the ``efi`` directory, all three ``.bin`` files and
+      ``AfuEfix64.efi`` onto the USB, then eject it.
+
+#. Plug the USB into the FEI server, power on and press ``Del`` for BIOS.
+#. **Boot** tab: move ``UEFI: USB, Partition 1`` to Option #1, then
+   **Save & Exit**.
+#. Let ``startup.nsh`` run (do not skip it). It drops to an EFI shell.
+#. Flash the ``xH01`` image:
+
+   .. code-block:: text
+
+      AfuEfix64.efi M770V3WWF60XH01.bin /p /b /n /x
+
+#. When the shell returns, power off with the power button and power on again.
+#. Enter BIOS. **Main** tab: *Project Version* should read
+   ``M770V3WWF60XH01``.
+#. **Save & Exit ‣ Restore Defaults ‣ Load Optimized Defaults: Yes**, then
+   **Save & Exit**.
+
 BIOS Settings
 -------------
 
-#. Reboot and enter BIOS (``F2``, ``Del``, or ``Esc``).
+#. Reboot and enter BIOS (``Del``).
 #. **Hyper-Threading / SMT / Logical Processors: Disabled.**
    Deterministic execution requires one thread per physical core.
 #. **TCC Mode: Enabled.** On Intel reference BIOS this is under
@@ -127,7 +159,7 @@ Credentials
 -----------
 
 * **Server name:** ``hispecfei``
-* **Primary user:** ``hsfei`` (gets ``sudo``)
+* **User:** ``hsfei`` (gets ``sudo``)
 * **Password:** set during installation, **not documented here**
 
 First Boot
@@ -157,35 +189,29 @@ Map the loopback alias in ``/etc/hosts``:
 
    127.0.1.1   hispecfei
 
-Groups and Users
-----------------
+User and Groups
+---------------
 
-``hsfei`` is the primary account created at install. ``hsdev`` is the
-engineering account for day-to-day work and owns the hardware device nodes.
+``hsfei``, created at install, is the only account on this machine. It runs
+the instrument software and owns the hardware device nodes.
 
 .. code-block:: bash
 
    sudo groupadd -f hispecfei     # instrument / deployment group
-   sudo groupadd -f eng           # engineering read+write on /opt
-
-   sudo adduser hsdev
-   sudo usermod -aG sudo,dialout,hispecfei,eng hsdev
-   sudo usermod -aG dialout,hispecfei,eng hsfei
+   sudo usermod -aG dialout,hispecfei hsfei
 
 .. note::
    Group changes require a logout/login (or ``newgrp dialout`` for the current
-   shell). Confirm with ``id hsdev``.
+   shell). Confirm with ``id hsfei``.
 
 SSH Keys and Hardening
 ----------------------
 
-Install your public key for both accounts *before* relying on remote-only
-access:
+Install your public key *before* relying on remote-only access:
 
 .. code-block:: bash
 
    ssh-copy-id hsfei@hispecfei
-   ssh-copy-id hsdev@hispecfei
 
 Then set in ``/etc/ssh/sshd_config``:
 
@@ -494,14 +520,14 @@ Keep enabled: ``ssh``, ``systemd-networkd``, ``systemd-resolved``, ``chrony``,
 
 ``rt-tests`` provides ``cyclictest`` for :ref:`section-verify`.
 
-Allow the ``eng`` group to request real-time priority. Create
+Allow ``hsfei`` to request real-time priority. Create
 ``/etc/security/limits.d/99-rt.conf``:
 
 .. code-block:: text
 
-   @eng    -    rtprio    95
-   @eng    -    memlock   unlimited
-   @eng    -    nice      -20
+   hsfei    -    rtprio    95
+   hsfei    -    memlock   unlimited
+   hsfei    -    nice      -20
 
 Log out and back in to apply. Alternatively grant the capability on ``chrt``:
 
@@ -528,9 +554,9 @@ Reboot, then record the results as the as-built baseline.
    * - Hostname
      - ``hostnamectl``
      - ``hispecfei``
-   * - Users / groups
-     - ``id hsfei; id hsdev``
-     - ``dialout``, ``eng``, ``hispecfei``
+   * - User / groups
+     - ``id hsfei``
+     - ``dialout``, ``hispecfei``
    * - RT kernel
      - ``uname -a``
      - contains ``PREEMPT_RT``

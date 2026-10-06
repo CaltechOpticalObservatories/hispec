@@ -5,8 +5,7 @@ HISPEC FEI Server: Headless Real-time Build
 :Authors: Elijah A-B, Dan Ech
 :Date: 2026-10-07
 :Hostname: ``hispecfei``
-:Primary User: ``hsfei``
-:Engineering User: ``hsdev``
+:User: ``hsfei``
 :OS: Real-time Ubuntu 26.04 LTS (PREEMPT_RT via Ubuntu Pro)
 :Supersedes: ``fei_server_build_notes.rst``, ``rtc_buildnote.rst``
 

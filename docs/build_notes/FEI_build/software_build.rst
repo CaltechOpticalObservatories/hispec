@@ -43,7 +43,8 @@ Core Build and Runtime
        libboost-all-dev \
        libcfitsio-dev libccfits-dev \
        libopencv-dev \
-       libzmq3-dev
+       libzmq3-dev libzmqpp-dev \
+       nlohmann-json3-dev
 
 Headless GUI Export
 -------------------
@@ -201,14 +202,11 @@ Physik Instrumente (PI) Driver
       * - *(license text shown again)*
         - ``n``
       * - Install ``${PIPython}`` now? [ynq]
-        - ``n``
+        - ``y``
       * - Install ``${PI Terminal}`` now? [ynq]
         - ``y``
       * - Please enter the name of the user group ...
         - ``dialout``
-
-``PIPython`` is declined here because it is installed into the venv
-(:ref:`section-python`).
 
 SPI Driver (libft4222)
 ----------------------
@@ -249,7 +247,7 @@ FT4222 udev Rules
 
    .. code-block:: text
 
-      SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", OWNER="hsdev", MODE="0660", GROUP="dialout"
+      SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", OWNER="hsfei", MODE="0660", GROUP="dialout"
 
 #. Reload, replug the board, and verify:
 
@@ -257,7 +255,7 @@ FT4222 udev Rules
 
       sudo udevadm control --reload-rules
       sudo udevadm trigger
-      ls -l /dev/bus/usb/*/* | grep -i 0403   # hsdev dialout 0660
+      ls -l /dev/bus/usb/*/* | grep -i 0403   # hsfei dialout 0660
 
 .. note::
    **SPI master mode:** the Slave Select (SS) pin **must be tied high**.
@@ -269,13 +267,24 @@ CameraD (camera-interface)
 
    cd ~
    git clone https://github.com/CaltechOpticalObservatories/camera-interface.git
-   cd camera-interface/build
+   cd camera-interface
+   git submodule update --init camerad/Instruments/hispec_tracking_camera
+
+   cd build
    rm -rf ./*
    cmake .. -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera
-   taskset -c 6-13 make -j8
+   make -j"$(nproc)"
 
-   # Record in the as-built log
+   # Record both commits in the as-built log
    git -C ~/camera-interface rev-parse --short HEAD
+   git -C ~/camera-interface/camerad/Instruments/hispec_tracking_camera rev-parse --short HEAD
+
+``-DINSTRUMENT`` loads ``camerad/Instruments/hispec_tracking_camera``, so the
+submodule must be checked out first. ``make`` builds ``camerad``,
+``emulator``, ``listener`` and ``socksend`` into ``~/camera-interface/bin``.
+The isolated cores are already excluded from normal scheduling
+(:ref:`section-grub`), so the build stays on housekeeping cores without
+``taskset``.
 
 See ``archongui.rst`` for Archon-side configuration.
 
@@ -334,9 +343,9 @@ Keep login shells off the shielded cores by adding to ``~/.bashrc``:
      - ``Chip version: 42220400``
    * - udev perms
      - ``ls -l /dev/bus/usb/*/* | grep 0403``
-     - ``hsdev dialout 0660``
+     - ``hsfei dialout 0660``
    * - X11 forward
-     - ``ssh -X hsdev@hispecfei xeyes``
+     - ``ssh -X hsfei@hispecfei xeyes``
      - window appears
    * - VNC pinning
      - ``taskset -cp $(pgrep Xvnc)``
