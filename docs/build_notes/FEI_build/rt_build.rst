@@ -15,8 +15,7 @@ RT Build: Firmware, OS and RT Kernel
 ========
 
 The OS is **Real-time Ubuntu 26.04 LTS**: Ubuntu with Canonical's
-``PREEMPT_RT`` kernel, deployed through an **Ubuntu Pro** subscription
-(:ref:`section-rt-kernel`). ``PREEMPT_RT`` makes the kernel fully preemptible,
+``PREEMPT_RT`` kernel (:ref:`section-rt-kernel`). ``PREEMPT_RT`` makes the kernel fully preemptible,
 converts spinlocks to sleeping rt-mutexes with priority inheritance, and runs
 IRQ handlers as schedulable threads. The result is a bounded worst-case latency.
 
@@ -31,10 +30,6 @@ Design rules:
    no snaps beyond the base set.
 #. **Nothing runs on shielded cores except instrument code.** Shells, VNC and
    services are confined to housekeeping cores.
-
-.. note::
-   Ubuntu Pro is free for up to 5 machines for personal and small-scale use;
-   Caltech/COO deployments should use the institutional subscription.
 
 .. note::
    ``$`` prompts are omitted. Unless a block says otherwise, run as ``hsfei``
@@ -103,7 +98,7 @@ BIOS Settings
    *Intel® Advanced Menu ‣ Time Coordinated Computing*. If the option is
    hidden, consult the board vendor or set the underlying options manually per
    Intel's TCC User Guide.
-#. **Double reboot.** TCC settings are not fully applied until the second POST.
+#. **Double reboot.** TCC settings are not fully applied until the second boot.
 
 .. note::
    **TCC Mode subsumes the manual C-state work.** It disables C-states and
@@ -125,7 +120,8 @@ Hardware RAID 1 (Boot Volume)
 The two Samsung 990 Pro 1 TB NVMe drives form a RAID 1 array on the Broadcom
 MegaRAID 9520-2M2 controller.
 
-#. During POST, enter the MegaRAID configuration utility.
+#. Enter BIOS (``Del``) and open the MegaRAID controller's configuration page
+   (typically listed under the *Advanced* tab).
 #. Create a **RAID 1** virtual drive from the two 990 Pro NVMe drives.
 #. Confirm the array reports **Optimal**.
 #. The installer should then show a **single ~1 TB device** for the OS.
@@ -290,22 +286,12 @@ configuration.
 
 .. _section-rt-kernel:
 
-7. Real-time Kernel (Ubuntu Pro)
-================================
+7. Real-time Kernel
+===================
 
-Attach Ubuntu Pro
------------------
-
-The RT kernel is delivered only through Ubuntu Pro (``elijahab`` account).
-
-.. code-block:: bash
-
-   sudo pro attach          # prompts for the token
-   pro status
-
-.. warning::
-   Never paste the Pro token into this document, a script, or shell history.
-   If a token has been echoed into a shared file, rotate it.
+From 26.04, ``PREEMPT_RT`` is fully upstream and the real-time kernel is in
+the main Ubuntu archive. No Ubuntu Pro subscription is needed (earlier releases
+required one).
 
 Install **[reboot]**
 --------------------
@@ -316,18 +302,25 @@ Install **[reboot]**
    sudo apt install ubuntu-realtime
    sudo reboot
 
-Accept the prompt to switch the default boot kernel.
+If the machine comes back on the generic kernel, pick the ``-realtime`` entry
+under *Advanced options for Ubuntu* in the GRUB menu.
 
 Verify
 ------
 
 .. code-block:: bash
 
-   uname -a                              # contains PREEMPT_RT
-   pro status | grep realtime            # realtime-kernel   enabled
+   uname -a                              # contains PREEMPT_RT, -realtime
    cat /sys/kernel/realtime              # 1
    chrt -m                               # SCHED_FIFO / SCHED_RR 1-99
    grep -c . /proc/pressure/cpu          # PSI available
+
+.. note::
+   **Ubuntu Pro is optional.** The build should have no Pro account, or one
+   registered to a dedicated HISPEC email, never a personal or staff email.
+   If Pro is attached but not needed (extended security updates, Livepatch),
+   remove it with ``sudo pro detach``. Never paste the Pro token into this
+   document, a script, or shell history.
 
 As-built Result
 ---------------
@@ -490,7 +483,9 @@ block safe when a unit is absent.
        sysstat-rotate.timer \
        multipathd.service \
        udisks2.service \
-       plocate-updatedb.timer
+       plocate-updatedb.timer \
+       apport.service \
+       ubuntu-advantage.service ua-timer.timer
    do
        sudo systemctl disable --now "$svc" 2>/dev/null || true
    done
@@ -499,8 +494,10 @@ block safe when a unit is absent.
    systemctl list-units --type=service --state=running
    systemctl list-timers --all
 
-Keep enabled: ``ssh``, ``systemd-networkd``, ``systemd-resolved``, ``chrony``,
-``ubuntu-advantage`` and ``ua-timer.timer``. ``thermald`` and
+Keep enabled: ``ssh``, ``systemd-networkd``, ``systemd-resolved`` and
+``chrony``. ``ubuntu-advantage`` and ``ua-timer`` are only needed when Ubuntu
+Pro is attached (:ref:`section-rt-kernel`); drop them from the loop in that
+case. ``apport`` is Ubuntu's crash reporter and is not needed here. ``thermald`` and
 ``networkd-dispatcher`` are retained pending further RT/thermal testing.
 
 .. warning::
@@ -563,9 +560,6 @@ Reboot, then record the results as the as-built baseline.
    * - RT flag
      - ``cat /sys/kernel/realtime``
      - ``1``
-   * - Ubuntu Pro
-     - ``pro status``
-     - ``realtime-kernel: enabled``
    * - Kernel cmdline
      - ``cat /proc/cmdline``
      - matches :ref:`section-grub`
@@ -634,7 +628,7 @@ running on the isolated cores; recheck ``irqaffinity`` first.
        (look for jitter on an *idle* isolated core); (4) SMT still on;
        (5) unpinned processes on 0-5 (:ref:`section-rt-placement`);
        (6) cache contention, evaluate Intel CAT.
-   * - RT kernel not booting after a Pro update
+   * - RT kernel not booting after a kernel update
      - Select the previous kernel in GRUB. Out-of-tree modules need rebuilding
        against the new ``uname -r``.
    * - ``chrt``: "Operation not permitted"
@@ -664,9 +658,9 @@ running on the isolated cores; recheck ``irqaffinity`` first.
 Real-time Ubuntu
 ----------------
 
+* `Real-time Ubuntu overview <https://ubuntu.com/real-time>`_
 * `Real-time Ubuntu documentation <https://documentation.ubuntu.com/real-time/latest/>`_
 * `How to enable Real-time Ubuntu <https://documentation.ubuntu.com/real-time/latest/how-to/enable-real-time-ubuntu/>`_
-* `Ubuntu Pro Client: enable realtime-kernel <https://documentation.ubuntu.com/pro/pro-client/enable_realtime_kernel/>`_
 * `Switch from real-time to generic kernel <https://documentation.ubuntu.com/real-time/latest/how-to/switch-from-realtime-to-generic-kernel/>`_
 * `Real-time Ubuntu releases <https://documentation.ubuntu.com/real-time/latest/reference/releases/>`_
 

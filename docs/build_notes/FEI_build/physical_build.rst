@@ -62,9 +62,6 @@ See the Purchase Order for what came pre-installed with the base system.
    * - Fiber network card
      - NVIDIA Mellanox ConnectX-6 Lx (``MCX631102AN-ADAT``)
      - Dedicated fiber link to the Archon controller
-   * - SPI interface
-     - FTDI FT4222 board (USB ``0403:601c``)
-     - SPI link to instrument hardware
 
 Consumables: DDR thermal pads (one "Bottom", one thicker "Top"), CPU thermal
 paste, and a spare pink thermal pad for the heat-fin block if needed.
@@ -147,20 +144,17 @@ PCIe Cards
 Cabling
 -------
 
-#. Connect the FT4222 board over USB. In SPI master mode, its Slave Select (SS)
-   pin must be tied high.
-#. Connect power, the onboard management Ethernet and the Archon fiber.
+Connect power, the onboard management Ethernet and the Archon fiber.
 
 ----
 
 4. First Power-On
 =================
 
-Before moving on to :doc:`rt_build`, confirm in BIOS / POST:
+Before moving on to :doc:`rt_build`, power on, press ``Del`` to enter BIOS, and confirm:
 
 * 64 GB of memory is detected.
-* The MegaRAID controller shows its configuration utility and lists both NVMe
-  drives.
+* The MegaRAID controller is listed and shows both NVMe drives.
 * The 2 TB SSD is detected.
 
 .. note::
@@ -176,7 +170,6 @@ After the OS is installed (:doc:`rt_build`), confirm from Linux:
    lscpu | grep -E '^Core|^Socket'  # 14 cores, 1 socket
    lspci | grep -i -E 'raid|mellanox'
    lsblk                            # one ~1 TB RAID volume + 2 TB SSD
-   lsusb | grep 0403:601c           # FT4222
 
 ----
 
@@ -206,5 +199,3 @@ Values later steps depend on:
    * - Archon fiber NIC
      - ConnectX-6 Lx in the i-Module, ``enp202s0f0np0``, port labelled
        **archon**
-   * - FT4222 SPI board
-     - USB ``0403:601c``

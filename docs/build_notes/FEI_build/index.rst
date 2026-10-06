@@ -6,7 +6,7 @@ HISPEC FEI Server: Headless Real-time Build
 :Date: 2026-10-07
 :Hostname: ``hispecfei``
 :User: ``hsfei``
-:OS: Real-time Ubuntu 26.04 LTS (PREEMPT_RT via Ubuntu Pro)
+:OS: Real-time Ubuntu 26.04 LTS (``PREEMPT_RT`` kernel)
 :Supersedes: ``fei_server_build_notes.rst``, ``rtc_buildnote.rst``
 
 A COTS ``x86_64`` server running a ``PREEMPT_RT`` kernel with Intel TCC, hard

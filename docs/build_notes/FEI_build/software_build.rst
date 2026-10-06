@@ -211,6 +211,11 @@ Physik Instrumente (PI) Driver
 SPI Driver (libft4222)
 ----------------------
 
+The FT4222 is an external USB-to-SPI board (USB ``0403:601c``) that links the
+server to instrument hardware.
+
+#. Connect the board over USB. In SPI master mode, its Slave Select (SS) pin
+   **must be tied high**.
 #. Extract and install:
 
    .. code-block:: bash
@@ -255,10 +260,8 @@ FT4222 udev Rules
 
       sudo udevadm control --reload-rules
       sudo udevadm trigger
+      lsusb | grep 0403:601c                  # board detected
       ls -l /dev/bus/usb/*/* | grep -i 0403   # hsfei dialout 0660
-
-.. note::
-   **SPI master mode:** the Slave Select (SS) pin **must be tied high**.
 
 CameraD (camera-interface)
 --------------------------
