@@ -60,6 +60,8 @@ def _parser() -> argparse.ArgumentParser:
                    help="deploy every repo instance not yet deployed here")
     p.add_argument("--force", action="store_true",
                    help="replace deployed configs that differ from the repo")
+    p.add_argument("--any-host", action="store_true",
+                   help="deploy even if the instance names a different host")
     p.add_argument("--no-start", action="store_true", help="do not start them now")
     p.add_argument("--no-enable", action="store_true", help="do not start them at boot")
     p.add_argument("-n", "--dry-run", action="store_true", help="print what would happen")

@@ -69,14 +69,22 @@ class _Deployment(NamedTuple):
     config_dst: Path
 
 
-def _deploy_plan(paths: Paths, names: List[str]) -> Optional[List[_Deployment]]:
+def _deploy_plan(paths: Paths, names: List[str],
+                 any_host: bool = False) -> Optional[List[_Deployment]]:
     """Work out every copy up front, so a bad name copies nothing at all."""
     plan = []
     problems = 0
+    role = inst.host_role(paths)
     for name in names:
         env_src = paths.repo_instances / f"{name}.env"
         if not inst.NAME_RE.match(name) or not env_src.is_file():
             _err(f"no {env_src}; is '{name}' a hispec instance? (see: hispec status --all)")
+            problems += 1
+            continue
+        claimed = inst.assigned_host(env_src)
+        if claimed and claimed != role and not any_host:
+            _err(f"{name} belongs on '{claimed}', not '{role}'; "
+                 "deploy it there, or pass --any-host")
             problems += 1
             continue
         config = inst.read_env(env_src).get("HISPEC_CONFIG", "")
@@ -140,7 +148,7 @@ def deploy(paths: Paths, args: argparse.Namespace) -> int:
         _err("name the instances to deploy, or pass --new")
         return 2
 
-    plan = _deploy_plan(paths, list(dict.fromkeys(names)))
+    plan = _deploy_plan(paths, list(dict.fromkeys(names)), args.any_host)
     if plan is None:
         return 1
     updated = _copy(paths, plan, args.force, args.dry_run)
