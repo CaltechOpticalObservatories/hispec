@@ -47,13 +47,22 @@ cd hispec
 git submodule sync --recursive
 git submodule update --init --recursive
 
-# 3) (Recommended) Create a Python env
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+# 3) Create the environment and install, editable
+uv sync
+```
 
-# 4) Install package(s) for development
-pip install -U pip
-pip install -e ".[dev]"    # falls back to requirements.txt if no pyproject
+`uv sync` builds `.venv` on the Python named in `.python-version`, installs
+every dependency and puts this package in it editable, so a `git pull` changes
+behaviour without reinstalling. Run commands through `uv run <command>`, or
+activate `.venv` if you prefer.
+
+`uv.lock` is not committed while the git dependencies deliberately track their
+default branches. It still records which commit of libby, bamboo and the rest
+your checkout resolved to, which is how to tell what you are running. `uv sync`
+reuses that lock once it exists, so pick up a merged dependency change with:
+
+```bash
+uv lock --upgrade && uv sync
 ```
 
 ## Submodules

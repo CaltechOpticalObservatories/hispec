@@ -151,3 +151,7 @@ cython_debug/
 
 # MacOS
 .DS_Store
+
+# Resolved dependency set, recorded per host. Committed at integration, when
+# both hosts have to match.
+uv.lock
