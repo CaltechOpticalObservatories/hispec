@@ -24,6 +24,9 @@ dependencies = [
     "libximc",
     "scipy",
     "pyyaml",
+    # SSH transport for the DLI DC3 PDU; the pdu driver imports it
+    # without declaring it
+    "paramiko",
     # influxdb extra: needed by daemons/generic/keygrabber
     "libby[influxdb]@git+https://github.com/CaltechOpticalObservatories/libby.git",
     "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base",
@@ -58,4 +61,18 @@ ignored-modules = [
     # Device drivers vendored as git submodules
     "hispec.driver",
     "PPC102_lib",
+]
+
+# The vendor drivers are vendored as submodules so they can be fixed in place,
+# but their own dependencies still have to reach the environment. tracking_camera
+# is HISPEC's own code with no pyproject, so it is not a member.
+[tool.uv.workspace]
+members = ["src/hispec/driver/*"]
+exclude = ["src/hispec/driver/tracking_camera"]
+
+[tool.uv]
+# The drivers pin this to v1.0.0, v1.0.1 and unpinned between them, and uv
+# allows one URL per package. Without an override nothing resolves at all.
+override-dependencies = [
+    "hardware_device_base @ git+https://github.com/COO-Utilities/hardware_device_base@v1.0.1",
 ]

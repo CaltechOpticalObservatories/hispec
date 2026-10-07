@@ -48,13 +48,17 @@ git submodule sync --recursive
 git submodule update --init --recursive
 
 # 3) Create the environment and install, editable
-uv sync
+uv sync --all-packages
 ```
 
-`uv sync` builds `.venv` on the Python named in `.python-version`, installs
-every dependency and puts this package in it editable, so a `git pull` changes
-behaviour without reinstalling. Run commands through `uv run <command>`, or
-activate `.venv` if you prefer.
+That builds `.venv` on the Python named in `.python-version` and installs this
+package plus every vendor driver editable, so a `git pull` changes behaviour
+without reinstalling. Run commands through `uv run <command>`, or activate
+`.venv` if you prefer.
+
+`--all-packages` matters: the drivers under `src/hispec/driver/` are uv
+workspace members, and a plain `uv sync` installs only this package's own
+dependencies, leaving theirs out.
 
 `uv.lock` is not committed while the git dependencies deliberately track their
 default branches. It still records which commit of libby, bamboo and the rest
@@ -62,7 +66,7 @@ your checkout resolved to, which is how to tell what you are running. `uv sync`
 reuses that lock once it exists, so pick up a merged dependency change with:
 
 ```bash
-uv lock --upgrade && uv sync
+uv lock --upgrade && uv sync --all-packages
 ```
 
 ## Submodules

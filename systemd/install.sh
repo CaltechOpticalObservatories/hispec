@@ -122,7 +122,9 @@ fi
 (
     cd "$REPO_DIR"
     "$UV_BIN" lock --upgrade
-    "$UV_BIN" sync
+    # --all-packages installs the vendored drivers too; plain sync covers only
+    # the root project and leaves their dependencies out
+    "$UV_BIN" sync --all-packages
 )
 chown -R hispec:hispec "$VENV_DIR"
 
