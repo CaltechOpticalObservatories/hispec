@@ -64,6 +64,7 @@ are being asked for a password, see
 
 ```bash
 hispec status                    # every deployed daemon: running? at boot? since when?
+hispec status -v hsfei_adc       # in detail: its files, PID, exit code, last log lines
 hispec start   hsfei_adc         # start it
 hispec stop    hsfei_adc         # stop it
 hispec restart hsfei_adc         # stop then start, e.g. after a config edit
@@ -83,6 +84,13 @@ hsfei_ms        inactive      disabled                       hsfei/pi-daemon
 
 20 more in the repo, not deployed here (hispec status --all; hispec deploy --new)
 ```
+
+When something is `failed` or flapping, `hispec status -v hsfei_atcfw` says
+why. For each instance it shows which daemon script it runs and which config
+it reads, flagging a config that is missing or differs from the repo's copy,
+then the full `systemctl status`: PID, memory, how the process last exited,
+and the last 10 log lines (`-n 50` for more). See
+[Reading `systemctl status`](#reading-systemctl-status) below.
 
 These are wrappers around `systemctl` and `journalctl`, and the plain commands
 still work if you prefer them: `systemctl start hispec@hsfei_adc`,

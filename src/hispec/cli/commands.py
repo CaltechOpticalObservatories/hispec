@@ -251,7 +251,8 @@ def status(paths: Paths, args: argparse.Namespace) -> int:
     """One line per instance: running? enabled at boot? since when?"""
     here = inst.deployed(paths)
     repo = inst.in_repo(paths)
-    universe = sorted(set(here) | set(repo)) if args.all else here
+    # systemd knows nothing about an undeployed instance, so -v ignores --all
+    universe = sorted(set(here) | set(repo)) if args.all and not args.verbose else here
     if args.targets:
         names = _resolve(paths, args.targets, universe)
         if names is None:
@@ -262,6 +263,8 @@ def status(paths: Paths, args: argparse.Namespace) -> int:
         print(f"No instances deployed in {paths.instances}.")
         print("See what the repo defines with: hispec status --all")
         return 0
+    if args.verbose:
+        return _status_verbose(paths, names, args.lines)
 
     rows = _status_rows(paths, names, here)
     width = max(len("INSTANCE"), *(len(r[0]) for r in rows))
@@ -290,6 +293,48 @@ def _status_rows(paths: Paths, names: List[str], here: List[str]) -> List[Tuple[
         s = state[name]
         since = s.since if s.active != "inactive" else ""
         rows.append((name, s.active, s.enabled, since, _daemon(paths.instances / f"{name}.env")))
+    return rows
+
+
+def _status_verbose(paths: Paths, names: List[str], lines: int) -> int:
+    """For each instance, the files behind it and then systemctl status."""
+    failed = []
+    for i, name in enumerate(names):
+        if i:
+            print()
+        print(paint(name, "1"))
+        for label, value in _files(paths, name):
+            print(f"  {label:<9} {value}")
+        print()
+        sys.stdout.flush()  # systemctl writes to the same terminal
+        if not units.show_status(name, lines):
+            failed.append(name)
+    if failed:
+        print()
+        _err(f"systemctl could not report on: {' '.join(failed)} (run: hispec doctor)")
+        return 1
+    return 0
+
+
+def _files(paths: Paths, name: str) -> List[Tuple[str, str]]:
+    """What an operator checks first: which daemon, which config, is it the repo's?"""
+    env_file = paths.instances / f"{name}.env"
+    try:
+        env = inst.read_env(env_file)
+    except OSError as exc:
+        return [("instance", f"{env_file} " + paint(f"(unreadable: {exc.strerror})", "31"))]
+    rows = [("daemon", env.get("HISPEC_DAEMON", "?")), ("instance", str(env_file))]
+    config = env.get("HISPEC_CONFIG", "")
+    if not config:
+        rows.append(("config", paint("not set in the instance file", "31")))
+        return rows
+    note = ""
+    found = inst.repo_configs(paths, name)
+    if not Path(config).is_file():
+        note = paint(" (missing)", "31")
+    elif len(found) == 1 and Path(config).read_bytes() != found[0].read_bytes():
+        note = paint(f" (differs from {found[0].relative_to(paths.repo)})", "33")
+    rows.append(("config", config + note))
     return rows
 
 

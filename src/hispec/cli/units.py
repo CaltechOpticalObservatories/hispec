@@ -81,6 +81,17 @@ def systemctl(verb: str, name: str) -> bool:
     return run(["systemctl", verb, unit(name)]).returncode == 0
 
 
+def show_status(name: str, lines: int) -> bool:
+    """Print ``systemctl status`` for one instance, straight to the terminal.
+
+    False only if systemctl could not report on it at all: an exit code of 3
+    just means the daemon is not running, which is an answer, not a failure.
+    """
+    rc = run(["systemctl", "status", "--no-pager", "--full", f"--lines={lines}",
+              unit(name)]).returncode
+    return rc in (0, 3)
+
+
 def enable_helper(args: List[str]) -> subprocess.CompletedProcess:
     """Run the root enable/disable helper without a password prompt.
 

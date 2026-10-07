@@ -20,6 +20,7 @@ TARGETS_HELP = ("instance names (hsfei_adc), subsystems (hsfei, or just fei), "
 EPILOG = """\
 examples:
   hispec status                     what is deployed here, and is it running?
+  hispec status -v hsfei_adc        why did it stop? PID, exit code, last log lines
   hispec deploy hsfei_newthing      copy its files from the repo, enable, start
   hispec deploy --new               the same for every instance not deployed yet
   hispec start fei                  start every deployed hsfei_* daemon
@@ -87,6 +88,11 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("targets", nargs="*", metavar="target", help=TARGETS_HELP)
     p.add_argument("-a", "--all", action="store_true",
                    help="include instances defined in the repo but not deployed here")
+    p.add_argument("-v", "--verbose", action="store_true",
+                   help="full detail per daemon: its files, then systemctl status "
+                        "(PID, memory, exit code, recent log lines)")
+    p.add_argument("-n", "--lines", type=int, default=10,
+                   help="with -v, how many log lines to show (default 10)")
 
     p = add("logs", commands.logs, "show daemon logs (journalctl)")
     p.add_argument("targets", nargs="+", metavar="target", help=TARGETS_HELP)
