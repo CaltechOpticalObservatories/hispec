@@ -231,19 +231,42 @@ Edit ``/etc/hosts`` to include the private network entries for HISPEC, ordered n
 
 .. code-block:: text
 
-   192.168.29.100 feilantronix
-   192.168.29.101 switch
-   192.168.29.102 feieaton1
-   192.168.29.104 feilakeshore
-   192.168.29.105 feieaton2
-   192.168.29.106 feieaton3
-   192.168.29.120 feiinficon
-   192.168.29.125 blueinficon
-   192.168.29.150 blueettemp
-   192.168.29.151 blueeaton1
-   192.168.29.152 blueeaton2
-   192.168.29.153 bluelantronix
-   192.168.29.154 hs1wireblue
+   192.168.29.2    hispecserver
+   192.168.29.3    hispecserverlom
+   192.168.29.4    specswitchspare
+   192.168.29.100  feilantronix
+   192.168.29.101  feiswitch
+   192.168.29.102  feidcpdu2
+   192.168.29.104  feilakeshore
+   192.168.29.105  feieaton1
+   192.168.29.106  feieaton2
+   192.168.29.107  feifsm
+   192.168.29.109  feitrackcomp
+   192.168.29.110  feidcpdu1
+   192.168.29.120  feiinficon
+   192.168.29.122  tmpstanda
+   192.168.29.123  redatten rediriscontroller
+   192.168.29.125  blueinficon
+   192.168.29.129  redswitch
+   192.168.29.130  redlantronix
+   192.168.29.131  specblueinficon
+   192.168.29.132  specredinficon
+   192.168.29.135  redinficon
+   192.168.29.136  specredlakeshore
+   192.168.29.140  hs1wirered
+   192.168.29.145  host
+   192.168.29.150  blueettemp
+   192.168.29.151  blueeaton1
+   192.168.29.152  blueeaton2
+   192.168.29.153  bluelantronix
+   192.168.29.154  hs1wireblue
+   192.168.29.161  redlakeshore1
+   192.168.29.162  redlakeshore2
+   192.168.29.163  redeaton1
+   192.168.29.164  redeaton2
+   192.168.29.165  redettemp
+   192.168.29.166  redeaton3
+   192.168.29.175  cred2
 
 MQTT Broker Setup
 -----------------

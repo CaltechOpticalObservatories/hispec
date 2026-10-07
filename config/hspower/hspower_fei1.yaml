@@ -10,10 +10,8 @@ group_id: hspower
 
 hardware:
   # feieaton1, per the /etc/hosts table in
-  # docs/build_notes/host_machine_build_notes.rst. That table also lists a
-  # third FEI unit, feieaton3 (192.168.29.106), so confirm which two of the
-  # three the FEI actually runs before deploying.
-  ip_address: 192.168.29.102
+  # docs/build_notes/host_machine_build_notes.rst
+  ip_address: 192.168.29.105
   tcp_port: 23
   # TODO: confirm against the hardware. EMAT-08 has eight outlets, EMAT-10 has
   # ten, and this is what decides how many outlet keyword blocks exist; the

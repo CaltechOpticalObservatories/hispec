@@ -9,12 +9,11 @@ peer_id: rspec1
 group_id: hspower
 
 hardware:
-  # TODO: address unknown — the /etc/hosts table in
-  # docs/build_notes/host_machine_build_notes.rst documents no red-side
-  # Eaton, though the pdu driver's README uses 'redeaton1' as its example
-  # host. Left unset on purpose: the daemon then starts, serves its keywords
-  # and reports 'missing PDU connection parameters' rather than reaching for
-  # a guessed address.
+  # TODO: which unit is unknown. The /etc/hosts table in
+  # docs/build_notes/host_machine_build_notes.rst lists redeaton1, redeaton2
+  # and redeaton3, and there is one RSPEC config. Left unset on purpose: the
+  # daemon then starts, serves its keywords and reports 'missing PDU
+  # connection parameters' rather than reaching for a guessed address.
   ip_address:
   tcp_port: 23
   # TODO: confirm against the hardware. EMAT-08 has eight outlets, EMAT-10 has
