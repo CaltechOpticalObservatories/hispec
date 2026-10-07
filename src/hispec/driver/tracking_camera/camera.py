@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from ..pycamerad import Camerad
+from pycamerad import Camerad
 
 INSTRUMENT = "hispec_tracking_camera"
 
