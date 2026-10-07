@@ -20,6 +20,18 @@ set -euo pipefail
 REPO_DIR="${HISPEC_REPO_DIR:-/opt/hispec/app}"
 VENV_DIR="${HISPEC_VENV_DIR:-/opt/hispec/venv}"
 OPS_USERS="${HISPEC_OPS_USERS:-} $*"
+UV_VERSION="${HISPEC_UV_VERSION:-0.12.23}"
+# Its own copy rather than whatever uv is on PATH, since a snap refreshes
+# itself and would unpin the resolver
+UV_BIN=/usr/local/bin/uv
+
+# Keeps uv out of .venv and on the path every unit already references
+export UV_PROJECT_ENVIRONMENT="$VENV_DIR"
+
+# The daemons run as `hispec`, and this script runs as root, so a uv-managed
+# interpreter would land under root's home where they could not read it. Use
+# the system Python, as `python3 -m venv` did.
+export UV_NO_MANAGED_PYTHON=1
 
 if [[ $EUID -ne 0 ]]; then
     echo "Run as root (sudo)." >&2
@@ -96,14 +108,22 @@ fi
 chown root:hispec-ops /etc/hispec/host
 chmod 0644 /etc/hispec/host
 
-# Python environment (editable install so `git pull` picks up code changes
-# without reinstalling).
-if [[ ! -x "$VENV_DIR/bin/python3" ]]; then
-    python3 -m venv "$VENV_DIR"
-    echo "created venv at $VENV_DIR"
+# Pinned, so re-running the installer cannot resolve with a different uv
+if [[ "$("$UV_BIN" --version 2>/dev/null)" != "uv $UV_VERSION"* ]]; then
+    curl -LsSf "https://astral.sh/uv/$UV_VERSION/install.sh" |
+        env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
+    echo "installed uv $UV_VERSION at $UV_BIN"
 fi
-"$VENV_DIR/bin/pip" install -U pip
-"$VENV_DIR/bin/pip" install -e "$REPO_DIR"
+
+# Python environment (editable install so `git pull` picks up code changes
+# without reinstalling). Upgrade the lock first: the git dependencies track
+# their default branch deliberately, and a reinstall is how a merged libby fix
+# reaches a host.
+(
+    cd "$REPO_DIR"
+    "$UV_BIN" lock --upgrade
+    "$UV_BIN" sync
+)
 chown -R hispec:hispec "$VENV_DIR"
 
 # Unit file + polkit rule (grants hispec-ops members start/stop/restart on
