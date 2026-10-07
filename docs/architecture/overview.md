@@ -247,7 +247,7 @@ troubleshooting guide are in {doc}`../operations/systemd`.
 
 Host build procedures are documented separately under
 {doc}`../build_notes/host_machine_build_notes` and
-{doc}`../build_notes/fei_buildnote`; the FEI server runs a `PREEMPT_RT` kernel
+{doc}`../build_notes/FEI_build/index`; the FEI server runs a `PREEMPT_RT` kernel
 with core shielding for the detector readout loop, which is why its build is
 documented as its own recipe.
 
