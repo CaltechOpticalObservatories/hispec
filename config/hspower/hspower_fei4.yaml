@@ -1,18 +1,18 @@
-# HISPEC FEI PDU 1 of 4 (feidcpdu1) — DLI DC3 (48V) networked PDU
+# HISPEC FEI PDU 4 of 4 (feieaton2) — Eaton EMAT-08/10 networked PDU
 #
-# First of the two DLI DC PDUs in the FEI (front end instrument).
+# Second of the two Eaton PDUs in the FEI (front end instrument).
 #
 # Usage:
-#   daemons/hspower/dli_pdu -c config/hspower/hspower_fei1.yaml
+#   daemons/hspower/eaton_pdu -c config/hspower/hspower_fei4.yaml
 
-peer_id: fei1
+peer_id: fei4
 group_id: hspower
 
 hardware:
-  # feidcpdu1, per the /etc/hosts table in
-  # docs/build_notes/host_machine_build_notes.rst
-  ip_address: 192.168.29.110
-  tcp_port: 22
+  # feieaton2, per the /etc/hosts table in
+  # docs/build_notes/host_machine_build_notes.rst.
+  ip_address: 192.168.29.106
+  tcp_port: 23
   # TODO: confirm against the hardware. EMAT-08 has eight outlets, EMAT-10 has
   # ten, and this is what decides how many outlet keyword blocks exist; the
   # daemon logs a warning at startup if it disagrees with the count the PDU
@@ -23,7 +23,7 @@ hardware:
   # docs/operations/systemd.md). All nine PDUs share one login today; point an instance
   # at different variables if its unit gets its own.
   username_env: HISPEC_PDU_USERNAME
-  password_env: HISPEC_FEIDLIPDU_PASSWORD
+  password_env: HISPEC_FEIEATON2_PASSWORD
 
 logging:
   level: INFO
