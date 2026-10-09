@@ -12,23 +12,28 @@ from typing import List, NamedTuple, Optional, Tuple
 from . import instances as inst
 from . import units
 from .instances import Paths, TargetError
+from .product import Product
 from .output import paint
 
 
-def _err(message: str) -> None:
-    print(f"hispec: {message}", file=sys.stderr)
+def _err(product: Product, message: str) -> None:
+    print(f"{product.name}: {message}", file=sys.stderr)
 
 
 def _resolve(paths: Paths, targets: List[str], names: List[str]) -> Optional[List[str]]:
     """Expand targets, explaining a miss. None means an error was printed."""
     try:
-        return inst.resolve(targets, names)
+        return inst.resolve(paths.product, targets, names)
     except TargetError as exc:
-        target = str(exc)
+        target, prog = str(exc), paths.product.name
         if target in inst.in_repo(paths):
-            _err(f"{target} is not deployed on this host; deploy it with: hispec deploy {target}")
+            _err(paths.product,
+                 f"{target} is not deployed on this host; "
+                 f"deploy it with: {prog} deploy {target}")
         else:
-            _err(f"no instance or subsystem matches '{target}' (see: hispec status --all)")
+            _err(paths.product,
+                 f"no instance or subsystem matches '{target}' "
+                 f"(see: {prog} status --all)")
         return None
 
 
@@ -48,8 +53,8 @@ def _install_file(src: Path, dst: Path, overwrite: bool, dry_run: bool) -> str:
     if dry_run:
         return {"copied": "would copy", "updated": "would update"}[outcome]
     # Write beside the target and rename, so a daemon starting meanwhile never
-    # reads half a file. Group-writable so the rest of hispec-ops can edit it;
-    # the directory is setgid hispec-ops, which takes care of the group.
+    # reads half a file. Group-writable so the rest of the ops group can edit
+    # it; the directory is setgid, which takes care of the group.
     tmp = dst.with_name(f".{dst.name}.{os.getpid()}.tmp")
     try:
         shutil.copyfile(src, tmp)
@@ -78,24 +83,27 @@ def _deploy_plan(paths: Paths, names: List[str],
     for name in names:
         env_src = paths.repo_instances / f"{name}.env"
         if not inst.NAME_RE.match(name) or not env_src.is_file():
-            _err(f"no {env_src}; is '{name}' a hispec instance? (see: hispec status --all)")
+            _err(paths.product, f"no {env_src}; is '{name}' an instance? "
+                 f"(see: {paths.product.name} status --all)")
             problems += 1
             continue
-        claimed = inst.assigned_host(env_src)
+        claimed = inst.assigned_host(paths.product, env_src)
         if claimed and claimed != role and not any_host:
-            _err(f"{name} belongs on '{claimed}', not '{role}'; "
+            _err(paths.product, f"{name} belongs on '{claimed}', not '{role}'; "
                  "deploy it there, or pass --any-host")
             problems += 1
             continue
-        config = inst.read_env(env_src).get("HISPEC_CONFIG", "")
+        config = inst.read_env(env_src).get(paths.product.env_key("CONFIG"), "")
         if not config:
-            _err(f"{env_src} sets no HISPEC_CONFIG")
+            _err(paths.product,
+                 f"{env_src} sets no {paths.product.env_key('CONFIG')}")
             problems += 1
             continue
         found = inst.repo_configs(paths, name)
         if len(found) != 1:
             where = ", ".join(str(p) for p in found) or "none"
-            _err(f"{name}: expected one {paths.repo}/config/*/{name}.yaml, found {where}")
+            _err(paths.product,
+                 f"{name}: expected one {paths.repo}/config/*/{name}.yaml, found {where}")
             problems += 1
             continue
         plan.append(_Deployment(name, env_src, paths.instances / f"{name}.env",
@@ -119,9 +127,11 @@ def _copy(paths: Paths, plan: List[_Deployment], force: bool, dry_run: bool) -> 
                 outcome = _install_file(src, dst, overwrite, dry_run)
             except OSError as exc:
                 print()
-                _err(f"cannot write {dst}: {exc.strerror}")
+                _err(paths.product, f"cannot write {dst}: {exc.strerror}")
                 if isinstance(exc, PermissionError):
-                    _err("deploying needs hispec-ops membership; run: hispec doctor")
+                    _err(paths.product,
+                         f"deploying needs {paths.product.ops_group} membership; "
+                         f"run: {paths.product.name} doctor")
                 return None
             note = ""
             if outcome == "kept":
@@ -148,7 +158,7 @@ def deploy(paths: Paths, args: argparse.Namespace) -> int:
                   "is already deployed.")
             return 0
     elif not names:
-        _err("name the instances to deploy, or pass --new")
+        _err(paths.product, "name the instances to deploy, or pass --new")
         return 2
 
     plan = _deploy_plan(paths, list(dict.fromkeys(names)), args.any_host)
@@ -161,36 +171,37 @@ def deploy(paths: Paths, args: argparse.Namespace) -> int:
     names = [item.name for item in plan]
     rc = 0
     if not args.no_enable:
-        rc |= _enable(names, [], args.dry_run)
+        rc |= _enable(paths.product, names, [], args.dry_run)
     if not args.no_start:
         print()
-        rc |= _act(names, "start", args.dry_run)
+        rc |= _act(paths.product, names, "start", args.dry_run)
 
-    running = units.states(updated) if updated and not args.dry_run else {}
+    running = units.states(paths.product, updated) if updated and not args.dry_run else {}
     restart = [n for n, s in running.items() if s.running]
     if restart:
         print()
         print("Already running with the old files; to pick up the new ones:")
-        print(f"  hispec restart {' '.join(restart)}")
+        print(f"  {paths.product.name} restart {' '.join(restart)}")
     return rc
 
 
-def _enable(names: List[str], options: List[str], dry_run: bool) -> int:
+def _enable(product: Product, names: List[str], options: List[str],
+            dry_run: bool) -> int:
     verb = "disable" if "--disable" in options else "enable"
     if dry_run:
         print(f"would {verb} at boot: {' '.join(names)}")
         return 0
-    proc = units.enable_helper([*options, *names])
+    proc = units.enable_helper(product, [*options, *names])
     if proc.returncode == 0:
         print(f"{verb}d at boot: {' '.join(names)}")
         return 0
     detail = (proc.stderr or proc.stdout).strip()
     if "password is required" in detail or proc.returncode == 127:
-        _err(f"cannot run {units.ENABLE_HELPER} without a password: {detail}")
-        _err("an admin needs to add you to hispec-ops, or re-run install.sh; "
-             "run: hispec doctor")
+        _err(product, f"cannot run {product.enable_helper} without a password: {detail}")
+        _err(product, f"an admin needs to add you to {product.ops_group}, or re-run\n"
+             f"install.sh; run: {product.name} doctor")
     else:
-        _err(detail or f"{units.ENABLE_HELPER} failed")
+        _err(product, detail or f"{product.enable_helper} failed")
     return 1
 
 
@@ -200,15 +211,15 @@ def enable(paths: Paths, args: argparse.Namespace) -> int:
     if names is None:
         return 1
     options = (["--disable"] if args.verb == "disable" else []) + (["--now"] if args.now else [])
-    return _enable(names, options, args.dry_run)
+    return _enable(paths.product, names, options, args.dry_run)
 
 
 _DONE = {"start": "started", "stop": "stopped", "restart": "restarted"}
 
 
-def _act(names: List[str], verb: str, dry_run: bool) -> int:
+def _act(product: Product, names: List[str], verb: str, dry_run: bool) -> int:
     """Apply a verb to every instance, carrying on past failures."""
-    state = units.states(names)
+    state = units.states(product, names)
     failed = []
     for name in names:
         if verb == "start" and state[name].active == "active":
@@ -220,14 +231,16 @@ def _act(names: List[str], verb: str, dry_run: bool) -> int:
         if dry_run:
             print(f"{name:<24} would {verb}")
             continue
-        if units.systemctl(verb, name):
+        if units.systemctl(product, verb, name):
             print(f"{name:<24} {_DONE[verb]}")
         else:
-            print(f"{name:<24} " + paint("FAILED", "31") + f" (hispec logs {name})")
+            print(f"{name:<24} " + paint("FAILED", "31")
+                  + f" ({product.name} logs {name})")
             failed.append(name)
     if failed:
         print()
-        _err(f"{len(failed)} of {len(names)} failed to {verb}: {' '.join(failed)}")
+        _err(product, f"{len(failed)} of {len(names)} failed to {verb}: "
+             f"{' '.join(failed)}")
         return 1
     return 0
 
@@ -238,10 +251,10 @@ def act(paths: Paths, args: argparse.Namespace) -> int:
     if names is None:
         return 1
     if args.verb == "stop":
-        # Undo a start in the opposite order: `hispec stop power fei` would
+        # Undo a start in the opposite order: `stop power fei` would
         # otherwise cut power before the mechanisms had parked.
         names.reverse()
-    return _act(names, args.verb, args.dry_run)
+    return _act(paths.product, names, args.verb, args.dry_run)
 
 
 _STATE_COLOR = {"active": "32", "failed": "31", "activating": "33", "deactivating": "33"}
@@ -261,7 +274,7 @@ def status(paths: Paths, args: argparse.Namespace) -> int:
         names = universe
     if not names:
         print(f"No instances deployed in {paths.instances}.")
-        print("See what the repo defines with: hispec status --all")
+        print(f"See what the repo defines with: {paths.product.name} status --all")
         return 0
     if args.verbose:
         return _status_verbose(paths, names, args.lines)
@@ -278,21 +291,23 @@ def status(paths: Paths, args: argparse.Namespace) -> int:
         if missing:
             print()
             print(f"{len(missing)} more in the repo, not deployed here "
-                  "(hispec status --all; hispec deploy --new)")
+                  f"({paths.product.name} status --all; "
+                  f"{paths.product.name} deploy --new)")
     return 0
 
 
 def _status_rows(paths: Paths, names: List[str], here: List[str]) -> List[Tuple[str, ...]]:
-    state = units.states([n for n in names if n in here])
+    state = units.states(paths.product, [n for n in names if n in here])
     rows = []
     for name in names:
         if name not in here:
-            daemon = _daemon(paths.repo_instances / f"{name}.env")
+            daemon = _daemon(paths.product, paths.repo_instances / f"{name}.env")
             rows.append((name, "not deployed", "", "", daemon))
             continue
         s = state[name]
         since = s.since if s.active != "inactive" else ""
-        rows.append((name, s.active, s.enabled, since, _daemon(paths.instances / f"{name}.env")))
+        rows.append((name, s.active, s.enabled, since,
+                     _daemon(paths.product, paths.instances / f"{name}.env")))
     return rows
 
 
@@ -307,11 +322,12 @@ def _status_verbose(paths: Paths, names: List[str], lines: int) -> int:
             print(f"  {label:<9} {value}")
         print()
         sys.stdout.flush()  # systemctl writes to the same terminal
-        if not units.show_status(name, lines):
+        if not units.show_status(paths.product, name, lines):
             failed.append(name)
     if failed:
         print()
-        _err(f"systemctl could not report on: {' '.join(failed)} (run: hispec doctor)")
+        _err(paths.product, f"systemctl could not report on: {' '.join(failed)} "
+             f"(run: {paths.product.name} doctor)")
         return 1
     return 0
 
@@ -323,8 +339,9 @@ def _files(paths: Paths, name: str) -> List[Tuple[str, str]]:
         env = inst.read_env(env_file)
     except OSError as exc:
         return [("instance", f"{env_file} " + paint(f"(unreadable: {exc.strerror})", "31"))]
-    rows = [("daemon", env.get("HISPEC_DAEMON", "?")), ("instance", str(env_file))]
-    config = env.get("HISPEC_CONFIG", "")
+    rows = [("daemon", env.get(paths.product.env_key("DAEMON"), "?")),
+            ("instance", str(env_file))]
+    config = env.get(paths.product.env_key("CONFIG"), "")
     if not config:
         rows.append(("config", paint("not set in the instance file", "31")))
         return rows
@@ -338,9 +355,9 @@ def _files(paths: Paths, name: str) -> List[Tuple[str, str]]:
     return rows
 
 
-def _daemon(env: Path) -> str:
+def _daemon(product: Product, env: Path) -> str:
     try:
-        return inst.read_env(env).get("HISPEC_DAEMON", "?")
+        return inst.read_env(env).get(product.env_key("DAEMON"), "?")
     except OSError:
         return "?"
 
@@ -353,7 +370,7 @@ def logs(paths: Paths, args: argparse.Namespace) -> int:
         return 1
     cmd = ["journalctl"]
     for name in names:
-        cmd += ["-u", inst.unit(name)]
+        cmd += ["-u", paths.product.unit(name)]
     if args.follow:
         cmd.append("-f")
     if args.lines is not None:
@@ -367,5 +384,6 @@ def logs(paths: Paths, args: argparse.Namespace) -> int:
     try:
         os.execvp(cmd[0], cmd)
     except FileNotFoundError:
-        _err("journalctl not found; this host does not look like it runs systemd")
+        _err(paths.product,
+             "journalctl not found; this host does not look like it runs systemd")
     return 1

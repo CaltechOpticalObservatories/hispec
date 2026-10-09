@@ -1,0 +1,30 @@
+# Identity of the instrument this CLI drives. Read by hispec.cli.product.
+#
+# Paths follow from `name`: /opt/<name>/app, /opt/<name>/venv, /etc/<name>,
+# <name>@.service, /usr/local/sbin/<name>-enable. Operators override the
+# directories with <env_prefix>_REPO_DIR, _VENV_DIR and _ETC_DIR.
+#
+# Which credentials a host needs is deliberately not here. It is derived from
+# the deployed configs and from the daemon code that reads them, so it cannot
+# go stale the way a hand-written list does.
+
+[instrument]
+name = "hispec"
+user = "hispec"
+ops_group = "hispec-ops"
+# Instance files set HISPEC_DAEMON, HISPEC_CONFIG and HISPEC_HOST
+env_prefix = "HISPEC"
+# So `fei` finds hsfei_* as well as fei_*
+subsystem_prefix = "hs"
+docs_url = "https://caltechopticalobservatories.github.io/hispec/operations/systemd.html"
+
+[secrets]
+# A config key ending in this names the variable holding a credential, never
+# the credential itself
+key_suffix = "_env"
+
+# Installed by older versions. doctor reports them so a host that predates the
+# rename is recognised rather than looking merely misconfigured.
+[legacy]
+unit = "hispec-daemon@.service"
+polkit_rule = "49-hispec-daemons.rules"

@@ -9,22 +9,18 @@ import sys
 from dataclasses import dataclass
 from typing import Dict, List, Sequence
 
-from .instances import unit
-
-# Root-owned and installed by install.sh, with a NOPASSWD sudoers entry for
-# hispec-ops. Deliberately not part of this package: the venv is writable by
-# the hispec user, so root must never run code from it.
-ENABLE_HELPER = "/usr/local/sbin/hispec-enable"
+from .product import Product
 
 
-def run(cmd: Sequence[str], capture: bool = False) -> subprocess.CompletedProcess:
+def run(cmd: Sequence[str], capture: bool = False,
+        prog: str = "") -> subprocess.CompletedProcess:
     """Run a command, inheriting the terminal unless ``capture``."""
     try:
         return subprocess.run(list(cmd), check=False, text=True, capture_output=capture)
     except FileNotFoundError:
         message = f"{cmd[0]}: not found"
         if not capture:
-            print(f"hispec: {message}", file=sys.stderr)
+            print(f"{prog or cmd[0]}: {message}", file=sys.stderr)
         return subprocess.CompletedProcess(list(cmd), 127, "", message + "\n")
 
 
@@ -45,23 +41,22 @@ class UnitState:
 UNKNOWN = UnitState(active="unknown", enabled="", since="")
 
 
-def states(names: List[str]) -> Dict[str, UnitState]:
+def states(product: Product, names: List[str]) -> Dict[str, UnitState]:
     """Query every instance in one systemctl call."""
     if not names:
         return {}
     proc = run(
         ["systemctl", "show", "--no-pager",
          "--property=Id,ActiveState,UnitFileState,StateChangeTimestamp",
-         *[unit(n) for n in names]],
+         *[product.unit(n) for n in names]],
         capture=True,
     )
     found = {}
     for block in proc.stdout.split("\n\n"):
         props = dict(line.split("=", 1) for line in block.splitlines() if "=" in line)
-        unit_id = props.get("Id", "")
-        if not unit_id.startswith("hispec@"):
+        name = product.instance_of(props.get("Id", ""))
+        if name is None:
             continue
-        name = unit_id[len("hispec@"):-len(".service")]
         found[name] = UnitState(
             active=props.get("ActiveState", "unknown"),
             enabled=props.get("UnitFileState", ""),
@@ -76,26 +71,27 @@ def _short_time(stamp: str) -> str:
     return " ".join(parts[1:3]) if len(parts) >= 3 else stamp
 
 
-def systemctl(verb: str, name: str) -> bool:
+def systemctl(product: Product, verb: str, name: str) -> bool:
     """start/stop/restart one instance. Output goes to the terminal."""
-    return run(["systemctl", verb, unit(name)]).returncode == 0
+    return run(["systemctl", verb, product.unit(name)],
+               prog=product.name).returncode == 0
 
 
-def show_status(name: str, lines: int) -> bool:
+def show_status(product: Product, name: str, lines: int) -> bool:
     """Print ``systemctl status`` for one instance, straight to the terminal.
 
     False only if systemctl could not report on it at all: an exit code of 3
     just means the daemon is not running, which is an answer, not a failure.
     """
     rc = run(["systemctl", "status", "--no-pager", "--full", f"--lines={lines}",
-              unit(name)]).returncode
+              product.unit(name)], prog=product.name).returncode
     return rc in (0, 3)
 
 
-def enable_helper(args: List[str]) -> subprocess.CompletedProcess:
+def enable_helper(product: Product, args: List[str]) -> subprocess.CompletedProcess:
     """Run the root enable/disable helper without a password prompt.
 
     ``-n`` makes sudo fail instead of prompting, so a missing sudoers entry
     is reported as such rather than as a mystery password request.
     """
-    return run(["sudo", "-n", ENABLE_HELPER, *args], capture=True)
+    return run(["sudo", "-n", str(product.enable_helper), *args], capture=True)

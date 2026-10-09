@@ -13,9 +13,13 @@ from typing import List, Optional
 from . import commands
 from .doctor import doctor
 from .instances import Paths
+from .product import Product
 
 TARGETS_HELP = ("instance names (hsfei_adc), subsystems (hsfei, or just fei), "
                 "or 'all'")
+
+# Examples read better with real instance names than with placeholders, so
+# they are written for this product rather than generated.
 
 EPILOG = """\
 examples:
@@ -34,10 +38,11 @@ Every subcommand takes --help. Full guide:
 """
 
 
-def _parser() -> argparse.ArgumentParser:
+def _parser(product: Product) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="hispec",
-        description="Deploy, run and inspect the HISPEC daemons on this host.",
+        prog=product.name,
+        description=f"Deploy, run and inspect the {product.name} daemons "
+                    "on this host.",
         epilog=EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -106,13 +111,14 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    """Entry point for the ``hispec`` console script."""
-    parser = _parser()
+    """Entry point for the console script."""
+    product = Product.load()
+    parser = _parser(product)
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):
         parser.print_help()
         return 2
     try:
-        return args.func(Paths.from_env(), args)
+        return args.func(Paths.from_env(product), args)
     except KeyboardInterrupt:
         return 130

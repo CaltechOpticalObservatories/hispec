@@ -4,11 +4,11 @@ An instance is a name, e.g. ``hsfei_adc``, with three files behind it:
 - ``<repo>/systemd/instances/<name>.env``, which says which daemon script to
   run and where its config is deployed;
 - ``<repo>/config/<subsystem>/<name>.yaml``, the config as committed;
-- their deployed copies, ``/etc/hispec/instances/<name>.env`` and whatever
-  path the ``.env`` gives as ``HISPEC_CONFIG``.
+- their deployed copies, ``<etc>/instances/<name>.env`` and whatever path the
+  ``.env`` gives as the config.
 
-Deployed means the ``.env`` is in ``/etc/hispec/instances/``, since that is
-what ``hispec@<name>.service`` reads.
+Deployed means the ``.env`` is in ``<etc>/instances/``, since that is what the
+template unit reads.
 """
 from __future__ import annotations
 
@@ -21,46 +21,52 @@ from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 
 import yaml
 
+from .product import Product
+
 NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
-# Set in an instance file, so deploying it on the wrong host is caught before
-# two daemons reach for one device
-HOST_KEY = "HISPEC_HOST"
 
-# A config names the variable holding a credential, never the value itself
-SECRET_KEY_SUFFIX = "_env"
-
-
-def _default_repo_dir() -> Path:
+def _default_repo_dir(product: Product) -> Path:
     # install.sh does an editable install, so this file is inside the checkout
     # the daemons run from. Anything else (a wheel) gets the standard path.
     here = Path(__file__).resolve().parents[3]
     if (here / "systemd" / "instances").is_dir():
         return here
-    return Path("/opt/hispec/app")
+    return Path(f"/opt/{product.name}/app")
 
 
 @dataclass(frozen=True)
 class Paths:
-    """The filesystem layout, overridable for testing and odd hosts."""
+    """The filesystem layout, overridable for testing and odd hosts.
 
+    Carries the product so every command reaches it through the one argument
+    they all already take.
+    """
+
+    product: Product
     repo: Path
     venv: Path
     etc: Path
 
     @classmethod
-    def from_env(cls, environ: Mapping[str, str] = os.environ) -> "Paths":
-        """Build from HISPEC_REPO_DIR / HISPEC_VENV_DIR / HISPEC_ETC_DIR."""
-        repo = environ.get("HISPEC_REPO_DIR")
+    def from_env(cls, product: Optional[Product] = None,
+                 environ: Optional[Mapping[str, str]] = None) -> "Paths":
+        """Build from <PREFIX>_REPO_DIR / _VENV_DIR / _ETC_DIR."""
+        product = product or Product.load()
+        environ = os.environ if environ is None else environ
+        repo = environ.get(product.env_key("REPO_DIR"))
         return cls(
-            repo=Path(repo) if repo else _default_repo_dir(),
-            venv=Path(environ.get("HISPEC_VENV_DIR", "/opt/hispec/venv")),
-            etc=Path(environ.get("HISPEC_ETC_DIR", "/etc/hispec")),
+            product=product,
+            repo=Path(repo) if repo else _default_repo_dir(product),
+            venv=Path(environ.get(product.env_key("VENV_DIR"),
+                                  f"/opt/{product.name}/venv")),
+            etc=Path(environ.get(product.env_key("ETC_DIR"),
+                                 f"/etc/{product.name}")),
         )
 
     @property
     def instances(self) -> Path:
-        """Deployed instance files, read by hispec@.service."""
+        """Deployed instance files, read by the template unit."""
         return self.etc / "instances"
 
     @property
@@ -75,7 +81,7 @@ class Paths:
 
 
 def host_role(paths: Paths) -> str:
-    """Return this host's role, from /etc/hispec/host or its short hostname."""
+    """Return this host's role, from <etc>/host or its short hostname."""
     path = paths.etc / "host"
     if path.is_file():
         role = path.read_text(encoding="utf-8").strip()
@@ -84,20 +90,15 @@ def host_role(paths: Paths) -> str:
     return socket.gethostname().split(".")[0]
 
 
-def assigned_host(env_file: Path) -> Optional[str]:
+def assigned_host(product: Product, env_file: Path) -> Optional[str]:
     """Return the host an instance file claims, or None when it claims none."""
     if not env_file.is_file():
         return None
-    return read_env(env_file).get(HOST_KEY) or None
+    return read_env(env_file).get(product.env_key("HOST")) or None
 
 
 class TargetError(Exception):
     """A name on the command line matched nothing."""
-
-
-def unit(name: str) -> str:
-    """The systemd unit for an instance."""
-    return f"hispec@{name}.service"
 
 
 def _names_in(directory: Path) -> List[str]:
@@ -136,16 +137,17 @@ def read_env(path: Path) -> Dict[str, str]:
     return values
 
 
-def _secret_keys(node: Any, prefix: str = "") -> Iterator[Tuple[str, str]]:
-    """Yield (config key, variable name) for every ``*_env`` key in a config."""
+def _secret_keys(node: Any, suffix: str,
+                 prefix: str = "") -> Iterator[Tuple[str, str]]:
+    """Yield (config key, variable name) for every credential key in a config."""
     if not isinstance(node, Mapping):
         return
     for key, value in node.items():
         path = f"{prefix}.{key}" if prefix else str(key)
-        if str(key).endswith(SECRET_KEY_SUFFIX) and isinstance(value, str) and value:
+        if str(key).endswith(suffix) and isinstance(value, str) and value:
             yield path, value
         else:
-            yield from _secret_keys(value, path)
+            yield from _secret_keys(value, suffix, path)
 
 
 def _broker_secrets() -> List[str]:
@@ -171,11 +173,12 @@ def required_secrets(paths: Paths) -> Dict[str, List[str]]:
         name: ["every daemon (broker login)"] for name in _broker_secrets()
     }
     for instance in deployed(paths):
-        config = read_env(paths.instances / f"{instance}.env").get("HISPEC_CONFIG", "")
+        env = read_env(paths.instances / f"{instance}.env")
+        config = env.get(paths.product.env_key("CONFIG"), "")
         if not config or not Path(config).is_file():
             continue
         parsed = yaml.safe_load(Path(config).read_text(encoding="utf-8")) or {}
-        for key, variable in _secret_keys(parsed):
+        for key, variable in _secret_keys(parsed, paths.product.secret_key_suffix):
             needed.setdefault(variable, []).append(f"{instance} ({key})")
     return needed
 
@@ -188,15 +191,16 @@ def secrets_set(paths: Paths) -> Optional[Dict[str, str]]:
         return None
 
 
-def resolve(targets: Iterable[str], names: List[str]) -> List[str]:
+def resolve(product: Product, targets: Iterable[str], names: List[str]) -> List[str]:
     """Expand command-line targets against the instances in ``names``.
 
     A target is an instance name (``hsfei_adc``), a subsystem prefix
-    (``hsfei``, or just ``fei``), or ``all``. Targets keep their command-line
-    order, so ``hispec start power fei`` powers up before it starts the
-    mechanisms. Duplicates are dropped, and a target matching nothing is an
-    error.
+    (``hsfei``, or just ``fei`` where the product sets one), or ``all``.
+    Targets keep their command-line order, so ``start power fei`` powers up
+    before it starts the mechanisms. Duplicates are dropped, and a target
+    matching nothing is an error.
     """
+    shorthand = product.subsystem_prefix
     selected: List[str] = []
     for target in targets:
         if target == "all":
@@ -206,8 +210,8 @@ def resolve(targets: Iterable[str], names: List[str]) -> List[str]:
         else:
             prefix = target.rstrip("_") + "_"
             hits = [n for n in names if n.startswith(prefix)]
-            if not hits and not target.startswith("hs"):
-                hits = [n for n in names if n.startswith("hs" + prefix)]
+            if not hits and shorthand and not target.startswith(shorthand):
+                hits = [n for n in names if n.startswith(shorthand + prefix)]
         if not hits:
             raise TargetError(target)
         selected.extend(n for n in hits if n not in selected)
