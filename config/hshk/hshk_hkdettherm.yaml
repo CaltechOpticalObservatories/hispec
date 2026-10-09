@@ -7,7 +7,7 @@ peer_id: hkdettherm
 group_id: hshk
 
 hardware:
-  ip_address: 192.168.29.136
+  ip_address: 192.168.29.185
   tcp_port: 7777
   model336: true
   opt3062: false
