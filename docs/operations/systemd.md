@@ -105,18 +105,18 @@ still work if you prefer them: `systemctl start hispec@hsfei_adc`,
 
 ### Starting and stopping a whole subsystem
 
-Wherever `hispec` takes an instance name it also takes a subsystem, written
-either in full or without the `hs`, or `all`:
+Wherever `hispec` takes an instance name it also takes the prefix a subsystem's
+instances share, or `all`:
 
 ```bash
-hispec start fei                 # every deployed hsfei_* daemon
-hispec stop fei                  # all of them, in reverse order
-hispec restart cal               # every hscal_* daemon
-hispec start power fei           # PDUs first, then the FEI
-hispec stop power fei            # FEI first, then the PDUs
+hispec start hsfei               # every deployed hsfei_* daemon
+hispec stop hsfei                # all of them, in reverse order
+hispec restart hscal             # every hscal_* daemon
+hispec start hspower hsfei       # PDUs first, then the FEI
+hispec stop hspower hsfei        # FEI first, then the PDUs
 hispec start hsfei_adc hsfei_ms  # or name the ones you want
-hispec start --dry-run fei       # print what it would do, do nothing
-hispec status fei                # just the FEI
+hispec start --dry-run hsfei     # print what it would do, do nothing
+hispec status hsfei              # just the FEI
 ```
 
 Names are matched against what is deployed in `/etc/hispec/instances/`, so
@@ -190,7 +190,7 @@ subsystem, or everything the repo defines that this host does not have yet:
 
 ```bash
 hispec deploy hsfei_adc hsfei_ms
-hispec deploy fei                # every hsfei_* the repo defines
+hispec deploy hsfei              # every hsfei_* the repo defines
 hispec deploy all --no-start --no-enable   # refresh the files, change nothing else
 hispec deploy --new              # e.g. after a git pull added instances
 hispec deploy --new --dry-run    # see what that would do first
@@ -524,7 +524,7 @@ You do **not** need it to add a daemon or to pick up code changes;
 - installs `hispec@.service` (then runs `daemon-reload`), the polkit rule, the
   sudoers drop-in, `/usr/local/bin/hispec` and `/usr/local/sbin/hispec-enable`;
 - removes the retired `hispec-fei-start`, `hispec-fei-stop` and `hispec-doctor`
-  scripts (now `hispec start fei`, `hispec stop fei` and `hispec doctor`);
+  scripts (now `hispec start hsfei`, `hispec stop hsfei` and `hispec doctor`);
 - migrates any instance still running under the old `hispec-daemon@` name,
   preserving whether it was enabled and whether it was up;
 - lists instances that are deployed but not set to start at boot.

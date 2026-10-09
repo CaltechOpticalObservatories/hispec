@@ -27,7 +27,7 @@ sudo ./systemd/install.sh alice bob   # admin, once per host: setup + two operat
 hispec deploy hsfei_adc               # copy files from the repo, enable, start
 hispec deploy --new                   # everything the repo has that this host doesn't
 hispec status
-hispec start fei                      # the whole FEI subsystem
+hispec start hsfei                    # the whole FEI subsystem
 hispec logs hsfei_adc -f
 hispec doctor                         # why isn't it working?
 ```
