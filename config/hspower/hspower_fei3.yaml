@@ -25,5 +25,23 @@ hardware:
   username_env: HISPEC_PDU_USERNAME
   password_env: HISPEC_FEIEATON1_PASSWORD
 
+outlets:
+  - outlet: 1
+    name: 1_ATCFW
+  - outlet: 2
+    name: 2_ATCArch
+  - outlet: 3
+    name: 3_Unused
+  - outlet: 4
+    name: 4_Unused
+  - outlet: 5
+    name: 5_Unused
+  - outlet: 6
+    name: 6_Unused
+  - outlet: 7
+    name: 7_FEIShut
+  - outlet: 8
+    name: 8_VIBLake
+
 logging:
   level: INFO

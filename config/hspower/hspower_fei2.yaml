@@ -25,5 +25,23 @@ hardware:
   username_env: HISPEC_PDU_USERNAME
   password_env: HISPEC_FEIDLIPDU_PASSWORD
 
+outlets:
+  - outlet: 1
+    name: 1_ATCCryo
+  - outlet: 2
+    name: 2_RFAM
+  - outlet: 3
+    name: 3_BFAM
+  - outlet: 4
+    name: 4_PIAARet
+  - outlet: 5
+    name: 5_FEIComp
+  - outlet: 6
+    name: 6_NI9055+
+  - outlet: 7
+    name: 7_RPIAAGim
+  - outlet: 8
+    name: 8_BPIAAGim
+
 logging:
   level: INFO
