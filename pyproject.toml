@@ -19,7 +19,7 @@ authors = [
     { name="Prakriti Gupta", email="pgupta@astro.caltech.edu" }
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "keyring",
     "pipython",
@@ -33,6 +33,7 @@ dependencies = [
     # influxdb extra: needed by daemons/generic/keygrabber
     "libby[influxdb]@git+https://github.com/CaltechOpticalObservatories/libby.git",
     "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base",
+    "instrumentctl@git+https://github.com/CaltechOpticalObservatories/instrumentctl.git",
     "camera_daemon@git+https://github.com/COO-Utilities/camera-daemon.git"
 ]
 
@@ -48,6 +49,7 @@ ignored-modules = [
     # Third-party dependencies, not installed in the lint environment
     "astropy",
     "camera_daemon",
+    "instrumentctl",
     "libby",
     "matplotlib",
     "numpy",

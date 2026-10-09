@@ -62,6 +62,13 @@ None of these need `sudo`, as long as you are in the `hispec-ops` group. If you
 are being asked for a password, see
 [systemctl keeps asking for a password](#systemctl-keeps-asking-for-a-password).
 
+The `hispec` command itself comes from
+[instrumentctl](https://github.com/CaltechOpticalObservatories/instrumentctl),
+a dependency shared with other instruments. What makes it speak HISPEC is
+`src/hispec/cli/instrument.toml`, which names the unit, the ops group and the
+`HISPEC_` variable prefix. So a bug in `deploy` or `doctor` is fixed there,
+while anything naming HISPEC is fixed here.
+
 ```bash
 hispec status                    # every deployed daemon: running? at boot? since when?
 hispec status -v hsfei_adc       # in detail: its files, PID, exit code, last log lines
@@ -525,9 +532,11 @@ You do **not** need it to add a daemon or to pick up code changes;
 `HISPEC_REPO_DIR` and `HISPEC_VENV_DIR` override the paths.
 
 `/usr/local/bin/hispec` is a tiny wrapper that runs the CLI from the venv. The
-CLI lives in `src/hispec/cli/`, uses only the standard library so that
-`hispec doctor` works on a half-broken venv, and, being an editable install,
-follows `git pull`.
+commands come from `instrumentctl`; what stays here is
+`src/hispec/cli/instrument.toml` and a few lines that pass it. Both are an
+editable install, so `git pull` changes HISPEC's own configuration without a
+reinstall, while updating the commands themselves means reinstalling the
+dependency.
 
 ### What the unit does
 

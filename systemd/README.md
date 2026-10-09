@@ -14,7 +14,7 @@ directory.
 | `hispec@.service` | The template unit. One file runs every daemon; `hispec@<name>` is an instance of it. Installed to `/etc/systemd/system/`. |
 | `instances/<name>.env` | Per-instance settings: `HISPEC_DAEMON` (script, relative to `daemons/`) and `HISPEC_CONFIG` (deployed config path). Deployed to `/etc/hispec/instances/`. |
 | `polkit/49-hispec.rules` | Lets `hispec-ops` members start/stop/restart `hispec@*` without sudo. Installed to `/etc/polkit-1/rules.d/`. |
-| `bin/hispec` | Wrapper that runs the `hispec` CLI (`src/hispec/cli/`) from the venv. Installed to `/usr/local/bin/`. |
+| `bin/hispec` | Wrapper that runs the `hispec` CLI from the venv. Installed to `/usr/local/bin/`. |
 | `bin/hispec-enable` | Root helper behind `hispec enable` / `hispec deploy`: enables/disables instances at boot, which `systemctl enable` cannot be granted per-unit. Installed to `/usr/local/sbin/`, invoked via `sudo -n` by a NOPASSWD drop-in. |
 | `install.sh` | Host setup for admins / IT: users, groups, directories, venv, and all of the above. Idempotent, run as root. Not needed to add a daemon. |
 

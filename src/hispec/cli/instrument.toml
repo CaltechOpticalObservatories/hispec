@@ -1,4 +1,4 @@
-# Identity of the instrument this CLI drives. Read by hispec.cli.product.
+# Identity of this instrument, read by instrumentctl via hispec.cli.main.
 #
 # Paths follow from `name`: /opt/<name>/app, /opt/<name>/venv, /etc/<name>,
 # <name>@.service, /usr/local/sbin/<name>-enable. Operators override the
@@ -17,6 +17,11 @@ env_prefix = "HISPEC"
 # So `fei` finds hsfei_* as well as fei_*
 subsystem_prefix = "hs"
 docs_url = "https://caltechopticalobservatories.github.io/hispec/operations/systemd.html"
+
+[help]
+# --help reads better with names an operator can actually type
+example_instance = "hsfei_adc"
+example_subsystem = "fei"
 
 [secrets]
 # A config key ending in this names the variable holding a credential, never
