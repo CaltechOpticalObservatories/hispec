@@ -7,7 +7,7 @@ peer_id: yjdettherm
 group_id: hsyj
 
 hardware:
-  ip_address: 192.168.29.175
+  ip_address: 192.168.29.177
   tcp_port: 7777
   model336: true
   opt3062: false
