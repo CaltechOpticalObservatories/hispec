@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Front door for the hispec CLI (src/hispec/cli), installed to /usr/local/bin.
+# Front door for the hispec CLI, installed to /usr/local/bin.
 #
 # The CLI itself lives in the venv, installed editable from the repo, so a
 # `git pull` updates it with no reinstall. This wrapper only exists so that a
