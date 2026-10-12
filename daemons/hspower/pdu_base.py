@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import sys
 from typing import Any, Dict, Optional
 
@@ -43,6 +44,7 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
         self.username = None
         self.password = None
         self.outlet_count = 0
+        self.outlet_names: Dict[int, str] = {}
         self.dev = None
         self.daemon_desc = "PDU Daemon"
 
@@ -115,15 +117,15 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
 
     def register_outlet_keywords(self, n: int) -> None:
         """Register the keywords for outlet ``n``."""
-        self.keyword_registry.bool(f"outletstate{n}",
+        self.keyword_registry.bool(f"state{self.outlet_key(n)}",
                       getter=self.when_connected(self.get_outlet_state, n),
                       setter=self.when_connected(self.set_outlet_state, n),
                       description=f"Outlet {n} power state; write true/false to switch on/off.")
-        self.keyword_registry.string(f"outletname{n}",
+        self.keyword_registry.string(f"name{self.outlet_key(n)}",
                         getter=self.when_connected(self.get_outlet_name, n),
                         setter=self.when_connected(self.set_outlet_name, n),
                         description=f"Outlet {n} name, as configured on the PDU.")
-        self.keyword_registry.bool(f"outletswitchable{n}",
+        self.keyword_registry.bool(f"switchable{self.outlet_key(n)}",
                       getter=self.when_connected(self.get_outlet_switchable, n),
                       setter=self.when_connected(self.set_outlet_switchable, n),
                       description=f"Whether outlet {n} can be switched (True) or is locked "
@@ -144,6 +146,13 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
             "name": self.get_outlet_name(n),
             "switchable": self.get_outlet_switchable(n),
         }
+
+    def outlet_key(self, n: int) -> str:
+        """Suffix that names outlet ``n`` in its keywords: ``_<name>`` when
+        hardware.outlet_names gives it a name, otherwise the outlet number.
+        """
+        name = self.outlet_names.get(n)
+        return f"_{name}" if name else str(n)
 
     def when_connected(self, func, *args):
         """Wrap a hardware call for a keyword so it fails cleanly while
@@ -167,6 +176,14 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
         if self.outlet_count < 1:
             self.logger.error("hardware.outlet_count must be a positive integer")
             self.state['error'] = 'hardware.outlet_count must be a positive integer'
+            return
+
+        try:
+            self.outlet_names = self._parse_outlet_names(
+                self.get_config("hardware.outlet_names"), self.outlet_count)
+        except ValueError as e:
+            self.logger.error("%s", e)
+            self.state['error'] = str(e)
             return
 
         # Keywords register regardless of hardware availability so the daemon
@@ -265,7 +282,7 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
         if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
         try:
-            status = {"connected": True}
+            status: Dict[str, Any] = {"connected": True}
             status.update(self.device_status())
             status["outlets"] = [self.outlet_status(n)
                                  for n in range(1, self.outlet_count + 1)]
@@ -324,6 +341,34 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
             self.logger.warning("Config value '%s' is not an integer, ignoring", value)
             return None
 
+    @staticmethod
+    def _parse_outlet_names(raw, outlet_count: int) -> Dict[int, str]:
+        """Validate hardware.outlet_names, a map of outlet number to the name
+        used in that outlet's keywords. Raises ValueError on a bad entry.
+        """
+        if raw is None:
+            return {}
+        if not isinstance(raw, dict):
+            raise ValueError("hardware.outlet_names must map outlet numbers to names")
+        names: Dict[int, str] = {}
+        for key, name in raw.items():
+            try:
+                n = int(key)
+            except (TypeError, ValueError):
+                raise ValueError(f"hardware.outlet_names: '{key}' is not an outlet number") \
+                    from None
+            if not 1 <= n <= outlet_count:
+                raise ValueError(f"hardware.outlet_names: outlet {n} is outside "
+                                 f"1..{outlet_count}")
+            name = str(name)
+            if not re.fullmatch(r"[a-z0-9_]+", name):
+                raise ValueError(f"hardware.outlet_names: outlet {n} name '{name}' must be "
+                                 "lowercase letters, digits and underscores")
+            if name in names.values():
+                raise ValueError(f"hardware.outlet_names: name '{name}' is used twice")
+            names[n] = name
+        return names
+
     def keyword_wrapper(self, func, key=None):
         """Wrap a daemon method for use as a keyword getter/setter."""
         def wrapper(*args, **kwargs):
@@ -343,8 +388,6 @@ def main(daemon_class, description: str):
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (YAML or JSON)')
-    parser.add_argument('-d', '--daemon-id', type=str,
-                        help='Daemon ID (required for subsystem configs with multiple daemons)')
 
     args = parser.parse_args()
 

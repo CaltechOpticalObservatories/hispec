@@ -27,7 +27,7 @@ their shared `pdu_base.py` base class.
 | `hsfei/piaa-gimbalmount` | `thorlabs.ppc102` | Thorlabs PPC102 piezo gimbal mount | `hsfei_piaagimb`, `hsfei_piaagimr` |
 | `hsfei/xeryon` | `xeryon.XeryonController` | Xeryon XD-M-3 piezo motion controllers | `hsfei_hkfam`, `hsfei_piaadeploy`, `hsfei_yjfam` |
 | `hscal/smc8_attenuator` | `standa.smc8` | Standa SMC8 (libximc) attenuator | `hscal_hketatten` |
-| `hspower/eaton_pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | `hspower_fei1/2`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
+| `hspower/eaton_pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | `hspower_fei3/4`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
 
 Thirty-five instances are currently defined under `systemd/instances/`,
 running twelve distinct daemon scripts — the config-driven design paying off
@@ -106,7 +106,7 @@ Each PDU family gets its own daemon script, and each subclasses `PduDaemon`
 in `daemons/hspower/pdu_base.py`; `eaton_pdu`, for the Eaton EMAT-08/10, is
 the only one so far. The base class does everything common to every PDU:
 config, credentials, connecting, the `status` keyword and the outlet basics
-(`outletstate<n>`, `outletname<n>`, `outletswitchable<n>`). The script fills
+(`state<n>`, `name<n>`, `switchable<n>`). The script fills
 in how to talk to its hardware and registers whatever else that PDU can do,
 which for the Eaton is per-outlet metering and auto-restart.
 
@@ -191,11 +191,14 @@ and so on.
 
 **`eaton_pdu`** registers device-level keywords (`model`, `firmware`,
 `manufacturer`, `serial`, `outletcount`, `status`) plus a per-outlet block of
-`outletstate<n>`, `outletname<n>`, `outletswitchable<n>`, `outletcurrent<n>`,
-`outletpower<n>`, `outletenergy<n>`, `outletautorestart<n>` and
+`state<n>`, `name<n>`, `switchable<n>`, `current<n>`,
+`power<n>`, `energy<n>`, `autorestart<n>` and
 `resetstatistics<n>`. The first three outlet keywords and `model`/`firmware`
 come from `pdu_base.py`; the rest are the Eaton's own. The outlet count comes
-from config.
+from config. An outlet listed in the optional `hardware.outlet_names` map
+(outlet number to a lowercase name of letters, digits and underscores) uses
+`_<name>` in place of `<n>`, so outlet 1 named `arclamp` gets
+`state_arclamp`; unlisted outlets keep the number.
 
 ## Config inventory
 

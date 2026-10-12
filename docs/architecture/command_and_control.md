@@ -190,7 +190,7 @@ safe. For HISPEC's keyword set this follows from the keyword kind:
 | `isreferenced` | no | Writing `true` re-runs the homing sequence. |
 | `halt` | yes | Safe to repeat, by design. |
 | `shutdown` | yes | Second call has nothing to stop. |
-| `resetstatistics<n>` (PDU) | no | Destroys accumulated counters. |
+| `resetstatistics<n>`, `resetstatistics_<name>` (PDU) | no | Destroys accumulated counters. |
 
 This table is documentation of current behaviour, not an enforced contract;
 nothing in the code marks a keyword idempotent.
