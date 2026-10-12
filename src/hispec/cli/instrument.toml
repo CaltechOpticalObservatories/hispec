@@ -10,6 +10,7 @@
 
 [instrument]
 name = "hispec"
+display_name = "HISPEC"
 user = "hispec"
 ops_group = "hispec-ops"
 # Instance files set HISPEC_DAEMON, HISPEC_CONFIG and HISPEC_HOST

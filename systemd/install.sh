@@ -6,14 +6,17 @@
 #   sudo ./systemd/install.sh alice bob          # ... and enrol two operators
 #   sudo HISPEC_OPS_USERS="alice bob" ./systemd/install.sh   # same thing
 #
-# Re-run it to enrol operators, after a dependency or unit-file change, or to
-# repair a host. It is NOT part of adding a daemon: once a host is set up,
-# operators do that themselves with `hispec deploy <name>`, no root needed.
+# Re-run it to enrol operators, after a dependency change, or to repair a host.
+# It is NOT part of adding a daemon: once a host is set up, operators do that
+# themselves with `hispec deploy <name>`, no root needed.
 #
 # Operators named here are added to hispec-ops and systemd-journal, which is
 # what lets them start/stop/restart daemons and read logs without a password.
 # Skipping that step is the single most common reason systemctl keeps
 # prompting. See docs/operations/systemd.md.
+#
+# Everything past the virtualenv is `hispec install`, which lives in
+# instrumentctl and is shared with other instruments.
 
 set -euo pipefail
 
@@ -30,7 +33,7 @@ export UV_PROJECT_ENVIRONMENT="$VENV_DIR"
 
 # The daemons run as `hispec`, and this script runs as root, so a uv-managed
 # interpreter would land under root's home where they could not read it. Use
-# the system Python, as `python3 -m venv` did.
+# the system Python.
 export UV_NO_MANAGED_PYTHON=1
 
 if [[ $EUID -ne 0 ]]; then
@@ -46,68 +49,6 @@ if [[ ! -d "$REPO_DIR" ]]; then
     exit 1
 fi
 
-# hispec-ops: humans in this group can edit configs and start/stop/restart
-# hispec@* units without sudo (see systemd/polkit/*.rules). The hispec system
-# user joins it too, so it can read what operators write.
-if ! getent group hispec-ops &>/dev/null; then
-    groupadd --system hispec-ops
-    echo "created group 'hispec-ops'"
-fi
-
-# System user the daemons run as.
-if ! id hispec &>/dev/null; then
-    useradd --system --no-create-home --shell /usr/sbin/nologin -G hispec-ops hispec
-    echo "created system user 'hispec'"
-else
-    usermod -aG hispec-ops hispec
-fi
-
-# Operators. Doing this here rather than printing advice at the end is
-# deliberate: an operator who is not in hispec-ops gets a root password prompt
-# from every systemctl call, and has no way to tell that group membership is
-# the reason.
-for user in $OPS_USERS; do
-    if ! id "$user" &>/dev/null; then
-        echo "warning: no such user '$user', skipping" >&2
-        continue
-    fi
-    usermod -aG hispec-ops "$user"
-    if getent group systemd-journal &>/dev/null; then
-        usermod -aG systemd-journal "$user"
-    fi
-    echo "added '$user' to hispec-ops, systemd-journal (they must log out and back in)"
-done
-
-# Config/log directories. Setgid (2775/2750) so files created by any
-# hispec-ops member keep the group, instead of the creating user's own.
-install -d -o hispec -g hispec-ops -m 2775 /etc/hispec
-install -d -o hispec -g hispec-ops -m 2775 /etc/hispec/instances
-install -d -o hispec -g hispec-ops -m 2750 /var/log/hispec
-
-# Shared secrets, read by every unit if present. Group-readable rather than
-# root-only: requiring sudo for one file pushes people into putting credentials
-# in the instance files instead, which operators can already read.
-if [[ ! -e /etc/hispec/secrets.env ]]; then
-    cat > /etc/hispec/secrets.env <<'EOF'
-# Environment for every hispec@ instance. Keep credentials here rather than in
-# a config file, which is committed. `hispec doctor` lists the ones this host
-# needs and which daemon asks for each.
-EOF
-    echo "created /etc/hispec/secrets.env"
-fi
-chown root:hispec-ops /etc/hispec/secrets.env
-chmod 0660 /etc/hispec/secrets.env
-
-# This host's role, which instance files name so an instance cannot be
-# deployed onto the wrong machine. Pin it with HISPEC_HOST_ROLE when the
-# hostname is not what the instance files say.
-if [[ ! -e /etc/hispec/host ]]; then
-    echo "${HISPEC_HOST_ROLE:-$(hostname -s)}" > /etc/hispec/host
-    echo "recorded host role '$(cat /etc/hispec/host)' in /etc/hispec/host"
-fi
-chown root:hispec-ops /etc/hispec/host
-chmod 0644 /etc/hispec/host
-
 # Pinned, so re-running the installer cannot resolve with a different uv
 if [[ "$("$UV_BIN" --version 2>/dev/null)" != "uv $UV_VERSION"* ]]; then
     curl -LsSf "https://astral.sh/uv/$UV_VERSION/install.sh" |
@@ -115,10 +56,9 @@ if [[ "$("$UV_BIN" --version 2>/dev/null)" != "uv $UV_VERSION"* ]]; then
     echo "installed uv $UV_VERSION at $UV_BIN"
 fi
 
-# Python environment (editable install so `git pull` picks up code changes
-# without reinstalling). Upgrade the lock first: the git dependencies track
-# their default branch deliberately, and a reinstall is how a merged libby fix
-# reaches a host.
+# The virtualenv has to exist before the rest, since `hispec install` lives in
+# it. Upgrade the lock first: the git dependencies track their default branch
+# deliberately, and a reinstall is how a merged libby fix reaches a host.
 (
     cd "$REPO_DIR"
     "$UV_BIN" lock --upgrade
@@ -126,110 +66,6 @@ fi
     # the root project and leaves their dependencies out
     "$UV_BIN" sync --all-packages
 )
-chown -R hispec:hispec "$VENV_DIR"
 
-# Unit file + polkit rule (grants hispec-ops members start/stop/restart on
-# hispec@* without sudo).
-install -m 0644 "$REPO_DIR/systemd/hispec@.service" /etc/systemd/system/hispec@.service
-[[ -d /etc/polkit-1/rules.d ]] || install -d -m 0750 /etc/polkit-1/rules.d
-install -m 0644 "$REPO_DIR/systemd/polkit/49-hispec.rules" /etc/polkit-1/rules.d/49-hispec.rules
-
-# Operator commands. `hispec` is a thin wrapper around the CLI in the venv,
-# so the CLI follows `git pull` without a reinstall. hispec-enable is a copy,
-# not a link into the repo: it runs as root, so it must not be something the
-# hispec user or a `git pull` can change.
-install -d -m 0755 /usr/local/bin /usr/local/sbin
-install -m 0755 "$REPO_DIR/systemd/bin/hispec"        /usr/local/bin/hispec
-install -m 0755 "$REPO_DIR/systemd/bin/hispec-enable" /usr/local/sbin/hispec-enable
-# Retired in favour of `hispec start|stop|doctor`.
-rm -f /usr/local/bin/hispec-fei-start /usr/local/bin/hispec-fei-stop /usr/local/bin/hispec-doctor
-
-# Passwordless enable/disable, scoped to that one helper. Polkit cannot scope
-# manage-unit-files to a unit name, so `systemctl enable hispec@x` would
-# otherwise prompt for a password every time an instance is deployed.
-sudoers_tmp=$(mktemp)
-cat > "$sudoers_tmp" <<'EOF'
-# Installed by hispec systemd/install.sh. Lets hispec-ops members enable and
-# disable hispec@<instance> units at boot without a password. The helper
-# validates the instance name and refuses anything that is not a deployed
-# hispec instance, so this does not grant control of other units.
-%hispec-ops ALL=(root) NOPASSWD: /usr/local/sbin/hispec-enable
-EOF
-if visudo -cqf "$sudoers_tmp"; then
-    install -m 0440 -o root -g root "$sudoers_tmp" /etc/sudoers.d/hispec-ops
-else
-    echo "warning: generated sudoers file failed validation, not installing" >&2
-fi
-rm -f "$sudoers_tmp"
-
-systemctl daemon-reload
-
-# Migration: the template unit used to be called hispec-daemon@.service. Move
-# any instance that was enabled or running onto hispec@ and drop the old unit,
-# preserving whether it was enabled and whether it was up.
-if [[ -f /etc/systemd/system/hispec-daemon@.service ]]; then
-    echo
-    echo "migrating hispec-daemon@* instances to hispec@*"
-    old_instances=$(
-        {
-            systemctl list-units --all --no-legend --plain 'hispec-daemon@*.service' 2>/dev/null |
-                awk '{ print ($1 ~ /^hispec-daemon@/) ? $1 : $2 }'
-            find /etc/systemd/system -name 'hispec-daemon@*.service' -not -name 'hispec-daemon@.service' \
-                -printf '%f\n' 2>/dev/null
-        } | sort -u
-    )
-    for old_unit in $old_instances; do
-        name=${old_unit#hispec-daemon@}
-        name=${name%.service}
-        [[ -n $name ]] || continue
-        was_active=no
-        if systemctl is-active --quiet "$old_unit"; then was_active=yes; fi
-        was_enabled=no
-        if [[ $(systemctl is-enabled "$old_unit" 2>/dev/null) == enabled ]]; then was_enabled=yes; fi
-
-        systemctl disable --now "$old_unit" >/dev/null 2>&1 || true
-        if [[ $was_enabled == yes ]]; then systemctl enable "hispec@$name.service" >/dev/null; fi
-        if [[ $was_active == yes ]]; then systemctl start "hispec@$name.service" || true; fi
-        echo "  $name: enabled=$was_enabled active=$was_active -> hispec@$name"
-    done
-    rm -f /etc/systemd/system/hispec-daemon@.service
-    rm -f /etc/polkit-1/rules.d/49-hispec-daemons.rules
-    systemctl daemon-reload
-    echo "  removed hispec-daemon@.service and its polkit rule"
-fi
-
-echo
-echo "Host setup complete."
-
-# Report deployed-but-not-enabled instances rather than enabling them: whether
-# an instance should come up at boot is an operational decision, not ours.
-pending=""
-for env_file in /etc/hispec/instances/*.env; do
-    [[ -f $env_file ]] || continue
-    name=${env_file##*/}; name=${name%.env}
-    if [[ $(systemctl is-enabled "hispec@$name.service" 2>/dev/null) == enabled ]]; then
-        continue
-    fi
-    pending+=" $name"
-done
-if [[ -n $pending ]]; then
-    echo
-    echo "Deployed but not set to start at boot:$pending"
-    echo "  hispec enable --now$pending"
-fi
-
-cat <<EOF
-
-Operators in hispec-ops can now, with no password and no further install.sh:
-  - hispec deploy <name>          add a daemon (or: hispec deploy --new)
-  - hispec start|stop|restart <name|subsystem>
-  - hispec enable|disable <name>
-  - hispec status, hispec logs <name>
-  - edit /etc/hispec/*.yaml
-
-To enrol more operators later:
-  sudo $REPO_DIR/systemd/install.sh <username> ...
-
-If anything still asks for a password, run 'hispec doctor' as that user.
-Full instructions: docs/operations/systemd.md
-EOF
+# shellcheck disable=SC2086  # OPS_USERS is a deliberately word-split list
+exec "$VENV_DIR/bin/hispec" install $OPS_USERS
