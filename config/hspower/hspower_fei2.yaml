@@ -24,7 +24,7 @@ hardware:
     3: 3_BFAM
     4: 4_PIAARet
     5: 5_FEIComp
-    6: 6_NI9055+
+    6: 6_NI9055plus
     7: 7_RPIAAGim
     8: 8_BPIAAGim
   # Telnet login. The values never appear here: these name environment

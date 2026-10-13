@@ -191,6 +191,7 @@ safe. For HISPEC's keyword set this follows from the keyword kind:
 | `halt` | yes | Safe to repeat, by design. |
 | `shutdown` | yes | Second call has nothing to stop. |
 | `resetstatistics<n>`, `resetstatistics_<name>` (PDU) | no | Destroys accumulated counters. |
+| `cycle<n>`, `cycle_<name>` (DLI PDU) | no | Each write power cycles the outlet again. |
 
 This table is documentation of current behaviour, not an enforced contract;
 nothing in the code marks a keyword idempotent.

@@ -103,12 +103,13 @@ InfluxDB token. An inline `hardware.username` / `hardware.password` still
 works for a bench test and logs a warning against committing it.
 
 Each PDU family gets its own daemon script, and each subclasses `PduDaemon`
-in `daemons/hspower/pdu_base.py`; `eaton_pdu`, for the Eaton EMAT-08/10, is
-the only one so far. The base class does everything common to every PDU:
+in `daemons/hspower/pdu_base.py`: `eaton_pdu` for the Eaton EMAT-08/10 over
+Telnet, and `dli_pdu` for the DLI DC3 over SSH. The base class does everything common to every PDU:
 config, credentials, connecting, the `status` keyword and the outlet basics
 (`state<n>`, `name<n>`, `switchable<n>`). The script fills
 in how to talk to its hardware and registers whatever else that PDU can do,
-which for the Eaton is per-outlet metering and auto-restart.
+which for the Eaton is per-outlet metering and auto-restart, and for the DLI
+per-outlet power cycling.
 
 Supporting another PDU means copying `eaton_pdu`, filling in its hardware
 methods, and keeping only the extras the new PDU has. The steps are at the
@@ -196,9 +197,16 @@ and so on.
 `resetstatistics<n>`. The first three outlet keywords and `model`/`firmware`
 come from `pdu_base.py`; the rest are the Eaton's own. The outlet count comes
 from config. An outlet listed in the optional `hardware.outlet_names` map
-(outlet number to a lowercase name of letters, digits and underscores) uses
+(outlet number to a name; characters other than letters, digits and
+underscores become underscores) uses
 `_<name>` in place of `<n>`, so outlet 1 named `arclamp` gets
 `state_arclamp`; unlisted outlets keep the number.
+
+**`dli_pdu`** registers the same base keywords (`model`, `firmware`,
+`outletcount`, `status`, `state<n>`, `name<n>`, `switchable<n>`) plus
+`cycle<n>`, a trigger that power cycles the outlet, and `cycledelay<n>`, the
+read-only off time of that cycle in seconds. Outlet names work as for
+`eaton_pdu`.
 
 ## Config inventory
 

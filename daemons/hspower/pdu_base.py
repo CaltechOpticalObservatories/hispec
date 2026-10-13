@@ -341,10 +341,10 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
             self.logger.warning("Config value '%s' is not an integer, ignoring", value)
             return None
 
-    @staticmethod
-    def _parse_outlet_names(raw, outlet_count: int) -> Dict[int, str]:
+    def _parse_outlet_names(self, raw, outlet_count: int) -> Dict[int, str]:
         """Validate hardware.outlet_names, a map of outlet number to the name
-        used in that outlet's keywords. Raises ValueError on a bad entry.
+        used in that outlet's keywords. Characters other than letters, digits
+        and underscores become underscores. Raises ValueError on a bad entry.
         """
         if raw is None:
             return {}
@@ -360,11 +360,14 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
             if not 1 <= n <= outlet_count:
                 raise ValueError(f"hardware.outlet_names: outlet {n} is outside "
                                  f"1..{outlet_count}")
-            name = str(name)
-            if not re.fullmatch(r"[a-z0-9_]+", name):
-                raise ValueError(f"hardware.outlet_names: outlet {n} name '{name}' must be "
-                                 "lowercase letters, digits and underscores")
-            if name in names.values():
+            raw_name = "" if name is None else str(name)
+            name = re.sub(r"[^A-Za-z0-9_]", "_", raw_name)
+            if not name:
+                raise ValueError(f"hardware.outlet_names: outlet {n} name is empty")
+            if name != raw_name:
+                self.logger.warning("hardware.outlet_names: outlet %d name '%s' is used as "
+                                    "'%s' in keywords", n, raw_name, name)
+            if name.lower() in (other.lower() for other in names.values()):
                 raise ValueError(f"hardware.outlet_names: name '{name}' is used twice")
             names[n] = name
         return names
