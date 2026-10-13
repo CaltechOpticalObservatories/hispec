@@ -391,7 +391,6 @@ def main(daemon_class, description: str):
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('-c', '--config', type=str,
                         help='Path to config file (YAML or JSON)')
-
     args = parser.parse_args()
 
     if not args.config:
