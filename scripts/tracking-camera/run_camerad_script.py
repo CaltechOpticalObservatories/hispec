@@ -8,8 +8,12 @@ of printing a return code.
 
 Two acquisition styles:
 
-  counted   default; --Nreads frames per sequence, --nseq sequences
+  counted   default; --frames per sequence, --repeat sequences
   freerun   --freerun; one continuous session until --seconds or Ctrl-C
+  autofetch --autofetch; --frames pushed by the Archon unsolicited
+
+A window below 50x50 produces faster than anything but autofetch can read, so
+the other two modes refuse one.
 
 Needs hispec and the per-instrument bindings in the environment running it:
 
@@ -32,9 +36,12 @@ import time
 from hispec.driver.tracking_camera import ReadMode, TrackingCamera
 
 # Used when neither --config nor $CAMERAD_CONFIG is given
-DEFAULT_CONFIG = ("/home/hsdev/abaker/camera-interface/config/hispecatc.cfg")
+DEFAULT_CONFIG = "/home/hsdev/atcam/etc/hispecatc.cfg"
 
 DETECTOR_PIXELS = 2048
+# A 10x10 window reads out in about 1 ms, far faster than a non-autofetch
+# fetch; the controller then overruns the host and leaves data unread
+MIN_NON_AUTOFETCH_ROI = 50
 STOP_CHECK_S = 4.0
 DEFAULT_TEMPERATURE_K = 99.9
 INFLUX_URL = "hispec.caltech.edu:8086"
@@ -68,9 +75,10 @@ def parse_args():
                         help="Run continuously instead of taking counted frames")
     parser.add_argument("--seconds", type=float, default=0.0,
                         help="With --freerun, how long to run; 0 means until Ctrl-C")
-    parser.add_argument("--Nreads", type=int, default=3,
-                        help="Reads for UTR, or images for RX and RXR")
-    parser.add_argument("--nseq", type=int, default=1, help="Number of sequences")
+    parser.add_argument("--frames", type=int, default=3,
+                        help="Frames to acquire; reads per sequence for UTR")
+    parser.add_argument("--repeat", type=int, default=1,
+                        help="Times to repeat a counted sequence")
     parser.add_argument("--pause", type=float, default=0,
                         help="Seconds to pause between sequences")
     return parser.parse_args()
@@ -184,11 +192,11 @@ def run_freerun(camera, args):
 
 
 def run_counted(camera, args):
-    """Take nseq sequences of Nreads frames each."""
-    for sequence in range(args.nseq):
+    """Take the requested frames, repeated as asked."""
+    for sequence in range(args.repeat):
         write_headers(camera, args)
-        camera.expose(args.Nreads)
-        print(f"sequence {sequence + 1} of {args.nseq} complete")
+        camera.expose(args.frames)
+        print(f"sequence {sequence + 1} of {args.repeat} complete")
         if args.pause:
             time.sleep(args.pause)
 
@@ -198,8 +206,9 @@ def run_counted(camera, args):
 MAX_AUTOFETCH_BYTES = 16384
 AUTOFETCH_HEADER_LEN = 36
 BYTES_PER_PIXEL = 2
-# The horizontal argument is per-tap, so guiding reads out two taps wide
-TAPS = 2
+# Every frame carries the exposure and its reset image side by side, so an
+# N column window comes back 2N wide
+FRAME_WIDTH_FACTOR = 2
 
 
 # Short enough that Ctrl-C feels immediate
@@ -224,21 +233,22 @@ def stop_autofetch(camera):
 
 
 def run_autofetch(camera, args):
-    """Stream nseq frames with the Archon pushing them unsolicited."""
-    frame_bytes = AUTOFETCH_HEADER_LEN + args.roi * TAPS * args.roi * BYTES_PER_PIXEL
+    """Stream the requested frames with the Archon pushing them unsolicited."""
+    frame_bytes = (AUTOFETCH_HEADER_LEN
+                   + args.roi * FRAME_WIDTH_FACTOR * args.roi * BYTES_PER_PIXEL)
     if frame_bytes >= MAX_AUTOFETCH_BYTES:
         raise SystemExit(f"roi {args.roi} gives {frame_bytes} byte frames; autofetch "
                          f"needs under {MAX_AUTOFETCH_BYTES}, so use a smaller roi")
 
     write_headers(camera, args)
     camera.set_autofetch(True)
-    print(f"autofetch running, {args.nseq} frames; Ctrl-C to stop")
+    print(f"autofetch running, {args.frames} frames; Ctrl-C to stop")
     started = time.monotonic()
     interrupted = False
 
     # On a thread so the main thread stays able to take SIGINT: expose() blocks
     # in C++ with the GIL released, so a handler cannot run until it returns
-    worker = threading.Thread(target=camera.expose, args=(args.nseq,),
+    worker = threading.Thread(target=camera.expose, args=(args.frames,),
                               name="autofetch", daemon=True)
     worker.start()
     try:
@@ -251,7 +261,9 @@ def run_autofetch(camera, args):
         worker.join(STOP_JOIN_S)
     elapsed = time.monotonic() - started
 
-    frames = sum(o.frames_written for o in camera.output_status())
+    # Per output, not summed: every output writes the same frames, so adding
+    # them reports a multiple of the real count
+    frames = max((o.frames_written for o in camera.output_status()), default=0)
     if interrupted:
         print(f"interrupted after {frames} frames")
     if elapsed > 0:
@@ -263,6 +275,13 @@ def main():
     args = parse_args()
     if args.freerun and args.autofetch:
         raise SystemExit("--freerun and --autofetch cannot be combined")
+    if (not args.autofetch and args.mode in ("guiding", "roi")
+            and args.roi < MIN_NON_AUTOFETCH_ROI):
+        raise SystemExit(
+            f"roi {args.roi} produces faster than a non-autofetch readout can "
+            f"fetch, which leaves data unread and wedges the controller; use "
+            f"--autofetch, raise --exptime, or use roi "
+            f"{MIN_NON_AUTOFETCH_ROI} or more")
     if not os.path.exists(args.config):
         raise SystemExit(f"no such config: {args.config}")
     for name, value in sorted(vars(args).items()):
