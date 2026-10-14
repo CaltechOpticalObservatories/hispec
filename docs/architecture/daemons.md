@@ -27,7 +27,7 @@ their shared `pdu_base.py` base class.
 | `hsfei/piaa-gimbalmount` | `thorlabs.ppc102` | Thorlabs PPC102 piezo gimbal mount | `hsfei_piaagimb`, `hsfei_piaagimr` |
 | `hsfei/xeryon` | `xeryon.XeryonController` | Xeryon XD-M-3 piezo motion controllers | `hsfei_hkfam`, `hsfei_piaadeploy`, `hsfei_yjfam` |
 | `hscal/smc8_attenuator` | `standa.smc8` | Standa SMC8 (libximc) attenuator | `hscal_hketatten` |
-| `hspower/eaton_pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | `hspower_fei1/2`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
+| `hspower/eaton_pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | `hspower_fei3/4`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
 
 Thirty-five instances are currently defined under `systemd/instances/`,
 running twelve distinct daemon scripts — the config-driven design paying off
@@ -103,12 +103,13 @@ InfluxDB token. An inline `hardware.username` / `hardware.password` still
 works for a bench test and logs a warning against committing it.
 
 Each PDU family gets its own daemon script, and each subclasses `PduDaemon`
-in `daemons/hspower/pdu_base.py`; `eaton_pdu`, for the Eaton EMAT-08/10, is
-the only one so far. The base class does everything common to every PDU:
+in `daemons/hspower/pdu_base.py`: `eaton_pdu` for the Eaton EMAT-08/10 over
+Telnet, and `dli_pdu` for the DLI DC3 over SSH. The base class does everything common to every PDU:
 config, credentials, connecting, the `status` keyword and the outlet basics
-(`outletstate<n>`, `outletname<n>`, `outletswitchable<n>`). The script fills
+(`state<n>`, `name<n>`, `switchable<n>`). The script fills
 in how to talk to its hardware and registers whatever else that PDU can do,
-which for the Eaton is per-outlet metering and auto-restart.
+which for the Eaton is per-outlet metering and auto-restart, and for the DLI
+per-outlet power cycling.
 
 Supporting another PDU means copying `eaton_pdu`, filling in its hardware
 methods, and keeping only the extras the new PDU has. The steps are at the
@@ -191,11 +192,21 @@ and so on.
 
 **`eaton_pdu`** registers device-level keywords (`model`, `firmware`,
 `manufacturer`, `serial`, `outletcount`, `status`) plus a per-outlet block of
-`outletstate<n>`, `outletname<n>`, `outletswitchable<n>`, `outletcurrent<n>`,
-`outletpower<n>`, `outletenergy<n>`, `outletautorestart<n>` and
+`state<n>`, `name<n>`, `switchable<n>`, `current<n>`,
+`power<n>`, `energy<n>`, `autorestart<n>` and
 `resetstatistics<n>`. The first three outlet keywords and `model`/`firmware`
 come from `pdu_base.py`; the rest are the Eaton's own. The outlet count comes
-from config.
+from config. An outlet listed in the optional `hardware.outlet_names` map
+(outlet number to a name; characters other than letters, digits and
+underscores become underscores) uses
+`_<name>` in place of `<n>`, so outlet 1 named `arclamp` gets
+`state_arclamp`; unlisted outlets keep the number.
+
+**`dli_pdu`** registers the same base keywords (`model`, `firmware`,
+`outletcount`, `status`, `state<n>`, `name<n>`, `switchable<n>`) plus
+`cycle<n>`, a trigger that power cycles the outlet, and `cycledelay<n>`, the
+read-only off time of that cycle in seconds. Outlet names work as for
+`eaton_pdu`.
 
 ## Config inventory
 

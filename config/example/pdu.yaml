@@ -14,6 +14,12 @@ hardware:
   username: admin
   password: CHANGE_ME  # do not commit real credentials
   outlet_count: 8
+  # Optional: name outlets in their keywords (state_arclamp instead of
+  # state1). Any other character becomes an underscore; unlisted outlets
+  # keep the number.
+  # outlet_names:
+  #   1: arclamp
+  #   2: heater
 
 logging:
   level: INFO

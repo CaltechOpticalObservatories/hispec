@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""
+Daemon for the DLI DC3 PDU, over SSH.
+
+Everything every PDU has (config, connecting, outlet state/name/lock, the
+status keyword) comes from PduDaemon. This class says how to reach a DLI,
+and adds the keywords only a DLI has: per-outlet power cycle and cycle delay.
+"""
+
+from typing import Any, Dict, Optional
+
+from pdu_base import PduDaemon, main
+from hispec.driver.pdu.src.dli_dc3 import Dlidc3  # pylint: disable=E0611
+
+
+class DliPdu(PduDaemon): #pylint: disable = W0223
+    """Daemon for one DLI DC3 PDU."""
+
+    default_port = 22
+
+    def __init__(self):
+        super().__init__()
+        self.dev = Dlidc3(log=True)
+
+    def connect(self) -> bool:
+        # The driver returns nothing; it records the outcome in is_connected().
+        self.dev.connect(self.host, self.port,
+                         username=self.username, password=self.password)
+        return bool(self.dev.is_connected())
+
+    def disconnect(self) -> None:
+        self.dev.disconnect()
+
+    def is_connected(self) -> bool:
+        return bool(self.dev.is_connected())
+
+    def initialize(self) -> bool:
+        # The driver assumes eight outlets, so size it from config.
+        self.dev.outlet_count = self.outlet_count
+        self.dev.initialize()
+        return bool(self.dev.initialized)
+
+    def reported_outlet_count(self) -> Optional[int]:
+        # The DLI does not report its outlet count.
+        return None
+
+    def get_model(self) -> str:
+        return self._text(self.dev.get_device_model(), "model")
+
+    def get_firmware(self) -> str:
+        return self._text(self.dev.get_device_version(), "firmware version")
+
+    def get_outlet_state(self, n: int) -> bool:
+        return self._value(self.dev.outlet_status(n), f"outlet {n} state")
+
+    def set_outlet_state(self, n: int, on: bool) -> None:
+        on = bool(on)
+        self._confirm(self.dev.outlet_on(n) if on else self.dev.outlet_off(n),
+                      f"switch outlet {n} {'on' if on else 'off'}")
+
+    def get_outlet_name(self, n: int) -> str:
+        return self._text(self.dev.get_outlet_name(n), f"outlet {n} name")
+
+    def set_outlet_name(self, n: int, name: str) -> None:
+        # The driver's setter returns nothing, so read the name back to confirm.
+        name = str(name)
+        self.dev.set_outlet_name(n, name)
+        self._confirm(self.get_outlet_name(n) == name, f"rename outlet {n}")
+
+    def get_outlet_switchable(self, n: int) -> bool:
+        # The DLI reports locked, the inverse of switchable.
+        return not self._value(self.dev.lock_status(n), f"outlet {n} lock state")
+
+    def set_outlet_switchable(self, n: int, switchable: bool) -> None:
+        switchable = bool(switchable)
+        self._confirm(self.dev.unlock_outlet(n) if switchable else self.dev.lock_outlet(n),
+                      f"{'unlock' if switchable else 'lock'} outlet {n}")
+
+    def cycle_outlet(self, n: int) -> None:
+        """Power cycle outlet ``n``: off, wait its cycle delay, then on."""
+        self._confirm(self.dev.outlet_cycle(n), f"cycle outlet {n}")
+
+    def get_outlet_cycledelay(self, n: int) -> int:
+        """Outlet ``n`` off time during a power cycle, in seconds."""
+        return int(self._value(self.dev.get_atomic_value(f"cycle_delay{n}"),
+                               f"outlet {n} cycle delay"))
+
+    def register_outlet_keywords(self, n: int) -> None:
+        super().register_outlet_keywords(n)
+        self.keyword_registry.trigger(f"cycle{self.outlet_key(n)}",
+                         action=self.when_connected(self.cycle_outlet, n),
+                         description=f"Power cycle outlet {n}: off, wait its cycle delay, "
+                                     "then on.")
+        self.keyword_registry.int(f"cycledelay{self.outlet_key(n)}",
+                     getter=self.when_connected(self.get_outlet_cycledelay, n),
+                     units="seconds",
+                     description=f"Outlet {n} off time during a power cycle.")
+
+    def outlet_status(self, n: int) -> Dict[str, Any]:
+        status = super().outlet_status(n)
+        status["cycledelay"] = self.get_outlet_cycledelay(n)
+        return status
+
+    @staticmethod
+    def _value(value, what: str):
+        """Raise when the driver returned None, which is how it reports failure."""
+        if value is None:
+            raise RuntimeError(f"failed to read {what} from PDU")
+        return value
+
+    @classmethod
+    def _text(cls, value, what: str) -> str:
+        """A string read from the PDU."""
+        return str(cls._value(value, what))
+
+if __name__ == '__main__':
+    main(DliPdu, "DLI DC3 PDU Daemon")

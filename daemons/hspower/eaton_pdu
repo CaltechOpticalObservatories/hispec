@@ -116,24 +116,24 @@ class EatonPdu(PduDaemon): #pylint: disable = W0223
 
     def register_outlet_keywords(self, n: int) -> None:
         super().register_outlet_keywords(n)
-        self.keyword_registry.float(f"outletcurrent{n}",
+        self.keyword_registry.float(f"current{self.outlet_key(n)}",
                        getter=self.when_connected(self.get_outlet_current, n),
                        units="A",
                        description=f"Outlet {n} instantaneous current draw.")
-        self.keyword_registry.float(f"outletpower{n}",
+        self.keyword_registry.float(f"power{self.outlet_key(n)}",
                        getter=self.when_connected(self.get_outlet_power, n),
                        units="W",
                        description=f"Outlet {n} instantaneous active power draw.")
-        self.keyword_registry.int(f"outletautorestart{n}",
+        self.keyword_registry.int(f"autorestart{self.outlet_key(n)}",
                      getter=self.when_connected(self.get_outlet_autorestart, n),
                      setter=self.when_connected(self.set_outlet_autorestart, n),
                      description=(f"Outlet {n} power-up behavior after a PDU restart: "
                                   "0=not powered, 1=powered, 2=last state."))
-        self.keyword_registry.int(f"outletenergy{n}",
+        self.keyword_registry.int(f"energy{self.outlet_key(n)}",
                      getter=self.when_connected(self.get_outlet_energy, n),
                      units="Wh",
                      description=f"Outlet {n} cumulative energy since the last reset.")
-        self.keyword_registry.trigger(f"resetstatistics{n}",
+        self.keyword_registry.trigger(f"resetstatistics{self.outlet_key(n)}",
                          action=self.when_connected(self.reset_outlet_statistics, n),
                          description=f"Reset the energy statistics for outlet {n}.")
 

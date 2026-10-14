@@ -18,6 +18,15 @@ hardware:
   # daemon logs a warning at startup if it disagrees with the count the PDU
   # reports.
   outlet_count: 8
+  outlet_names:
+    1: 1_ATCCryo
+    2: 2_RFAM
+    3: 3_BFAM
+    4: 4_PIAARet
+    5: 5_FEIComp
+    6: 6_NI9055plus
+    7: 7_RPIAAGim
+    8: 8_BPIAAGim
   # Telnet login. The values never appear here: these name environment
   # variables the daemon reads, set root-only in /etc/hispec/secrets.env (see
   # docs/operations/systemd.md). All nine PDUs share one login today; point an instance
