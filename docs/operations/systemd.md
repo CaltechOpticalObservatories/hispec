@@ -36,7 +36,7 @@ An instance gets its identity from two files:
 
 | File | What it says |
 |---|---|
-| `/etc/hispec/instances/<name>.env` | which daemon script to run (`HISPEC_DAEMON`) and which config to hand it (`HISPEC_CONFIG`) |
+| `/etc/hispec/instances/<name>.env` | which daemon script to run (`HISPEC_DAEMON`) and which host should run it (`HISPEC_HOST`) |
 | `/etc/hispec/<name>.yaml` | the config itself: serial ports, addresses, limits, keyword names |
 
 So running a second Lakeshore is not new code and not a new unit. It is a
@@ -239,7 +239,6 @@ matching `systemd/instances/<name>.env`:
 
 ```sh
 HISPEC_DAEMON=<path relative to daemons/, e.g. generic/inficon or hsfei/adc>
-HISPEC_CONFIG=/etc/hispec/<name>.yaml
 HISPEC_HOST=<the host that runs it, e.g. hispecserver or fei>
 ```
 
@@ -368,10 +367,11 @@ Common causes, in the order they bite:
 - **`Failed to load environment files`**: `/etc/hispec/instances/<name>.env`
   is missing or unreadable. The instance name in the command must match the
   file name exactly.
-- **`No such file or directory`** on the config: `HISPEC_CONFIG` points
-  somewhere that does not exist. The config has to be deployed to `/etc/hispec/`
-  as well as the `.env`. `hispec deploy <name>` copies both; copying one by
-  hand and forgetting the other is the usual mistake.
+- **`No such file or directory`** on the config: the unit passes
+  `/etc/hispec/<name>.yaml`, derived from the instance name, and nothing is
+  there. The config has to be deployed as well as the `.env`. `hispec deploy
+  <name>` copies both; copying one by hand and forgetting the other is the
+  usual mistake.
 - **A serial port or USB error**: the device is unplugged, powered off, or
   claimed by another process. Two instances pointing at the same port will do
   this to each other, and so will a daemon left running from a manual test.
@@ -505,12 +505,17 @@ sudo ./systemd/install.sh alice bob          # operator usernames
 `install.sh` is idempotent. Re-run it:
 
 - to enrol more operators (`sudo ./systemd/install.sh carol`);
-- after a pull that changed dependencies in `pyproject.toml`, or
-  `hispec@.service`, the polkit rule or `hispec-enable` under `systemd/`;
+- after a pull that changed dependencies in `pyproject.toml`, or the unit or
+  polkit rule in `instrumentctl`;
 - to repair a host `hispec doctor` says is broken.
 
 You do **not** need it to add a daemon or to pick up code changes;
-[`hispec deploy`](#deploying-an-instance) and a `git pull` cover those. It:
+[`hispec deploy`](#deploying-an-instance) and a `git pull` cover those.
+
+The script itself only bootstraps a pinned `uv` and builds the venv at
+`/opt/hispec/venv`, which is also where the `hispec` command comes from. It
+then hands over to `hispec install`, which lives in `instrumentctl` and does
+the rest:
 
 - creates the `hispec-ops` group and the unprivileged `hispec` system user the
   daemons run as;
@@ -518,16 +523,16 @@ You do **not** need it to add a daemon or to pick up code changes;
 - creates `/etc/hispec/{,instances/}` and `/var/log/hispec/`, group-owned by
   `hispec-ops` and setgid so files created by one operator stay readable by the
   rest;
-- creates `/etc/hispec/secrets.env`, writable by `hispec-ops`;
-- creates the venv at `/opt/hispec/venv` with the repo `pip install -e`'d into
-  it, which also provides the `hispec` CLI;
-- installs `hispec@.service` (then runs `daemon-reload`), the polkit rule, the
-  sudoers drop-in, `/usr/local/bin/hispec` and `/usr/local/sbin/hispec-enable`;
-- removes the retired `hispec-fei-start`, `hispec-fei-stop` and `hispec-doctor`
-  scripts (now `hispec start hsfei`, `hispec stop hsfei` and `hispec doctor`);
-- migrates any instance still running under the old `hispec-daemon@` name,
-  preserving whether it was enabled and whether it was up;
+- creates `/etc/hispec/secrets.env`, writable by `hispec-ops`, and records this
+  host's role in `/etc/hispec/host`;
+- renders `hispec@.service` (then runs `daemon-reload`), the polkit rule, the
+  sudoers drop-in, `/usr/local/bin/hispec` and `/usr/local/sbin/hispec-enable`
+  from `src/hispec/cli/instrument.toml`, reporting only what it changes;
 - lists instances that are deployed but not set to start at boot.
+
+Because those five are rendered rather than committed, `hispec doctor`
+compares what is installed against what `install` would write now, which is
+what catches a host whose unit predates a template change.
 
 `HISPEC_REPO_DIR` and `HISPEC_VENV_DIR` override the paths.
 
@@ -552,7 +557,8 @@ and `/var/log/hispec`; device nodes under `/dev` are unaffected by both.
 
 Starting and stopping a unit is the polkit action
 `org.freedesktop.systemd1.manage-units`, and systemd tells polkit which unit is
-involved, so `systemd/polkit/49-hispec.rules` can allow it for `hispec@*` and
+involved, so `/etc/polkit-1/rules.d/49-hispec.rules` can allow it for
+`hispec@*` and
 nothing else. Enabling and disabling is
 `org.freedesktop.systemd1.manage-unit-files`, and systemd does **not** pass a
 unit name with it. A polkit rule for it would grant `hispec-ops` enable/disable

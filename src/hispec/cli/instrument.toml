@@ -10,9 +10,10 @@
 
 [instrument]
 name = "hispec"
+display_name = "HISPEC"
 user = "hispec"
 ops_group = "hispec-ops"
-# Instance files set HISPEC_DAEMON, HISPEC_CONFIG and HISPEC_HOST
+# Instance files set HISPEC_DAEMON and HISPEC_HOST
 env_prefix = "HISPEC"
 docs_url = "https://caltechopticalobservatories.github.io/hispec/operations/systemd.html"
 
