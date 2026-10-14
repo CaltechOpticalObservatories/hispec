@@ -11,7 +11,7 @@ directory.
 
 | Path | What it is |
 | --- | --- |
-| `instances/<name>.env` | Per-instance settings: `HISPEC_DAEMON` (script, relative to `daemons/`) and `HISPEC_CONFIG` (deployed config path). Deployed to `/etc/hispec/instances/`. |
+| `instances/<name>.env` | Per-instance settings: `HISPEC_DAEMON` (script, relative to `daemons/`) and `HISPEC_HOST` (which host runs it). Deployed to `/etc/hispec/instances/`; the config path is derived as `/etc/hispec/<name>.yaml`. |
 | `install.sh` | Host setup for admins / IT. Bootstraps uv, builds the venv, then hands over to `hispec install`. Idempotent, run as root. Not needed to add a daemon. |
 
 `hispec install` writes the rest, rendered from

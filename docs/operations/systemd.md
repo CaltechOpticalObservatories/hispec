@@ -36,7 +36,7 @@ An instance gets its identity from two files:
 
 | File | What it says |
 |---|---|
-| `/etc/hispec/instances/<name>.env` | which daemon script to run (`HISPEC_DAEMON`) and which config to hand it (`HISPEC_CONFIG`) |
+| `/etc/hispec/instances/<name>.env` | which daemon script to run (`HISPEC_DAEMON`) and which host should run it (`HISPEC_HOST`) |
 | `/etc/hispec/<name>.yaml` | the config itself: serial ports, addresses, limits, keyword names |
 
 So running a second Lakeshore is not new code and not a new unit. It is a
@@ -239,7 +239,6 @@ matching `systemd/instances/<name>.env`:
 
 ```sh
 HISPEC_DAEMON=<path relative to daemons/, e.g. generic/inficon or hsfei/adc>
-HISPEC_CONFIG=/etc/hispec/<name>.yaml
 HISPEC_HOST=<the host that runs it, e.g. hispecserver or fei>
 ```
 
@@ -368,10 +367,11 @@ Common causes, in the order they bite:
 - **`Failed to load environment files`**: `/etc/hispec/instances/<name>.env`
   is missing or unreadable. The instance name in the command must match the
   file name exactly.
-- **`No such file or directory`** on the config: `HISPEC_CONFIG` points
-  somewhere that does not exist. The config has to be deployed to `/etc/hispec/`
-  as well as the `.env`. `hispec deploy <name>` copies both; copying one by
-  hand and forgetting the other is the usual mistake.
+- **`No such file or directory`** on the config: the unit passes
+  `/etc/hispec/<name>.yaml`, derived from the instance name, and nothing is
+  there. The config has to be deployed as well as the `.env`. `hispec deploy
+  <name>` copies both; copying one by hand and forgetting the other is the
+  usual mistake.
 - **A serial port or USB error**: the device is unplugged, powered off, or
   claimed by another process. Two instances pointing at the same port will do
   this to each other, and so will a daemon left running from a manual test.

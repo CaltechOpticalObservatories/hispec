@@ -217,7 +217,7 @@ flowchart LR
     end
 
     subgraph etc["/etc/hispec"]
-        ENV["instances/&lt;name&gt;.env<br/>HISPEC_DAEMON, HISPEC_CONFIG"]
+        ENV["instances/&lt;name&gt;.env<br/>HISPEC_DAEMON, HISPEC_HOST"]
         YML["&lt;name&gt;.yaml<br/>deployed config"]
     end
 
@@ -231,8 +231,9 @@ flowchart LR
 
 One systemd template unit, `hispec@.service`, runs every daemon. An
 instance `hispec@<name>` reads `/etc/hispec/instances/<name>.env`, which
-names the daemon script (`HISPEC_DAEMON`, relative to `daemons/`) and its config
-(`HISPEC_CONFIG`). Running a second unit of the same hardware model — two
+names the daemon script (`HISPEC_DAEMON`, relative to `daemons/`). Its config
+is `/etc/hispec/<name>.yaml`, derived from the instance name rather than
+declared. Running a second unit of the same hardware model, two
 Lakeshores, five filter wheels — is two env files pointing at the same script
 with different configs.
 
