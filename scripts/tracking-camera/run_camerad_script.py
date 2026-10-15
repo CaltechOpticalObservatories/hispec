@@ -6,14 +6,16 @@ Does what the socksend version of this script does, but drives the camera in
 process, so there is no shell round trip and a failed command raises instead
 of printing a return code.
 
-Two acquisition styles:
+Three acquisition styles:
 
   counted   default; --frames per sequence, --repeat sequences
   freerun   --freerun; one continuous session until --seconds or Ctrl-C
   autofetch --autofetch; --frames pushed by the Archon unsolicited
 
-A window below 50x50 produces faster than anything but autofetch can read, so
-the other two modes refuse one.
+The two flags combine: --freerun --autofetch streams until stopped with the
+Archon pushing frames, which is the only way to run a window below 50x50
+continuously. Without --autofetch such a window produces faster than the host
+can fetch, so the other modes refuse one.
 
 Needs hispec and the per-instrument bindings in the environment running it:
 
@@ -151,7 +153,7 @@ def buffer_frames(camera):
     return dict(re.findall(r"(BUF\dFRAME)=(\d+)", camera.native("FRAME")))
 
 
-def stop_freerun(camera):
+def stop_freerun(camera, args):
     """Abort, disarm freerun, and report whether the detector actually stopped.
 
     Ignores further interrupts: a second Ctrl-C here would leave the detector
@@ -159,6 +161,13 @@ def stop_freerun(camera):
     """
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     print("stopping (interrupts ignored until the detector is idle)")
+    # Disarm first: that goes over the control connection and stops the push,
+    # so the abort below is not sent into an arriving stream
+    if args.autofetch:
+        try:
+            camera.set_autofetch(False)
+        except RuntimeError as exc:
+            print(f"WARNING: could not disarm autofetch: {exc}")
     # Only abort: AbortSeq clears freerun itself, and every extra command here
     # goes to the socket the detector is streaming on
     try:
@@ -175,11 +184,19 @@ def stop_freerun(camera):
 
 
 def run_freerun(camera, args):
-    """Stream continuously until the duration elapses or Ctrl-C."""
+    """Stream continuously until the duration elapses or Ctrl-C.
+
+    With --autofetch the Archon pushes the frames instead of the host fetching
+    them, which is the only way to freerun a window below the 50x50 floor.
+    """
+    if args.autofetch:
+        check_autofetch_window(args)
+        camera.set_autofetch(True)
     write_headers(camera, args)
     camera.set_freerun(True)
     camera.expose(1)
-    print("freerun running; Ctrl-C to stop")
+    print(f"freerun running{' with autofetch' if args.autofetch else ''}; "
+          "Ctrl-C to stop")
     start = time.monotonic()
     try:
         while args.seconds <= 0 or time.monotonic() - start < args.seconds:
@@ -188,7 +205,7 @@ def run_freerun(camera, args):
     except KeyboardInterrupt:
         print("\ninterrupted")
     finally:
-        stop_freerun(camera)
+        stop_freerun(camera, args)
 
 
 def run_counted(camera, args):
@@ -232,14 +249,18 @@ def stop_autofetch(camera):
         print(f"WARNING: could not disarm autofetch: {exc}")
 
 
-def run_autofetch(camera, args):
-    """Stream the requested frames with the Archon pushing them unsolicited."""
+def check_autofetch_window(args):
+    """Refuse a window the Archon cannot transmit in autofetch."""
     frame_bytes = (AUTOFETCH_HEADER_LEN
                    + args.roi * FRAME_WIDTH_FACTOR * args.roi * BYTES_PER_PIXEL)
     if frame_bytes >= MAX_AUTOFETCH_BYTES:
         raise SystemExit(f"roi {args.roi} gives {frame_bytes} byte frames; autofetch "
                          f"needs under {MAX_AUTOFETCH_BYTES}, so use a smaller roi")
 
+
+def run_autofetch(camera, args):
+    """Stream the requested frames with the Archon pushing them unsolicited."""
+    check_autofetch_window(args)
     write_headers(camera, args)
     camera.set_autofetch(True)
     print(f"autofetch running, {args.frames} frames; Ctrl-C to stop")
@@ -273,8 +294,6 @@ def run_autofetch(camera, args):
 def main():
     """Configure the camera, then acquire."""
     args = parse_args()
-    if args.freerun and args.autofetch:
-        raise SystemExit("--freerun and --autofetch cannot be combined")
     if (not args.autofetch and args.mode in ("guiding", "roi")
             and args.roi < MIN_NON_AUTOFETCH_ROI):
         raise SystemExit(
