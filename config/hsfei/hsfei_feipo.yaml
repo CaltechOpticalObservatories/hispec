@@ -15,10 +15,8 @@ hardware:
   retry_count: 3
 
 named_positions:
-  J+H: 0.2
-  H+JHGap: 32.95
-  JHGap: 65.98
-  J+JHGap: 98.6
+  in: 75
+  out: 50
 
 logging:
   level: INFO

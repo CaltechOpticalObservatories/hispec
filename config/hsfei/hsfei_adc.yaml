@@ -16,16 +16,16 @@ hardware:
 stages:
   - stage_id: 1
     units: deg
-    softmin: -180.0
-    softmax: 180.0
+    softmin: -360.0
+    softmax: 360.0
   - stage_id: 2
     units: deg
-    softmin: -180.0
-    softmax: 180.0
+    softmin: -360.0
+    softmax: 360.0
 
 # angles in degrees
 named_positions:
-  crossed: [0.0, 0.0]
+  mindisp: [0.0, 0.0]
   maxdisp: [90.0, -90.0]
 
 logging:
