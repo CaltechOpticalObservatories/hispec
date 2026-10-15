@@ -49,10 +49,6 @@
 [submodule "external/PIPython"]
 	path = external/PIPython
 	url = https://github.com/PI-PhysikInstrumente/PIPython
-[submodule "external/camera-interface"]
-	path = external/camera-interface
-	url = https://github.com/CaltechOpticalObservatories/camera-interface
-	branch = main
 [submodule "src/hispec/driver/pdu"]
 	path = src/hispec/driver/pdu
 	url = https://github.com/COO-Utilities/pdu
