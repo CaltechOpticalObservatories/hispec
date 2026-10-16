@@ -17,8 +17,9 @@ Archon pushing frames, which is the only way to run a window below 50x50
 continuously. Without --autofetch such a window produces faster than the host
 can fetch, so the other modes refuse one.
 
-A guiding window is centred unless --origin gives its low corner, which is how
-to sit on a star that is not at the detector centre.
+A guiding window is a centred --roi square unless --window gives its four
+inclusive bounds, which is how to sit on a star away from the detector centre
+and how to ask for a window that is not square.
 
 Every option has a short form, so a typical run reads
 
@@ -76,10 +77,12 @@ def parse_args():
                         choices=tuple(m.value for m in ReadMode), help="Readout mode")
     parser.add_argument("-r", "--roi", type=int, default=618,
                         help="Square window size; ignored for fullframe")
-    parser.add_argument("-o", "--origin", type=int, nargs=2, metavar=("Y", "X"),
-                        help="Low corner of a guiding window; centred if omitted")
+    parser.add_argument("-w", "--window", type=int, nargs=4,
+                        metavar=("Y0", "Y1", "X0", "X1"),
+                        help="Guiding window as inclusive bounds, which need not "
+                             "be square; a centred --roi square if omitted")
     parser.add_argument("-i", "--imtype", type=str, default="TEST", help="Image type")
-    parser.add_argument("-u", "--observer", type=str, default="",
+    parser.add_argument("-o", "--observer", type=str, default="",
                         help="OBSERVER header value")
     parser.add_argument("-a", "--autofetch", action="store_true",
                         help="stream frames unsolicited; needs a small window")
@@ -128,12 +131,19 @@ def write_headers(camera, args):
         camera.set_fits_key(name, value, comment)
 
 
-def guiding_origin(args):
-    """Return the guiding window's low corner, centred unless --origin is set."""
-    if args.origin is not None:
-        return tuple(args.origin)
+def guiding_bounds(args):
+    """Return the window's inclusive bounds, a centred --roi square by default."""
+    if args.window is not None:
+        return tuple(args.window)
     low = DETECTOR_PIXELS // 2 - args.roi // 2
-    return low, low
+    high = low + args.roi - 1
+    return low, high, low, high
+
+
+def window_shape(args):
+    """Return the window's rows and columns, however it was specified."""
+    y0, y1, x0, x1 = guiding_bounds(args)
+    return y1 - y0 + 1, x1 - x0 + 1
 
 
 def configure(camera, args):
@@ -154,8 +164,7 @@ def configure(camera, args):
     # The window state is deliberately left as the ACF mode sets it, matching
     # the counted script; touching it changes TAPLINES and so the frame width
     if args.mode == "guiding":
-        y0, x0 = guiding_origin(args)
-        camera.set_guiding_roi(y0, y0 + args.roi - 1, x0, x0 + args.roi - 1)
+        camera.set_guiding_roi(*guiding_bounds(args))
     elif args.mode == "roi":
         camera.set_centred_roi(args.roi, args.roi)
     camera.exptime(args.exptime)
@@ -269,11 +278,13 @@ def stop_autofetch(camera):
 
 def check_autofetch_window(args):
     """Refuse a window the Archon cannot transmit in autofetch."""
+    rows, cols = window_shape(args)
     frame_bytes = (AUTOFETCH_HEADER_LEN
-                   + args.roi * FRAME_WIDTH_FACTOR * args.roi * BYTES_PER_PIXEL)
+                   + rows * cols * FRAME_WIDTH_FACTOR * BYTES_PER_PIXEL)
     if frame_bytes >= MAX_AUTOFETCH_BYTES:
-        raise SystemExit(f"roi {args.roi} gives {frame_bytes} byte frames; autofetch "
-                         f"needs under {MAX_AUTOFETCH_BYTES}, so use a smaller roi")
+        raise SystemExit(f"a {rows}x{cols} window gives {frame_bytes} byte frames; "
+                         f"autofetch needs under {MAX_AUTOFETCH_BYTES}, so use a "
+                         f"smaller window")
 
 
 def run_autofetch(camera, args):
@@ -312,22 +323,26 @@ def run_autofetch(camera, args):
 def main():
     """Configure the camera, then acquire."""
     args = parse_args()
-    if args.origin is not None:
+    if args.window is not None:
         if args.mode != "guiding":
-            raise SystemExit(f"--origin places a guiding window, but --mode is "
+            raise SystemExit(f"--window places a guiding window, but --mode is "
                              f"{args.mode}")
-        for name, value in zip(("y", "x"), args.origin):
-            if value < 0 or value + args.roi > DETECTOR_PIXELS:
-                raise SystemExit(
-                    f"--origin {name}={value} with roi {args.roi} runs off the "
-                    f"{DETECTOR_PIXELS} pixel detector")
-    if (not args.autofetch and args.mode in ("guiding", "roi")
-            and args.roi < MIN_NON_AUTOFETCH_ROI):
-        raise SystemExit(
-            f"roi {args.roi} produces faster than a non-autofetch readout can "
-            f"fetch, which leaves data unread and wedges the controller; use "
-            f"--autofetch, raise --exptime, or use roi "
-            f"{MIN_NON_AUTOFETCH_ROI} or more")
+        y0, y1, x0, x1 = args.window
+        if y1 < y0 or x1 < x0:
+            raise SystemExit(f"--window bounds are inclusive and ascending, "
+                             f"so Y1 >= Y0 and X1 >= X0; got {args.window}")
+        if y0 < 0 or x0 < 0 or y1 >= DETECTOR_PIXELS or x1 >= DETECTOR_PIXELS:
+            raise SystemExit(f"--window {args.window} runs off the "
+                             f"{DETECTOR_PIXELS} pixel detector")
+    if not args.autofetch and args.mode in ("guiding", "roi"):
+        # Both axes, since either one being small is enough to outrun the fetch
+        smallest = min(window_shape(args)) if args.mode == "guiding" else args.roi
+        if smallest < MIN_NON_AUTOFETCH_ROI:
+            raise SystemExit(
+                f"a {smallest} pixel axis produces faster than a non-autofetch "
+                f"readout can fetch, which leaves data unread and wedges the "
+                f"controller; use --autofetch, raise --exptime, or keep every "
+                f"axis at {MIN_NON_AUTOFETCH_ROI} or more")
     if not os.path.exists(args.config):
         raise SystemExit(f"no such config: {args.config}")
     for name, value in sorted(vars(args).items()):
