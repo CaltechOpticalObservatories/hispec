@@ -82,7 +82,7 @@ class DliPdu(PduDaemon): #pylint: disable = W0223
 
     def get_outlet_cycledelay(self, n: int) -> int:
         """Outlet ``n`` off time during a power cycle, in seconds."""
-        return int(self._value(self.dev.get_atomic_value(f"cycle_delay{n}"),
+        return int(self._value(self.dev.get_outlet_cycle_delay(n),
                                f"outlet {n} cycle delay"))
 
     def register_outlet_keywords(self, n: int) -> None:
