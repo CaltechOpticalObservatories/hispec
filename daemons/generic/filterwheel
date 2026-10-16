@@ -44,8 +44,6 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.units = self.get_config("units")
         self._soft_min = self.get_config("limits.soft_min")
         self._soft_max = self.get_config("limits.soft_max")
-        self._hard_min = self.get_config("limits.hard_min")
-        self._hard_max = self.get_config("limits.hard_max")
         self.named_positions = self.get_config("named_positions") or {}
         self.timeout_s = self.get_config("timeout_s") or 30.0
 
@@ -79,12 +77,14 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
         try:
             self.dev.initialize()
+            # Share the driver's cached limits so daemon and driver enforce the same range
+            self._hard_min, self._hard_max = self.dev.limits["1"]
             # The sensor LED leaks stray light, so start dark, and skip the
             # EEPROM write when it is already off
             if self.dev.get_light():
                 self.dev.set_light(False)
             self.logger.debug("Initialized %s", self.daemon_desc)
-        except (OSError, ValueError) as e:
+        except (OSError, ValueError, KeyError) as e:
             self.logger.error("error: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
@@ -95,18 +95,21 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.keyword_registry.bool("isconnected",
                         getter=self.dev.is_connected,
                         setter=self.keyword_wrapper(self.connect, key="isconnected"),
-                        description="Check if daemon can talk to the FW controller.")
+                        description="Check if daemon can talk to the FW controller.",
+                        timeout_s=self.timeout_s)
         self.keyword_registry.string("error",
                         getter=lambda: self.state['error'],
-                        description="Get the current error message.")
+                        description="Get the current error message.",
+                        timeout_s=self.timeout_s)
         self.keyword_registry.string("nfilters",
                         getter=lambda: self.nfilters,
                         setter=self.keyword_wrapper(self.set_nfilters, key="nfilters"),
-                        description="Get the number of filters in the wheel.")
+                        description="Get the number of filters in the wheel.",
+                        timeout_s=self.timeout_s)
         self.keyword_registry.int("positionvalue",
                         getter=self.keyword_wrapper(self.get_pos, key="position"),
                         setter=self.keyword_wrapper(self.set_pos, key="position"),
-                        validator=self._check_soft_limits,
+                        validator=self._check_limits,
                         units=self.units,
                         description="Set and get current position of FilterWheel.",
                         timeout_s=self.timeout_s)
@@ -114,32 +117,41 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                         getter=self.keyword_wrapper(self.cur_named_position, key="named_pos"),
                         setter=self.keyword_wrapper(self.goto_named_pos, key="named_pos"),
                         validator=self._check_named,
-                        description="Set and get named position of FilterWheel.")
+                        description="Set and get named position of FilterWheel.",
+                        timeout_s=self.timeout_s)
         self.keyword_registry.bool("islighton",
                         getter=self.keyword_wrapper(self.get_light, key="islighton"),
                         setter=self.keyword_wrapper(self.set_light, key="islighton"),
-                        description="Set and get the LED state of FilterWheel.")
+                        description="Set and get the LED state of FilterWheel.",
+                        timeout_s=self.timeout_s)
         self.keyword_registry.int("softmin",
                         getter=lambda: self._soft_min,
                         setter=lambda v: setattr(self, "_soft_min", int(v)),
+                        validator=self._check_hard_limits,
                         units=self.units,
-                        description="Software lower limit for filter wheel position.")
+                        description="Software lower limit for filter wheel position.",
+                        timeout_s=self.timeout_s)
         self.keyword_registry.int("softmax",
                         getter=lambda: self._soft_max,
                         setter=lambda v: setattr(self, "_soft_max", int(v)),
+                        validator=self._check_hard_limits,
                         units=self.units,
-                        description="Software upper limit for filter wheel position.")
+                        description="Software upper limit for filter wheel position.",
+                        timeout_s=self.timeout_s)
         self.keyword_registry.int("hardmin",
                         getter=lambda: self._hard_min,
                         units=self.units,
-                        description="Hardware lower limit for filter wheel position.")
+                        description="Hardware lower limit read from the controller.",
+                        timeout_s=self.timeout_s)
         self.keyword_registry.int("hardmax",
                         getter=lambda: self._hard_max,
                         units=self.units,
-                        description="Hardware upper limit for filter wheel position.")
+                        description="Hardware upper limit (pcount) read from the controller.",
+                        timeout_s=self.timeout_s)
         self.keyword_registry.trigger("shutdown",
                         action=self._shutdown,
-                        description="Gracefully stop this daemon")
+                        description="Gracefully stop this daemon",
+                        timeout_s=self.timeout_s)
 
     def _shutdown(self) -> None:
         """Stop the daemon; on_stop disconnects from the hardware"""
@@ -203,18 +215,17 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         if not self.dev.is_connected():
             return {"ok": False, "error": "Not connected to hardware"}
         try:
-            limits = self.dev.get_limits()
             position = self.cur_named_position()
             status = {
                 "connected": self.dev.is_connected(),
                 "position": position.get("position"),
                 "named_pos": position.get("named_pos"),
                 "islighton": self.dev.get_light(),
-                "min_limit": limits.get("1")[0],
-                "max_limit": limits.get("1")[1],
+                "min_limit": self._hard_min,
+                "max_limit": self._hard_max,
             }
             self.logger.debug("status: %s", status)
-        except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
+        except (OSError, ValueError) as e:
             self.logger.error("error: %s", e)
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
@@ -241,7 +252,7 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
 
         try:
             pos = int(pos)
-            problem = self._check_soft_limits(pos)
+            problem = self._check_limits(pos)
             if problem:
                 return {"ok": False, "error": problem}
             self.dev.set_pos(pos)
@@ -295,6 +306,9 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                 return {"ok": False,
                         "error": f"unknown named position '{name}'; "
                                  f"available: {list(self.get_named_positions())}"}
+            problem = self._check_limits(goal)
+            if problem:
+                return {"ok": False, "error": problem}
             self.dev.set_pos(int(goal))
             self.logger.debug("goto_named_pos: %s -> %s", name, goal)
         except (OSError, ValueError) as e:
@@ -302,6 +316,22 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "named_pos": name, "position": goal}
+
+    def _check_limits(self, pos: int) -> Optional[str]:
+        """Validate a requested position against the hardware and soft limits."""
+        return self._check_hard_limits(pos) or self._check_soft_limits(pos)
+
+    def _check_hard_limits(self, pos: int) -> Optional[str]:
+        """Validate a value against the hardware limits read from the controller."""
+        try:
+            pos = int(pos)
+        except (TypeError, ValueError):
+            return f"value '{pos}' is not an integer"
+        if self._hard_min is None or self._hard_max is None:
+            return "hard limits unknown; filter wheel not initialized"
+        if not self._hard_min <= pos <= self._hard_max:
+            return f"value {pos} outside hard limits [{self._hard_min}, {self._hard_max}]"
+        return None
 
     def _check_soft_limits(self, pos: int) -> Optional[str]:
         """Validate a requested position against the configured soft limits."""
@@ -328,8 +358,9 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         """Set the number of filters in the wheel."""
         try:
             nfilters = int(nfilters)
-            if nfilters <= 0 or nfilters > 6:  # Assuming a maximum of 6 filters for this example
-                return {"ok": False, "error": "nfilters must be a positive integer and in hard limits"}
+            if self._hard_max is None or not 0 < nfilters <= self._hard_max:
+                return {"ok": False,
+                        "error": f"nfilters must be between 1 and hard max {self._hard_max}"}
             self.nfilters = nfilters
             self.logger.debug("set_nfilters: %d", nfilters)
         except (TypeError, ValueError) as e:
