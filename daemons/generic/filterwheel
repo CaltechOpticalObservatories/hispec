@@ -41,11 +41,11 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.host = self.get_config("hardware.ip_address")
         self.port = self.get_config("hardware.tcp_port")
         self.daemon_desc = self.get_config("peer_id")
-        self.units = self.get_config("units")
+        self.units = self.get_config("hardware.units")
         self._soft_min = self.get_config("limits.soft_min")
         self._soft_max = self.get_config("limits.soft_max")
         self.named_positions = self.get_config("named_positions") or {}
-        self.timeout_s = self.get_config("timeout_s") or 30.0
+        self.timeout_s = self.get_config("hardware.timeout_s") or 30.0
 
         # Initialize hardware connection
         if not (self.host and self.port):

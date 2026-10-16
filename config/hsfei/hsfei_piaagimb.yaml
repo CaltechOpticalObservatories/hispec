@@ -11,28 +11,20 @@ hardware:
   axis: 2
   closed_loop_units: mrad
   open_loop_units: volts
-  timeout: 30.0
+  timeout_s: 30.0
   retry_count: 3
 
 limits:
   position:
-    soft_min_pos_x: -9.5
-    soft_max_pos_x: 9.5
-    soft_min_pos_y: -9.5
-    soft_max_pos_y: 9.5
-    hard_min_pos_x: -10.0
-    hard_max_pos_x: 10.0
-    hard_min_pos_y: -10.0
-    hard_max_pos_y: 10.0
+    soft_min_x: -9.5
+    soft_max_x: 9.5
+    soft_min_y: -9.5
+    soft_max_y: 9.5
   voltage:
     soft_min_volt_x: -20.0
     soft_max_volt_x: 145.0
     soft_min_volt_y: -20.0
     soft_max_volt_y: 145.0
-    hard_min_volt_x: -25.0
-    hard_max_volt_x: 150.0
-    hard_min_volt_y: -25.0
-    hard_max_volt_y: 150.0
 
 named_positions:
   center: [0.0, 0.0]

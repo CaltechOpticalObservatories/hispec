@@ -16,8 +16,6 @@ hardware:
 limits:
   soft_min: 1
   soft_max: 6
-  hard_min: 1
-  hard_max: 6
 
 named_positions:
   empty: 1
