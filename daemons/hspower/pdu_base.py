@@ -11,7 +11,6 @@ reports the problem.
 """
 
 import argparse
-import json
 import os
 import pathlib
 import re
@@ -227,8 +226,8 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
                         getter=lambda: self.outlet_count,
                         description="Number of outlets configured for this PDU.")
         self.keyword_registry.string("status",
-                        getter=self.keyword_wrapper(self._status, key="status"),
-                        description="JSON status summary of the PDU and all outlets.")
+                        getter=self._status,
+                        description="Status of the PDU as a (code, message) string.")
         self.keyword_registry.trigger("shutdown",
                         action=self._shutdown,
                         description="Shutdown the daemon now.")
