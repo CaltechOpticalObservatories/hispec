@@ -280,17 +280,8 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
     def _status(self):
         """Handles status."""
         if not self._connected():
-            return {"ok": False, "error": "Not connected to hardware"}
-        try:
-            status: Dict[str, Any] = {"connected": True}
-            status.update(self.device_status())
-            status["outlets"] = [self.outlet_status(n)
-                                 for n in range(1, self.outlet_count + 1)]
-            status["error"] = self.state['error']
-            self.logger.debug("status: %s", status)
-        except Exception as e: # pylint: disable=W0718
-            return self._fail(str(e))
-        return {"ok": True, "status": json.dumps(status)}
+            return str((-1, "ERROR: Not connected to hardware"))
+        return str(self.dev.get_status())
 
     def _shutdown(self):
         """Shutdown the daemon"""
