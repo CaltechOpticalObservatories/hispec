@@ -17,6 +17,14 @@ Archon pushing frames, which is the only way to run a window below 50x50
 continuously. Without --autofetch such a window produces faster than the host
 can fetch, so the other modes refuse one.
 
+A guiding window is a centred --roi square unless --window gives its four
+inclusive bounds, which is how to sit on a star away from the detector centre
+and how to ask for a window that is not square.
+
+Every option has a short form, so a typical run reads
+
+    run_camerad_script.py -m guiding -e rx -r 10 -a -n 300
+
 Needs hispec and the per-instrument bindings in the environment running it:
 
     pip install <hispec checkout>
@@ -57,31 +65,36 @@ DETTEMP_QUERY = (
 def parse_args():
     """Parse the command line."""
     parser = argparse.ArgumentParser(description="Take ATC exposures.")
-    parser.add_argument("--config",
+    parser.add_argument("-c", "--config",
                         default=os.environ.get("CAMERAD_CONFIG", DEFAULT_CONFIG),
                         help="camerad .cfg file; defaults to $CAMERAD_CONFIG "
                              "then to the ATC config")
-    parser.add_argument("--exptime", type=float, default=0,
+    parser.add_argument("-t", "--exptime", type=float, default=0,
                         help="Exposure time, in the unit LONGEXPOSURE selects")
-    parser.add_argument("--mode", type=str, default="guiding",
+    parser.add_argument("-m", "--mode", type=str, default="guiding",
                         choices=("roi", "guiding", "fullframe"), help="Subframe mode")
-    parser.add_argument("--exposure", type=str, default="rxr",
+    parser.add_argument("-e", "--exposure", type=str, default="rxr",
                         choices=tuple(m.value for m in ReadMode), help="Readout mode")
-    parser.add_argument("--roi", type=int, default=618,
-                        help="Square window size, centred; ignored for fullframe")
-    parser.add_argument("--imtype", type=str, default="TEST", help="Image type")
-    parser.add_argument("--observer", type=str, default="", help="OBSERVER header value")
-    parser.add_argument("--autofetch", action="store_true",
+    parser.add_argument("-r", "--roi", type=int, default=618,
+                        help="Square window size; ignored for fullframe")
+    parser.add_argument("-w", "--window", type=int, nargs=4,
+                        metavar=("Y0", "Y1", "X0", "X1"),
+                        help="Guiding window as inclusive bounds, which need not "
+                             "be square; a centred --roi square if omitted")
+    parser.add_argument("-i", "--imtype", type=str, default="TEST", help="Image type")
+    parser.add_argument("-o", "--observer", type=str, default="",
+                        help="OBSERVER header value")
+    parser.add_argument("-a", "--autofetch", action="store_true",
                         help="stream frames unsolicited; needs a small window")
-    parser.add_argument("--freerun", action="store_true",
+    parser.add_argument("-f", "--freerun", action="store_true",
                         help="Run continuously instead of taking counted frames")
-    parser.add_argument("--seconds", type=float, default=0.0,
+    parser.add_argument("-s", "--seconds", type=float, default=0.0,
                         help="With --freerun, how long to run; 0 means until Ctrl-C")
-    parser.add_argument("--frames", type=int, default=3,
+    parser.add_argument("-n", "--frames", type=int, default=3,
                         help="Frames to acquire; reads per sequence for UTR")
-    parser.add_argument("--repeat", type=int, default=1,
+    parser.add_argument("-R", "--repeat", type=int, default=1,
                         help="Times to repeat a counted sequence")
-    parser.add_argument("--pause", type=float, default=0,
+    parser.add_argument("-p", "--pause", type=float, default=0,
                         help="Seconds to pause between sequences")
     return parser.parse_args()
 
@@ -118,6 +131,21 @@ def write_headers(camera, args):
         camera.set_fits_key(name, value, comment)
 
 
+def guiding_bounds(args):
+    """Return the window's inclusive bounds, a centred --roi square by default."""
+    if args.window is not None:
+        return tuple(args.window)
+    low = DETECTOR_PIXELS // 2 - args.roi // 2
+    high = low + args.roi - 1
+    return low, high, low, high
+
+
+def window_shape(args):
+    """Return the window's rows and columns, however it was specified."""
+    y0, y1, x0, x1 = guiding_bounds(args)
+    return y1 - y0 + 1, x1 - x0 + 1
+
+
 def configure(camera, args):
     """Apply the camera mode, readout mode and geometry.
 
@@ -136,8 +164,7 @@ def configure(camera, args):
     # The window state is deliberately left as the ACF mode sets it, matching
     # the counted script; touching it changes TAPLINES and so the frame width
     if args.mode == "guiding":
-        low = DETECTOR_PIXELS // 2 - args.roi // 2
-        camera.set_guiding_roi(low, low + args.roi - 1, low, low + args.roi - 1)
+        camera.set_guiding_roi(*guiding_bounds(args))
     elif args.mode == "roi":
         camera.set_centred_roi(args.roi, args.roi)
     camera.exptime(args.exptime)
@@ -251,11 +278,13 @@ def stop_autofetch(camera):
 
 def check_autofetch_window(args):
     """Refuse a window the Archon cannot transmit in autofetch."""
+    rows, cols = window_shape(args)
     frame_bytes = (AUTOFETCH_HEADER_LEN
-                   + args.roi * FRAME_WIDTH_FACTOR * args.roi * BYTES_PER_PIXEL)
+                   + rows * cols * FRAME_WIDTH_FACTOR * BYTES_PER_PIXEL)
     if frame_bytes >= MAX_AUTOFETCH_BYTES:
-        raise SystemExit(f"roi {args.roi} gives {frame_bytes} byte frames; autofetch "
-                         f"needs under {MAX_AUTOFETCH_BYTES}, so use a smaller roi")
+        raise SystemExit(f"a {rows}x{cols} window gives {frame_bytes} byte frames; "
+                         f"autofetch needs under {MAX_AUTOFETCH_BYTES}, so use a "
+                         f"smaller window")
 
 
 def run_autofetch(camera, args):
@@ -294,13 +323,26 @@ def run_autofetch(camera, args):
 def main():
     """Configure the camera, then acquire."""
     args = parse_args()
-    if (not args.autofetch and args.mode in ("guiding", "roi")
-            and args.roi < MIN_NON_AUTOFETCH_ROI):
-        raise SystemExit(
-            f"roi {args.roi} produces faster than a non-autofetch readout can "
-            f"fetch, which leaves data unread and wedges the controller; use "
-            f"--autofetch, raise --exptime, or use roi "
-            f"{MIN_NON_AUTOFETCH_ROI} or more")
+    if args.window is not None:
+        if args.mode != "guiding":
+            raise SystemExit(f"--window places a guiding window, but --mode is "
+                             f"{args.mode}")
+        y0, y1, x0, x1 = args.window
+        if y1 < y0 or x1 < x0:
+            raise SystemExit(f"--window bounds are inclusive and ascending, "
+                             f"so Y1 >= Y0 and X1 >= X0; got {args.window}")
+        if y0 < 0 or x0 < 0 or y1 >= DETECTOR_PIXELS or x1 >= DETECTOR_PIXELS:
+            raise SystemExit(f"--window {args.window} runs off the "
+                             f"{DETECTOR_PIXELS} pixel detector")
+    if not args.autofetch and args.mode in ("guiding", "roi"):
+        # Both axes, since either one being small is enough to outrun the fetch
+        smallest = min(window_shape(args)) if args.mode == "guiding" else args.roi
+        if smallest < MIN_NON_AUTOFETCH_ROI:
+            raise SystemExit(
+                f"a {smallest} pixel axis produces faster than a non-autofetch "
+                f"readout can fetch, which leaves data unread and wedges the "
+                f"controller; use --autofetch, raise --exptime, or keep every "
+                f"axis at {MIN_NON_AUTOFETCH_ROI} or more")
     if not os.path.exists(args.config):
         raise SystemExit(f"no such config: {args.config}")
     for name, value in sorted(vars(args).items()):
