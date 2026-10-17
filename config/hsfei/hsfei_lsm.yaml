@@ -16,15 +16,17 @@ stages:
     axis: "1"
     units: mm
     named_positions:
-      on_axis: 2.643
-      out: 0.0
+      yj_onaxis: 2.643
+      hk_onaxis: 2.490
+      through: 2.643    # approx. - need to update
   - name: v
     device_id: 2
     axis: "1"
     units: mm
     named_positions:
-      on_axis: 22.603
-      out: 0.0
+      yj_onaxis: 22.603
+      hk_onaxis: 2.630
+      through: 12.9     # approx. - need to update
 
 logging:
   level: INFO
