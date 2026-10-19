@@ -20,6 +20,9 @@ stages:
     units: mm
     softmin: -25.0
     softmax: 25.0
+    named_positions:
+      in: 23.4
+      out: -24.5
   - name: blue
     suffix: b
     axis: B
@@ -27,6 +30,9 @@ stages:
     units: mm
     softmin: -25.0
     softmax: 25.0
+    named_positions:
+      in: -22.6
+      out: 24.5
   # Nothing is wired to axis C, which reports a drifting position
   - name: spare
     axis: C

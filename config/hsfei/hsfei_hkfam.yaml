@@ -5,7 +5,7 @@
 #   daemons/hsfei/xeryon -c config/hsfei/hsfei_hkfam.yaml
 #
 # TODO: confirm the axis-to-keyword mapping below; the letters and travel are
-# read from the controller, the foc/sel/vert names are not.
+# read from the controller, the foc/hori/vert names are not.
 
 peer_id: hkfam
 group_id: hsfei
@@ -24,7 +24,7 @@ stages:
     units: mm
     softmin: -5.0
     softmax: 5.0
-  - name: sel
+  - name: hori
     suffix: x
     axis: B
     stage: XLS_5_3N          # XLS-3-80-5

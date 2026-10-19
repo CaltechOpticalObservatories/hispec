@@ -23,7 +23,7 @@ named_positions:
   OD2: 3
   OD4: 4
   OD5: 5
-  empty2: 6
+  block: 6
 
 logging:
   level: INFO
