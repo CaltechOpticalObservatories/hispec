@@ -51,8 +51,8 @@ git submodule update --init --recursive
 uv sync --all-packages
 ```
 
-That builds `.venv` on the Python named in `.python-version` and installs this
-package plus every vendor driver editable, so a `git pull` changes behaviour
+That builds `.venv` on the first installed Python matching `requires-python`
+and installs this package plus every vendor driver editable, so a `git pull` changes behaviour
 without reinstalling. Run commands through `uv run <command>`, or activate
 `.venv` if you prefer.
 
