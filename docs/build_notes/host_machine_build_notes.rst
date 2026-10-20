@@ -266,7 +266,10 @@ Edit ``/etc/hosts`` to include the private network entries for HISPEC, ordered n
    192.168.29.164  redeaton2
    192.168.29.165  redettemp
    192.168.29.166  redeaton3
-   192.168.29.175  cred2
+   192.168.29.171  specblueeaton
+   192.168.29.177  specbluelakeshore
+   192.168.29.181  specredeaton
+   192.168.29.185  specredlakeshore
 
 MQTT Broker Setup
 -----------------
