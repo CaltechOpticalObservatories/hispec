@@ -1,17 +1,17 @@
-# HISPEC RSPEC PDU — Eaton EMAT-08/10 networked PDU
+# HISPEC BSPEC-yj PDU (blueeaton1) — Eaton EMAT-08/10 networked PDU
 #
-# The single Eaton PDU in RSPEC, the red (HK) spectrograph.
+# The single Eaton PDU in BSPEC, the blue (YJ) spectrograph.
 #
 # Usage:
-#   daemons/hspower/eaton_pdu -c config/hspower/hspower_rspec1.yaml
+#   daemons/hspower/eaton_pdu -c config/hspower/hspower_yj1.yaml
 
-peer_id: rspec1
+peer_id: yj1
 group_id: hspower
 
 hardware:
-  # specredeaton, per the /etc/hosts table in
+  # specblueeaton, per the /etc/hosts table in
   # docs/build_notes/host_machine_build_notes.rst.
-  ip_address: 192.168.29.181
+  ip_address: 192.168.29.171
   tcp_port: 23
   # TODO: confirm against the hardware. EMAT-08 has eight outlets, EMAT-10 has
   # ten, and this is what decides how many outlet keyword blocks exist; the
@@ -19,11 +19,11 @@ hardware:
   # reports.
   outlet_count: 8
   outlet_names:
-    1: 1_Unused
-    2: 2_Unused
+    1: 1_Inficon
+    2: 2_Aruba
     3: 3_Unused
-    4: 4_Unused
-    5: 5_Unused
+    4: 4_bluelake
+    5: 5_redlake
     6: 6_Unused
     7: 7_Unused
     8: 8_Unused

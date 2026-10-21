@@ -457,8 +457,8 @@ dependencies or `hispec@.service` changed. Pulling needs write access to
 | `hspower_hkcal2` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_hkcal2.yaml` |
 | `hspower_hkcal3` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_hkcal3.yaml` |
 | `hspower_fib1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fib1.yaml` |
-| `hspower_bspec1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_bspec1.yaml` |
-| `hspower_rspec1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_rspec1.yaml` |
+| `hspower_bspec1` | `hispecserver` | `hspower/pdu` | `../../config/hspower/hspower_yj1.yaml` |
+| `hspower_rspec1` | `hispecserver` | `hspower/pdu` | `../../config/hspower/hspower_hk1.yaml` |
 
 The nine `hspower_*` instances are the Eaton PDUs, each named for where its
 unit is: two in the FEI, four in the CAL, and one each in the FIB, BSPEC and
