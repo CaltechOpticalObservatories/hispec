@@ -1,0 +1,38 @@
+# HISPEC RED CAL PDU 3 of 3 — Eaton EMAT-08/10 networked PDU
+#
+# Third of the three Eaton PDUs in the RED CAL Rack (calibration unit).
+#
+# Usage:
+#   daemons/hspower/eaton_pdu -c config/hspower/hspower_hkcal3.yaml
+
+peer_id: hkcal3
+group_id: hspower
+
+hardware:
+  # redeaton3, per the /etc/hosts table in
+  # docs/build_notes/host_machine_build_notes.rst.
+  ip_address:  192.168.29.166
+  tcp_port: 23
+  # TODO: confirm against the hardware. EMAT-08 has eight outlets, EMAT-10 has
+  # ten, and this is what decides how many outlet keyword blocks exist; the
+  # daemon logs a warning at startup if it disagrees with the count the PDU
+  # reports.
+  outlet_count: 8
+  outlet_names:
+    1: 1_Onewire
+    2: 2_Unused
+    3: 3_Unused
+    4: 4_Unused
+    5: 5_Unused
+    6: 6_Unused
+    7: 7_Unused
+    8: 8_Unused
+  # Telnet login. The values never appear here: these name environment
+  # variables the daemon reads, set root-only in /etc/hispec/secrets.env (see
+  # docs/operations/systemd.md). All nine PDUs share one login today; point an instance
+  # at different variables if its unit gets its own.
+  username_env: HISPEC_PDU_USERNAME
+  password_env: HISPEC_REDEATON3_PASSWORD
+
+logging:
+  level: INFO

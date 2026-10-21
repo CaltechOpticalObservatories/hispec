@@ -1,0 +1,17 @@
+# YJEtPress — Inficon VGC502 pressure gauge
+#
+# Usage:
+#   daemons/generic/inficon -c config/hscal/hscal_yjetpress.yaml
+
+peer_id: yjetpress
+group_id: hscal
+
+hardware:
+  ip_address: 192.168.29.125
+  tcp_port: 8000
+
+gauges:
+  n_gauges: 1
+
+logging:
+  level: INFO
