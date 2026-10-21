@@ -17,6 +17,9 @@ about.
 If you are running the instrument, :doc:`running the daemons with systemd
 <operations/systemd>` covers starting, stopping, watching and debugging them.
 
+If you are writing a test script, :doc:`writing test scripts
+<operations/test_scripts>` covers the template and the keywords to use.
+
 If you are setting up a machine, start with the host-machine build page. Use
 the FEI/RTC build page for subsystem-specific installation and configuration
 details.
@@ -32,6 +35,7 @@ details.
    :maxdepth: 2
 
    operations/systemd
+   operations/test_scripts
 
 .. toctree::
    :caption: Build Notes
