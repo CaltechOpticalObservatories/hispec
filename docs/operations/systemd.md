@@ -451,10 +451,11 @@ dependencies or `hispec@.service` changed. Pulling needs write access to
 | `hispec_keygrabber` | `hispecserver` | `generic/keygrabber` | `config/hispec/hispec_keygrabber.yaml` |
 | `hspower_fei1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fei1.yaml` |
 | `hspower_fei2` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fei2.yaml` |
-| `hspower_cal1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_cal1.yaml` |
-| `hspower_cal2` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_cal2.yaml` |
-| `hspower_cal3` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_cal3.yaml` |
-| `hspower_cal4` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_cal4.yaml` |
+| `hspower_yjcal1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_yjcal1.yaml` |
+| `hspower_yjcal2` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_yjcal2.yaml` |
+| `hspower_hkcal1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_hkcal1.yaml` |
+| `hspower_hkcal2` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_hkcal2.yaml` |
+| `hspower_hkcal3` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_hkcal3.yaml` |
 | `hspower_fib1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fib1.yaml` |
 | `hspower_bspec1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_bspec1.yaml` |
 | `hspower_rspec1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_rspec1.yaml` |

@@ -1,32 +1,38 @@
-# HISPEC CAL PDU 2 of 4 — Eaton EMAT-08/10 networked PDU
+# HISPEC BLUE-yj CAL PDU 1 of 2 — Eaton EMAT-08/10 networked PDU
 #
-# Second of the four Eaton PDUs in the CAL (calibration unit).
+# First of the two Eaton PDUs in the BLUE CAL Rack (calibration unit).
 #
 # Usage:
-#   daemons/hspower/eaton_pdu -c config/hspower/hspower_cal2.yaml
+#   daemons/hspower/eaton_pdu -c config/hspower/hspower_yjcal1.yaml
 
-peer_id: cal2
+peer_id: yjcal1
 group_id: hspower
 
 hardware:
-  # TODO: address unknown — the /etc/hosts table in
-  # docs/build_notes/host_machine_build_notes.rst documents no CAL Eaton.
-  # Left unset on purpose: the daemon then starts, serves its keywords and
-  # reports 'missing PDU connection parameters' rather than reaching for a
-  # guessed address.
-  ip_address:
+  # blueeaton1, per the /etc/hosts table in
+  # docs/build_notes/host_machine_build_notes.rst.
+  ip_address: 192.168.29.151
   tcp_port: 23
   # TODO: confirm against the hardware. EMAT-08 has eight outlets, EMAT-10 has
   # ten, and this is what decides how many outlet keyword blocks exist; the
   # daemon logs a warning at startup if it disagrees with the count the PDU
   # reports.
   outlet_count: 8
+  outlet_names:
+    1: 1_Aruba
+    2: 2_Palomar_Comp
+    3: 3_5_EtLamp
+    4: 4_3_IRIS
+    5: 5_Unused
+    6: 6_FW1
+    7: 7_FW2
+    8: 8_Onewire
   # Telnet login. The values never appear here: these name environment
   # variables the daemon reads, set root-only in /etc/hispec/secrets.env (see
   # docs/operations/systemd.md). All nine PDUs share one login today; point an instance
   # at different variables if its unit gets its own.
   username_env: HISPEC_PDU_USERNAME
-  password_env: HISPEC_PDU_PASSWORD
+  password_env: HISPEC_BLUEEATON1_PASSWORD
 
 logging:
   level: INFO
