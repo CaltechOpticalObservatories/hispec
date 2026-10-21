@@ -145,8 +145,8 @@ Clone the main repository, check out nested submodules, and perform an editable 
 
    # 1. Clone repository to /opt/hispec
    cd /opt/hispec
-   sudo -u hispec git clone https://github.com/CaltechOpticalObservatories/hispec.git
-   cd hispec
+   sudo -u hispec git clone https://github.com/CaltechOpticalObservatories/hispec.git /opt/hispec/app
+   cd app
 
    # 2. Sync and check out all nested submodules
    sudo -u hispec git submodule sync --recursive
@@ -170,7 +170,7 @@ Execute as the primary ``hispec`` user:
 
 .. code-block:: bash
 
-   cd /opt/hispec/hispec
+   cd /opt/hispec/app
 
    # 1. Pull the latest commits on current branch
    sudo -u hispec git pull
