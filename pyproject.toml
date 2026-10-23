@@ -44,6 +44,12 @@ dependencies = [
 atcam = [
     "camera-interface-tracking@git+ssh://git@github.com/CaltechOpticalObservatories/hispec-tracking-camera-instrument.git",
 ]
+# Plotting and FITS for the engineering scripts under scripts/, which no daemon
+# imports: install.sh --extra scripts
+scripts = [
+    "astropy",
+    "matplotlib",
+]
 
 [project.scripts]
 hispec = "hispec.cli:main"
