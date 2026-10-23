@@ -331,7 +331,7 @@ Keep login shells off the shielded cores by adding to ``~/.bashrc``:
      - Command
      - Expected
    * - HISPEC
-     - ``sudo hispec doctor``
+     - ``hispec doctor``
      - ``No problems found.``
    * - FT4222
      - ``./ft4222-version``

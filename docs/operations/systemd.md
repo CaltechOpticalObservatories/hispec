@@ -258,17 +258,18 @@ hispec deploy <name>
 ### Secrets
 
 Every unit reads `/etc/hispec/secrets.env` if it exists, and a credential goes
-there because that file is not in git, unlike a config. It is root only
-(0600), and systemd reads it as root, so edit it with `sudoedit`:
+there because that file is not in git, unlike a config. It is `hispec-ops`
+read/write (0660), so no `sudo` is needed:
 
 ```bash
-sudoedit /etc/hispec/secrets.env       # add HISPEC_INFLUX_TOKEN=<token>
+cat >> /etc/hispec/secrets.env <<'EOF'
+HISPEC_INFLUX_TOKEN=<InfluxDB write token>
+EOF
 hispec restart hispec_keygrabber
 ```
 
-`sudo hispec doctor` lists the variables this host needs and which daemon asks
-for each, derived from the deployed configs, so there is no list to keep
-current.
+`hispec doctor` lists the variables this host needs and which daemon asks for
+each, derived from the deployed configs, so there is no list to keep current.
 
 `generic/keygrabber` and `hspower/pdu` need one. The nine PDU instances share
 a single Telnet login, so two variables cover all of them:
@@ -315,7 +316,7 @@ It checks your group membership, the installed unit and polkit rule, whether
 you can enable without a password, the directories, and every deployed
 instance, and prints the exact command to fix whatever it finds. Run it as
 yourself, not under `sudo`, which would hide the permission problems it is
-looking for; `sudo hispec doctor` only adds the check of `secrets.env`.
+looking for.
 
 If `hispec` itself says the venv is missing, an admin needs to re-run
 `install.sh`.

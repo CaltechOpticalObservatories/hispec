@@ -21,8 +21,8 @@ themselves (or the shared `hsdev`) and are members of `hispec-ops`, which owns
 edit configs and start or stop daemons without `sudo`. A default ACL keeps
 files added later group-writable, whatever the creator's umask.
 
-There are two exceptions. `/etc/hispec/secrets.env` is root only and edited
-with `sudoedit`. `/var/log/hispec` is written only by the daemons.
+`secrets.env` and the GitHub token stay root-owned, and `/var/log/hispec` is
+written only by the daemons.
 
 The venv's `bin` is on every login shell's `PATH`, set by
 `/etc/profile.d/hispec.sh`, so `python`, `libby` and `hispec` work without
@@ -58,17 +58,16 @@ activating anything.
 5. Add the credentials this host's daemons need:
 
    ```bash
-   sudoedit /etc/hispec/secrets.env
+   $EDITOR /etc/hispec/secrets.env
    ```
 
    [Secrets](operations/systemd.md#secrets) lists the variables.
-   `sudo hispec doctor` says which are still missing.
+   `hispec doctor` says which are still missing.
 
 6. Check the host:
 
    ```bash
-   hispec doctor          # as yourself: groups, polkit, paths
-   sudo hispec doctor     # also checks secrets.env
+   hispec doctor
    ```
 
 7. Deploy and start daemons, as yourself:
