@@ -37,6 +37,14 @@ dependencies = [
     "camera_daemon@git+https://github.com/COO-Utilities/camera-daemon.git"
 ]
 
+[project.optional-dependencies]
+# The tracking camera module builds against ImageStreamIO, so only the host
+# running the camera installs it: install.sh --extra atcam. The repo is private;
+# hosts fetch it with /etc/hispec/deploy-key
+atcam = [
+    "camera-interface-tracking@git+ssh://git@github.com/CaltechOpticalObservatories/hispec-tracking-camera-instrument.git",
+]
+
 [project.scripts]
 hispec = "hispec.cli:main"
 
