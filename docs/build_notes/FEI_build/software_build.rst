@@ -88,38 +88,30 @@ Prefer running Qt GUIs on an operator workstation.
 2. Python Environment
 =====================
 
-Shared Virtual Environment
---------------------------
+HISPEC Software
+---------------
 
-A deployment environment at ``/opt/hispecfei/env``, owned by ``hsfei``.
-Python **3.14** ships with 26.04 and is the required version.
+Install the HISPEC software as described in :doc:`../../install`, with
+``--host-role feiserver``:
 
 .. code-block:: bash
 
-   sudo mkdir -p /opt/hispecfei
-   sudo python3 -m venv /opt/hispecfei/env
-   sudo chown -R hsfei:hsfei /opt/hispecfei
-   sudo chmod -R 775 /opt/hispecfei
-   sudo chmod g+s /opt/hispecfei
+   sudo /opt/hispec/app/systemd/install.sh hsfei --host-role feiserver
 
-   /opt/hispecfei/env/bin/python -m pip install --upgrade pip setuptools wheel
-   /opt/hispecfei/env/bin/python -m pip install \
-       numpy \
-       scipy \
-       matplotlib \
-       astropy \
-       pandas \
-       pyserial \
-       pipython \
-       pyzmq
+The tracking camera module is not a hispec dependency, since it needs CMake
+and ImageStreamIO to build. Install it into the venv from the instrument
+checkout, as ``hsfei`` (the venv belongs to ``hispec-ops``):
 
-   echo 'source /opt/hispecfei/env/bin/activate' >> /home/hsfei/.bashrc
+.. code-block:: bash
+
+   SKBUILD_CMAKE_DEFINE="ImageStreamIO_DIR=/usr/local/lib/cmake" \
+       uv pip install --python /opt/hispec/venv/bin/python <hispec-tracking-camera-instrument>
+
+``uv sync`` removes anything the project does not declare, so repeat this after
+every ``install.sh`` run.
 
 .. warning::
-   * Install ``pyserial`` (imported as ``serial``). The PyPI package ``serial``
-     is an unrelated project.
-   * Do not ``pip install cmake``; it shadows the ``apt`` version on ``PATH``.
-   * ``PyQt5`` comes from ``apt``, not the venv.
+   ``PyQt5`` comes from ``apt``, not the venv.
 
 Headless Matplotlib
 -------------------
@@ -338,9 +330,9 @@ Keep login shells off the shielded cores by adding to ``~/.bashrc``:
    * - Check
      - Command
      - Expected
-   * - Python
-     - ``/opt/hispecfei/env/bin/python -V``
-     - ``3.14.x``
+   * - HISPEC
+     - ``hispec doctor``
+     - ``No problems found.``
    * - FT4222
      - ``./ft4222-version``
      - ``Chip version: 42220400``

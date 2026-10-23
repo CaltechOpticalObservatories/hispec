@@ -11,11 +11,13 @@ Start with the [architecture overview][arch] for how the system fits together,
 or the [daemon inventory][inventory] to find a specific mechanism.
 
 If you are running the instrument, see [running the daemons with
-systemd][systemd-ops].
+systemd][systemd-ops]. To set up an instrument host, see [installing HISPEC on
+a host][install].
 
 [arch]: https://caltechopticalobservatories.github.io/hispec/architecture/overview.html
 [inventory]: https://caltechopticalobservatories.github.io/hispec/architecture/daemons.html
 [systemd-ops]: https://caltechopticalobservatories.github.io/hispec/operations/systemd.html
+[install]: https://caltechopticalobservatories.github.io/hispec/install.html
 
 ## Structure
 
@@ -37,6 +39,9 @@ are from the original KROOT/KTL build and are no longer used; see
 [evolution]: https://caltechopticalobservatories.github.io/hispec/architecture/evolution.html
 
 ## Quick start
+
+A development checkout, run with `uv run`. Instrument hosts use
+[installing HISPEC on a host][install] instead.
 
 ```bash
 # 1) Clone

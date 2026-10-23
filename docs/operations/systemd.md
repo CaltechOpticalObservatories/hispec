@@ -10,8 +10,7 @@ If something is broken, jump to [Troubleshooting](#troubleshooting).
 
 Everything an operator does goes through one command, `hispec`. `hispec --help`
 lists the subcommands and each takes `--help`. Setting a host up in the first
-place is a separate, one-time job for an admin; see
-[Host setup](#host-setup-admins).
+place is a separate, one-time job for an admin; see {doc}`../install`.
 
 ## The idea in one minute
 
@@ -416,8 +415,8 @@ hispec deploy --new                  # if the pull added instances
 
 The venv install is editable, so a `pull` is enough, and it updates the
 `hispec` command too. An admin only needs to re-run `install.sh` if
-dependencies or `hispec@.service` changed. Pulling needs write access to
-`/opt/hispec/app`, so either run as `hispec` or ask an admin.
+dependencies or `hispec@.service` changed. `/opt/hispec` belongs to
+`hispec-ops`, so pulling needs no `sudo`.
 
 ## Deployed instances
 
@@ -478,9 +477,8 @@ directory.
 
 `hispec_keygrabber` is the one instance that reads the other daemons rather
 than any hardware, writing their keywords to InfluxDB for Grafana. It needs two
-things the others do not: an optional dependency
-(`/opt/hispec/venv/bin/pip install 'libby[influxdb]'`, run by an admin) and an
-InfluxDB token in `/etc/hispec/secrets.env`.
+things the others do not: libby's `influxdb` extra, which hispec already
+depends on, and an InfluxDB token in `/etc/hispec/secrets.env`.
 
 It owns no hardware and can be restarted freely. Pausing it does not need a
 restart at all:
@@ -494,55 +492,12 @@ libby modify hispec.keygrabber.reload=1          # re-read the config file
 
 ## Host setup (admins)
 
-This section is for whoever administers the host (IT / systems). It needs root.
-Operators never need it to add, start or deploy daemons.
-
-```bash
-sudo git clone <repo-url> /opt/hispec/app
-cd /opt/hispec/app && sudo git submodule update --init --recursive
-sudo ./systemd/install.sh alice bob          # operator usernames
-```
-
-`install.sh` is idempotent. Re-run it:
-
-- to enrol more operators (`sudo ./systemd/install.sh carol`);
-- after a pull that changed dependencies in `pyproject.toml`, or the unit or
-  polkit rule in `instrumentctl`;
-- to repair a host `hispec doctor` says is broken.
-
-You do **not** need it to add a daemon or to pick up code changes;
-[`hispec deploy`](#deploying-an-instance) and a `git pull` cover those.
-
-The script itself only bootstraps a pinned `uv` and builds the venv at
-`/opt/hispec/venv`, which is also where the `hispec` command comes from. It
-then hands over to `hispec install`, which lives in `instrumentctl` and does
-the rest:
-
-- creates the `hispec-ops` group and the unprivileged `hispec` system user the
-  daemons run as;
-- adds each named operator to `hispec-ops` and `systemd-journal`;
-- creates `/etc/hispec/{,instances/}` and `/var/log/hispec/`, group-owned by
-  `hispec-ops` and setgid so files created by one operator stay readable by the
-  rest;
-- creates `/etc/hispec/secrets.env`, writable by `hispec-ops`, and records this
-  host's role in `/etc/hispec/host`;
-- renders `hispec@.service` (then runs `daemon-reload`), the polkit rule, the
-  sudoers drop-in, `/usr/local/bin/hispec` and `/usr/local/sbin/hispec-enable`
-  from `src/hispec/cli/instrument.toml`, reporting only what it changes;
-- lists instances that are deployed but not set to start at boot.
-
-Because those five are rendered rather than committed, `hispec doctor`
-compares what is installed against what `install` would write now, which is
-what catches a host whose unit predates a template change.
-
-`HISPEC_REPO_DIR` and `HISPEC_VENV_DIR` override the paths.
-
-`/usr/local/bin/hispec` is a tiny wrapper that runs the CLI from the venv. The
-commands come from `instrumentctl`; what stays here is
-`src/hispec/cli/instrument.toml` and a few lines that pass it. Both are an
-editable install, so `git pull` changes HISPEC's own configuration without a
-reinstall, while updating the commands themselves means reinstalling the
-dependency.
+Installing and re-running `install.sh` is described in {doc}`../install`.
+`hispec install` renders `hispec@.service`, the polkit rule, the sudoers
+drop-in, `/usr/local/bin/hispec`, `/usr/local/sbin/hispec-enable` and
+`/etc/profile.d/hispec.sh` from `src/hispec/cli/instrument.toml`. `hispec
+doctor` compares each against what `install` would write now, which is what
+catches a host whose unit predates a template change.
 
 ### What the unit does
 

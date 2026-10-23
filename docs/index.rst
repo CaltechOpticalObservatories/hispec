@@ -17,9 +17,9 @@ about.
 If you are running the instrument, :doc:`running the daemons with systemd
 <operations/systemd>` covers starting, stopping, watching and debugging them.
 
-If you are setting up a machine, start with the host-machine build page. Use
-the FEI/RTC build page for subsystem-specific installation and configuration
-details.
+If you are setting up a machine, :doc:`install` is the one way to put the
+software on it. The build notes cover the OS, packages and hardware for each
+host.
 
 .. toctree::
    :caption: Architecture
@@ -31,6 +31,7 @@ details.
    :caption: Operations
    :maxdepth: 2
 
+   install
    operations/systemd
 
 .. toctree::

@@ -8,38 +8,20 @@ System Requirements
 - OS: Ubuntu 24.04 LTS (Noble Numbat)
 - Python: 3.12 (Default system version)
 
-Initial OS User
----------------
+Users
+-----
 
-The target machine is initially provisioned during the OS installation with the primary administrative user:
-
-- **Primary User:** ``hispec`` (with sudo privileges)
-
-Development User & Group Setup
-------------------------------
-
-Create required groups for HISPEC engineering and development:
+Create ``hsdev`` as the administrative user during the OS installation, then
+give it serial access:
 
 .. code-block:: bash
 
-   sudo groupadd -f hispec
-   sudo groupadd -f eng
+   sudo usermod -aG dialout hsdev
 
-Set up the secondary development user ``hsdev`` and assign appropriate group memberships:
-
-.. code-block:: bash
-
-   sudo adduser hsdev
-   sudo usermod -aG sudo,dialout,hispec,eng hsdev
-
-.. note::
-   The following block provisions secondary accounts non-interactively. Since ``hispec`` is created during initial OS installation and ``hsdev`` is created above, the script gracefully skips pre-existing accounts while ensuring any missing target accounts are safely created.
-
-.. code-block:: bash
-
-   for u in hispec hsdev; do
-       sudo useradd -m -s /bin/bash "$u" 2>/dev/null || true
-   done
+Do not create a ``hispec`` login. The installer in
+:ref:`section-host-hispec-software` creates ``hispec`` as the system account the
+daemons run as, with no login shell, along with the ``hispec-ops`` group, and
+enrols ``hsdev`` into that group.
 
 System Package Installation
 ---------------------------
@@ -111,118 +93,14 @@ Additional Instrument Development Packages
      libccfits-dev \
      libcfitsio-dev
 
-Python Environment Setup
-------------------------
+.. _section-host-hispec-software:
 
-Global Shared Virtual Environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+HISPEC Software
+---------------
 
-Create a centralized, read-only-for-engineers virtual environment under ``/opt/hispec/env``. 
-This environment houses the official deployed packages used across the instrument framework.
-
-Execute as the primary ``hispec`` user:
-
-.. code-block:: bash
-
-   # Create global directory and virtual environment
-   sudo mkdir -p /opt/hispec
-   sudo python3 -m venv /opt/hispec/env
-
-   # Set ownership: owned by 'hispec', group-accessible by 'eng'
-   sudo chown -R hispec:eng /opt/hispec
-   sudo chmod -R 775 /opt/hispec
-
-   # Install canonical deployed packages into global environment
-   /opt/hispec/env/bin/pip install --upgrade pip
-   /opt/hispec/env/bin/pip install numpy matplotlib pipython serial pandas PyQt5 cmake
-
-Clone and Install HISPEC Control Package
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Clone the main repository, check out nested submodules, and perform an editable development installation into the global environment:
-
-.. code-block:: bash
-
-   # 1. Clone repository to /opt/hispec
-   cd /opt/hispec
-   sudo -u hispec git clone https://github.com/CaltechOpticalObservatories/hispec.git /opt/hispec/app
-   cd app
-
-   # 2. Sync and check out all nested submodules
-   sudo -u hispec git submodule sync --recursive
-   sudo -u hispec git submodule update --init --recursive
-
-   # 3. Install package with development dependencies into shared environment
-   sudo -u hispec /opt/hispec/env/bin/pip install -e ".[dev]"
-
-To make the global environment active by default for all session shells, add the activation hook to system or user bash profiles:
-
-.. code-block:: bash
-
-   echo 'source /opt/hispec/env/bin/activate' >> /home/hsdev/.bashrc
-
-Updating the Global HISPEC Package
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To pull the latest changes, update all recursive submodules, and refresh the environment:
-
-Execute as the primary ``hispec`` user:
-
-.. code-block:: bash
-
-   cd /opt/hispec/app
-
-   # 1. Pull the latest commits on current branch
-   sudo -u hispec git pull
-
-   # 2. Sync and update recursive submodules to pinned SHAs
-   sudo -u hispec git submodule sync --recursive
-   sudo -u hispec git submodule update --init --recursive
-
-   # 3. Refresh environment dependencies (if dependencies changed)
-   sudo -u hispec /opt/hispec/env/bin/pip install -e ".[dev]"
-
-.. note::
-   If you explicitly need to update all submodules to the head of their tracked remote branches (e.g., ``main``) rather than their pinned SHAs:
-
-   .. code-block:: bash
-
-      sudo -u hispec git submodule update --remote --merge --recursive
-
-Local Engineer Virtual Environments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Engineers working under ``hsdev`` (or individual local accounts) can spin up isolated, lightweight local virtual environments for feature development.
-
-Option A: Inherit Deployed Global Packages
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To inherit all pre-installed packages (including the ``hispec`` package) from the global environment while allowing local testing:
-
-.. code-block:: bash
-
-   python3 -m venv --system-site-packages ~/env
-   source ~/env/bin/activate
-
-Option B: Isolated Sandbox
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To build an isolated sandbox and install a custom branch of the ``hispec`` repository independent of the deployed environment:
-
-.. code-block:: bash
-
-   # Create and activate environment
-   python3 -m venv ~/env_sandbox
-   source ~/env_sandbox/bin/activate
-   pip install --upgrade pip
-
-   # Clone and install locally
-   cd ~
-   git clone https://github.com/CaltechOpticalObservatories/hispec.git hispec_sandbox
-   cd hispec_sandbox
-   git submodule sync --recursive
-   git submodule update --init --recursive
-   pip install -e ".[dev]"
+Install the HISPEC software as described in :doc:`../install`, passing
+``hsdev`` and every other operator to ``install.sh``. That page is also where
+updating the host and enrolling operators are covered.
 
 Update Hosts File
 -----------------
