@@ -43,7 +43,18 @@ activating anything.
        https://github.com/CaltechOpticalObservatories/hispec.git /opt/hispec/app
    ```
 
-3. Run the installer, naming every account that operates this host:
+3. Install the deploy key. `uv lock` reads every extra on every host, and the
+   tracking camera repo is private, so each host needs its read-only key:
+
+   ```bash
+   sudo install -D -m 600 -o root -g root <deploy-key> /etc/hispec/deploy-key
+   ```
+
+   The key is generated once and registered as a read-only deploy key on
+   `hispec-tracking-camera-instrument`; every host gets a copy of the same
+   private half.
+
+4. Run the installer, naming every account that operates this host:
 
    ```bash
    sudo /opt/hispec/app/systemd/install.sh hsdev alice bob --host-role <role>
@@ -53,9 +64,13 @@ activating anything.
    (`hispecserver`, `feiserver`, ...). Leave it out to use the short hostname.
    It is written once, to `/etc/hispec/host`; edit that file to change it.
 
-4. Log out and back in, so the new groups and `PATH` take effect.
+   A host that runs the tracking camera adds `--extra atcam`, which builds the
+   camera module into the venv. Extras are recorded in `/etc/hispec/extras`,
+   so later runs keep them; `hispec doctor` reports one that has gone missing.
 
-5. Add the credentials this host's daemons need:
+5. Log out and back in, so the new groups and `PATH` take effect.
+
+6. Add the credentials this host's daemons need:
 
    ```bash
    $EDITOR /etc/hispec/secrets.env
@@ -64,13 +79,13 @@ activating anything.
    [Secrets](operations/systemd.md#secrets) lists the variables.
    `hispec doctor` says which are still missing.
 
-6. Check the host:
+7. Check the host:
 
    ```bash
    hispec doctor
    ```
 
-7. Deploy and start daemons, as yourself:
+8. Deploy and start daemons, as yourself:
    {doc}`operations/systemd` from here on.
 
 ## What install.sh does
