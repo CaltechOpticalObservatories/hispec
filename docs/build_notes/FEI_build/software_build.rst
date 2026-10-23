@@ -121,10 +121,11 @@ tracking camera module:
 
 .. code-block:: bash
 
-   sudo /opt/hispec/app/systemd/install.sh hsfei --host-role feiserver --extra atcam
+   sudo /opt/hispec/app/systemd/install.sh hsfei --host-role feiserver --extra atcam --extra scripts
 
-``--extra atcam`` is recorded in ``/etc/hispec/extras``, so later runs keep the
-module without repeating it.
+``--extra scripts`` adds what the tracking camera analysis scripts plot with.
+Both are recorded in ``/etc/hispec/extras``, so later runs keep them without
+repeating the flags.
 
 .. warning::
    ``PyQt5`` comes from ``apt``, not the venv.
