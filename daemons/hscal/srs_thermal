@@ -135,7 +135,7 @@ class SrsDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attrib
     def _make_temperature_getter(self, channel):
         """Return a zero-argument getter reading the temperature at `channel`."""
         def getter():
-            return self.controller.get_temperature(channel)
+            return self.controller.get_atomic_value(channel)
         return getter
 
     def _make_setpoint_getter(self, output):
