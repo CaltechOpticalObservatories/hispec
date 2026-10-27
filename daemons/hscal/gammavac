@@ -22,9 +22,10 @@ class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
         self.tcp_port = None
         self.bus_address = None
         self.pressure = None
+        self._pressure_keyword = None
         self.current = None
         self.voltage = None
-        self.units = None
+        self.units = 'T'
         self.error = None
         self.controller = SpceController(log=True)
         self.daemon_description = "Gamma Vacuum Vac-Ion Pressure Daemon"
@@ -47,25 +48,18 @@ class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
                                      getter=self._error_string,
                                      description="Last error from the Gamma Vacuum Vac-Ion "
                                                  "pressure controller.")
-        self._pressure1_keyword = self.keyword_registry.float(
-            "pressure1",
-            getter=self._get_pressure1,
-            description="Pressure from gauge 1.")
-        self._pressure2_keyword = self.keyword_registry.float(
-            "pressure2",
-            getter=self._get_pressure2,
-            description="Pressure from gauge 2.")
-        self.keyword_registry.float("temperature",
-                                    getter=self.controller.read_temperature,
-                                    units="C",
-                                    description="Temperature from Gamma Vacuum Vac-Ion pressure controller.")
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the PDU as a (code, message) string.")
+        self._pressure_keyword = self.keyword_registry.float("pressure",
+                                                             getter=self._get_pressure,
+                                                             description="Pressure from gauge")
         self.keyword_registry.string("units",
                                      getter=self._get_pressure_units,
                                      description="Pressure units.")
         self.keyword_registry.int("units_code",
                                   setter=self._set_pressure_units,
-                                  description="Pressure units code: 0 - mbar, 1 - Torr, 2 - Pascal,"
-                                              " 3 - Micron, 4 - hPascal, 5 - Volt.")
+                                  description="Pressure units code: M - mbar, T - Torr, P - Pascal")
         self.keyword_registry.trigger("shutdown",
                                       action=self._shutdown,
                                       description="Shutdown the daemon now.")
@@ -114,56 +108,35 @@ class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
         else:
             self.controller.disconnect()
 
-    def _get_pressure1(self):
-        """Read the gauge 1 pressure from the Gamma Vacuum Vac-Ion Pressure controller"""
-        try:
-            self.pressure1 = self.controller.read_pressure(gauge=1)
-            # Read the unit with the value: the front panel can change it between reads
-            self._pressure1_keyword.units = self._get_pressure_units()
-        except UnknownResponse as e:
-            self.logger.error("Error reading pressure1: %s", e)
-            self.error = str(e)
-        return self.pressure1
+    def _status(self):
+        """Handles status."""
+        if not self.controller.is_connected():
+            return str((-1, "ERROR: Not connected to hardware"))
+        return str(self.controller.get_status())
 
-    def _get_pressure2(self):
-        """Read the gauge 2 pressure from the Gamma Vacuum Vac-Ion Pressure controller"""
-        try:
-            self.pressure2 = self.controller.read_pressure(gauge=2)
-            self._pressure2_keyword.units = self._get_pressure_units()
-        except UnknownResponse as e:
-            self.logger.error("Error reading pressure2: %s", e)
-            self.error = str(e)
-        return self.pressure2
+    def _get_pressure(self):
+        """Read the pressure from the Gamma Vacuum Vac-Ion Pressure controller"""
+        self.pressure = self.controller.read_pressure()
+        # Read the unit with the value: the front panel can change it between reads
+        self._pressure_keyword.units = self.units
+        return self.pressure
 
     def _get_pressure_units(self):
         """Read the pressure units from the Gamma Vacuum Vac-Ion Pressure controller"""
-        try:
-            _ = self.controller.get_pressure_unit()
-            self.units = self.controller.pressure_units
-        except UnknownResponse as e:
-            self.logger.error("Error reading pressure_units: %s", e)
-            self.error = str(e)
         return self.units
 
-    def _set_pressure_units(self, code: int =1) -> bool:
+    def _set_pressure_units(self, code: str ='T') -> bool:
         """Set the pressure units from the Gamma Vacuum Vac-Ion Pressure controller
 
         :parm code: The integer new pressure units code:
-            0 - mbar, 1 - Torr, 2 - Pascal, 3 - Micron, 4 - hPascal, 5 - Volt
+            M - mbar, T - Torr, P - Pascal
         """
-        try:
-            if self.controller.set_pressure_unit(code):
-                self.units = self.controller.pressure_units
-                self.error = ""
-                return True
-
-            self.logger.error("Units code not set: %d", code)
-            self.error = "Units code not set"
-            return False
-        except UnknownResponse as e:
-            self.logger.error("Error setting pressure_units: %s", e)
-            self.error = str(e)
-            return False
+        if self.controller.set_units(code):
+            self.units = code
+            self.error = ""
+            return True
+        self.error = "Could not set pressure units"
+        return False
 
     def _error_string(self) -> str:
         """Return last error string"""
