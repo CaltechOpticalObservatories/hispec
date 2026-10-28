@@ -1,0 +1,15 @@
+# HKEtVacIon — Gamma Vacuum SPCe Vac-Ion pressure gauge
+#
+# Usage:
+#   daemons/hscal -c config/hscal/hscal_hketvacion.yaml
+
+peer_id: hketvacion
+group_id: hscal
+
+hardware:
+  ip_address: 192.168.29.130
+  tcp_port: 10011
+  bus_address: 5
+
+logging:
+  level: INFO
