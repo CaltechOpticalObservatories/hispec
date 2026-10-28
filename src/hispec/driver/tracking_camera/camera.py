@@ -54,18 +54,6 @@ class TrackingCamera(Camerad):
 
     MODULE_NAME = "camera_interface_tracking"
 
-    ### lifecycle
-
-    def initialize(self) -> None:
-        """Connect, load firmware, power on, then reset the H2RG.
-
-        The H2RG main reset only fires on a 0 to 1 transition of Start, which
-        the ACF has already set at load time, so h2rg_init has to run after
-        power on for autofetch to stream at all.
-        """
-        super().initialize()
-        self.instrument_cmd("h2rg_init")
-
     ### readout mode
 
     def set_readmode(self, mode: ReadMode) -> None:

@@ -65,11 +65,10 @@ It does not compile on macOS, so the shared-memory output is Linux-only.
 from hispec.driver.tracking_camera import TrackingCamera, ReadMode
 
 camera = TrackingCamera.from_config("hispecatc.cfg")
-camera.initialize()                       # open, load, power on, h2rg_init
+camera.initialize()                       # open, load, power on
 
 camera.set_camera_mode("GUIDING")
 camera.set_readmode(ReadMode.RX)
-camera.set_window(True)
 camera.set_guiding_roi(51, 60, 51, 60)
 print(camera.geometry())                  # Geometry(y0=51, y1=60, x0=51, x1=60)
 

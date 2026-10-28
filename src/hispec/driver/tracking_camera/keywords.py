@@ -111,12 +111,10 @@ class Instrument:
             if self._subframemode == GUIDING:
                 camera.set_camera_mode("GUIDING")
                 camera.set_readmode(self._readmode)
-                camera.set_window(True)
                 if self._bounds is not None:
                     camera.set_guiding_roi(*self._bounds)
             else:
                 camera.set_camera_mode(self._readmode.value.upper())
-                camera.set_window(False)
                 if self._size is not None:
                     camera.set_centred_roi(*self._size)
 

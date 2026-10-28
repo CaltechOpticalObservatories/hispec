@@ -64,9 +64,15 @@ activating anything.
    (`hispecserver`, `feiserver`, ...). Leave it out to use the short hostname.
    It is written once, to `/etc/hispec/host`; edit that file to change it.
 
-   A host that runs the tracking camera adds `--extra atcam`, which builds the
-   camera module into the venv. Extras are recorded in `/etc/hispec/extras`,
-   so later runs keep them; `hispec doctor` reports one that has gone missing.
+   On `feiserver` the installer also builds the tracking camera module into
+   the venv (the `atcam` extra); any other role is refused it. Other extras
+   are added with `--extra <name>` and recorded in `/etc/hispec/extras`, so
+   later runs keep them; `hispec doctor` reports one that has gone missing.
+
+   Before `hispec deploy hsfei_atcam` on `feiserver`, put the ACF at
+   `/etc/hispec/hispecatc.acf` and create `/opt/hispec/data` writable by
+   `hispec`. The daemon holds the Archon, so nothing else can drive the camera
+   while it runs.
 
 5. Log out and back in, so the new groups and `PATH` take effect.
 

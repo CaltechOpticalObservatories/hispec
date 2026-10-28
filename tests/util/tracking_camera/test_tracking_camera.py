@@ -43,14 +43,6 @@ from hispec.driver.tracking_camera import (  # noqa: E402
 class TestTrackingCamera(unittest.TestCase):
     """Check that instrument commands are formatted and replies parsed."""
 
-    def test_initialize_adds_the_h2rg_reset_after_power_on(self):
-        camera = FakeCamera()
-        TrackingCamera(camera).initialize()
-        self.assertEqual(
-            camera.calls,
-            [("open", ""), ("load", ""), ("power", "on"), ("h2rg_init", "")],
-        )
-
     def test_guiding_roi_is_sent_as_vstart_vstop_hstart_hstop(self):
         camera = FakeCamera()
         TrackingCamera(camera).set_guiding_roi(51, 60, 20, 29)
