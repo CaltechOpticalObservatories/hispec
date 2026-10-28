@@ -1,7 +1,7 @@
 # YJEtVacIon — Gamma Vacuum SPCe Vac-Ion pressure gauge
 #
 # Usage:
-#   daemons/hscal -c config/hscal/hscal_yjetvacion.yaml
+#   daemons/hscal/gammavac -c config/hscal/hscal_yjetvacion.yaml
 
 peer_id: yjetvacion
 group_id: hscal
