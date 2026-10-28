@@ -50,16 +50,45 @@ class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
                                                  "pressure controller.")
         self.keyword_registry.string("status",
                                      getter=self._status,
-                                     description="Status of the PDU as a (code, message) string.")
+                                     description="Status of the GammaVac as a "
+                                                 "(code, message) string.")
+        self.keyword_registry.string("model",
+                                     getter=self.controller.read_model,
+                                     description="Model of the Gamma Vacuum Vac-Ion")
+        self.keyword_registry.string("version",
+                                     getter=self.controller.read_version,
+                                     description="Version of the Gamma Vacuum Vac-Ion")
+        self.keyword_registry.int("pump_status",
+                                  getter=self.controller.get_pump_status,
+                                  description="Status of the pump as a number: "
+                                              "0 = standby, 1 = starting, 2 = running, "
+                                              "3 = cooldown, 4 = error")
+        self.keyword_registry.int("pump_size",
+                                  getter=self.controller.get_pump_size,
+                                  description="Size of the pump in L/s")
+        self.keyword_registry.int("hv_status",
+                                  getter=self.controller.high_voltage_on,
+                                  description="Is High Voltage on?")
+        self.keyword_registry.trigger("start_pump",
+                                      action=self.controller.start_pump,
+                                      description="Start pump")
+        self.keyword_registry.trigger("stop_pump",
+                                      action=self.controller.stop_pump,
+                                      description="Stop pump")
+        self.keyword_registry.float("current",
+                                    getter=self.controller.read_current,
+                                    description="Current in Amps of the Gamma Vacuum Vac-Ion")
+        self.keyword_registry.float("voltage",
+                                    getter=self.controller.read_voltage,
+                                    description="Voltage of the Gamma Vacuum Vac-Ion")
         self._pressure_keyword = self.keyword_registry.float("pressure",
                                                              getter=self._get_pressure,
                                                              description="Pressure from gauge")
         self.keyword_registry.string("units",
                                      getter=self._get_pressure_units,
-                                     description="Pressure units.")
-        self.keyword_registry.int("units_code",
-                                  setter=self._set_pressure_units,
-                                  description="Pressure units code: M - mbar, T - Torr, P - Pascal")
+                                     setter=self._set_pressure_units,
+                                     description="Pressure units code: "
+                                                 "M - mbar, T - Torr, P - Pascal")
         self.keyword_registry.trigger("shutdown",
                                       action=self._shutdown,
                                       description="Shutdown the daemon now.")
@@ -101,6 +130,7 @@ class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
             raise RuntimeError(
                 f"no connection to {self.ip_address}:{self.tcp_port}")
         self.controller.initialize()
+        self.controller.set_units(self.units)
 
     def _set_connected(self, value: bool) -> None:
         if value:
