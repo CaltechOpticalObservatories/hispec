@@ -33,8 +33,22 @@ dependencies = [
     # influxdb extra: needed by daemons/generic/keygrabber
     "libby[influxdb]@git+https://github.com/CaltechOpticalObservatories/libby.git",
     "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base",
-    "instrumentctl@git+https://github.com/CaltechOpticalObservatories/instrumentctl.git@v0.2.0",
+    "instrumentctl@git+https://github.com/CaltechOpticalObservatories/instrumentctl.git",
     "camera_daemon@git+https://github.com/COO-Utilities/camera-daemon.git"
+]
+
+[project.optional-dependencies]
+# The tracking camera module builds against ImageStreamIO, so only the host
+# running the camera installs it: install.sh --extra atcam. The repo is private;
+# hosts fetch it with /etc/hispec/deploy-key
+atcam = [
+    "camera-interface-tracking@git+ssh://git@github.com/CaltechOpticalObservatories/hispec-tracking-camera-instrument.git",
+]
+# Plotting and FITS for the engineering scripts under scripts/, which no daemon
+# imports: install.sh --extra scripts
+scripts = [
+    "astropy",
+    "matplotlib",
 ]
 
 [project.scripts]

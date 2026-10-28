@@ -88,38 +88,47 @@ Prefer running Qt GUIs on an operator workstation.
 2. Python Environment
 =====================
 
-Shared Virtual Environment
---------------------------
+ImageStreamIO
+-------------
 
-A deployment environment at ``/opt/hispecfei/env``, owned by ``hsfei``.
-Python **3.14** ships with 26.04 and is the required version.
+The tracking camera publishes frames to shared memory through
+`ImageStreamIO <https://github.com/milk-org/ImageStreamIO>`_, which no distro
+packages:
 
 .. code-block:: bash
 
-   sudo mkdir -p /opt/hispecfei
-   sudo python3 -m venv /opt/hispecfei/env
-   sudo chown -R hsfei:hsfei /opt/hispecfei
-   sudo chmod -R 775 /opt/hispecfei
-   sudo chmod g+s /opt/hispecfei
+   git clone https://github.com/milk-org/ImageStreamIO.git
+   cmake -S ImageStreamIO -B ImageStreamIO/build
+   cmake --build ImageStreamIO/build -j
+   sudo cmake --install ImageStreamIO/build
+   sudo ldconfig
 
-   /opt/hispecfei/env/bin/python -m pip install --upgrade pip setuptools wheel
-   /opt/hispecfei/env/bin/python -m pip install \
-       numpy \
-       scipy \
-       matplotlib \
-       astropy \
-       pandas \
-       pyserial \
-       pipython \
-       pyzmq
+Upstream installs its CMake config straight into ``/usr/local/lib/cmake``,
+where ``find_package`` does not look. Point every build on this host at it,
+including the ones ``install.sh`` runs under ``sudo``:
 
-   echo 'source /opt/hispecfei/env/bin/activate' >> /home/hsfei/.bashrc
+.. code-block:: bash
+
+   echo 'ImageStreamIO_ROOT=/usr/local/lib/cmake' | sudo tee -a /etc/environment
+
+Log out and back in for it to take effect.
+
+HISPEC Software
+---------------
+
+Install the HISPEC software as described in :doc:`../../install`, with the
+tracking camera module:
+
+.. code-block:: bash
+
+   sudo /opt/hispec/app/systemd/install.sh hsfei --host-role feiserver --extra atcam --extra scripts
+
+``--extra scripts`` adds what the tracking camera analysis scripts plot with.
+Both are recorded in ``/etc/hispec/extras``, so later runs keep them without
+repeating the flags.
 
 .. warning::
-   * Install ``pyserial`` (imported as ``serial``). The PyPI package ``serial``
-     is an unrelated project.
-   * Do not ``pip install cmake``; it shadows the ``apt`` version on ``PATH``.
-   * ``PyQt5`` comes from ``apt``, not the venv.
+   ``PyQt5`` comes from ``apt``, not the venv.
 
 Headless Matplotlib
 -------------------
@@ -338,9 +347,9 @@ Keep login shells off the shielded cores by adding to ``~/.bashrc``:
    * - Check
      - Command
      - Expected
-   * - Python
-     - ``/opt/hispecfei/env/bin/python -V``
-     - ``3.14.x``
+   * - HISPEC
+     - ``hispec doctor``
+     - ``No problems found.``
    * - FT4222
      - ``./ft4222-version``
      - ``Chip version: 42220400``

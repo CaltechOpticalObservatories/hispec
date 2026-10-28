@@ -5,6 +5,10 @@
 #   sudo ./systemd/install.sh                    # set the host up
 #   sudo ./systemd/install.sh alice bob          # ... and enrol two operators
 #   sudo HISPEC_OPS_USERS="alice bob" ./systemd/install.sh   # same thing
+#   sudo ./systemd/install.sh --extra atcam      # ... with the tracking camera
+#
+# Extras are recorded in /etc/hispec/extras, and every later run syncs them
+# again, so a plain re-run keeps a camera host's camera module.
 #
 # Re-run it to enrol operators, after a dependency change, or to repair a host.
 # It is NOT part of adding a daemon: once a host is set up, operators do that
@@ -22,7 +26,8 @@ set -euo pipefail
 
 REPO_DIR="${HISPEC_REPO_DIR:-/opt/hispec/app}"
 VENV_DIR="${HISPEC_VENV_DIR:-/opt/hispec/venv}"
-OPS_USERS="${HISPEC_OPS_USERS:-} $*"
+EXTRAS_FILE="${HISPEC_ETC_DIR:-/etc/hispec}/extras"
+DEPLOY_KEY="${HISPEC_ETC_DIR:-/etc/hispec}/deploy-key"
 UV_VERSION="${HISPEC_UV_VERSION:-0.12.23}"
 # Its own copy rather than whatever uv is on PATH, since a snap refreshes
 # itself and would unpin the resolver
@@ -49,6 +54,31 @@ if [[ ! -d "$REPO_DIR" ]]; then
     exit 1
 fi
 
+# --extra is ours; everything else goes to `hispec install`
+read -ra INSTALL_ARGS <<<"${HISPEC_OPS_USERS:-}"
+EXTRAS=()
+if [[ -f "$EXTRAS_FILE" ]]; then
+    mapfile -t EXTRAS <"$EXTRAS_FILE"
+fi
+while (($#)); do
+    case $1 in
+        --extra) EXTRAS+=("$2"); shift 2 ;;
+        *) INSTALL_ARGS+=("$1"); shift ;;
+    esac
+done
+if ((${#EXTRAS[@]})); then
+    mapfile -t EXTRAS < <(printf '%s\n' "${EXTRAS[@]}" | sort -u)
+fi
+EXTRA_FLAGS=()
+for extra in "${EXTRAS[@]}"; do
+    EXTRA_FLAGS+=(--extra "$extra")
+done
+
+# uv lock resolves every extra on every host, including the private camera repo
+if [[ -f "$DEPLOY_KEY" ]]; then
+    export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+fi
+
 # Pinned, so re-running the installer cannot resolve with a different uv
 if [[ "$("$UV_BIN" --version 2>/dev/null)" != "uv $UV_VERSION"* ]]; then
     curl -LsSf "https://astral.sh/uv/$UV_VERSION/install.sh" |
@@ -64,8 +94,13 @@ fi
     "$UV_BIN" lock --upgrade
     # --all-packages installs the vendored drivers too; plain sync covers only
     # the root project and leaves their dependencies out
-    "$UV_BIN" sync --all-packages
+    "$UV_BIN" sync --all-packages "${EXTRA_FLAGS[@]}"
 )
 
-# shellcheck disable=SC2086  # OPS_USERS is a deliberately word-split list
-exec "$VENV_DIR/bin/hispec" install $OPS_USERS
+# Only once the sync accepted them, so a mistyped extra is not kept
+if ((${#EXTRAS[@]})); then
+    mkdir -p "$(dirname "$EXTRAS_FILE")"
+    printf '%s\n' "${EXTRAS[@]}" >"$EXTRAS_FILE"
+fi
+
+exec "$VENV_DIR/bin/hispec" install "${INSTALL_ARGS[@]}"
