@@ -12,3 +12,8 @@ camera:
   config_file: /opt/hispec/app/config/hsfei/hispecatc.cfg
   instrument: hispec.driver.tracking_camera.keywords.Instrument
   nframes: 1
+  # ACF section each subframemode selects; the first is the startup mode
+  subframe_sections:
+    roi: ROI
+    guiding: GUIDING
+    fullframe: FULLFRAME

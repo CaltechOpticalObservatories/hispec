@@ -6,7 +6,9 @@ Kept apart from `camera.py` so the driver itself stays usable without libby.
 from __future__ import annotations
 
 import threading
-from typing import Any, Optional, Tuple
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Tuple
 
 from libby import KeywordRegistry
 
@@ -14,7 +16,11 @@ from .camera import ReadMode, TrackingCamera
 
 ROI = "roi"
 GUIDING = "guiding"
-SUBFRAME_MODES = (ROI, GUIDING)
+FULLFRAME = "fullframe"
+SUBFRAME_MODES = (ROI, GUIDING, FULLFRAME)
+
+# Maps each subframe mode to its ACF section, which belongs to the ACF in use
+SECTIONS_CONFIG_KEY = "camera.subframe_sections"
 
 # The centred-ROI command caps width at half the detector: the horizontal
 # argument is a per-tap pixel count, not a detector-wide one
@@ -22,20 +28,42 @@ MAX_ROI_HEIGHT = 2048
 MAX_ROI_WIDTH = 1024
 
 
-class Instrument:
+@dataclass
+class _Acquisition:
+    """What autofetch and freerun were last set to, which camerad cannot report."""
+
+    autofetch: bool = False
+    freerun: bool = False
+
+
+class Instrument:  # pylint: disable=too-many-instance-attributes
     """The tracking camera's own keywords, over the generic camera ones."""
 
     camera_class = TrackingCamera
 
     def __init__(self, daemon: Any) -> None:
         self.daemon = daemon
-        self._subframemode = ROI
+        self._sections = self._read_sections(daemon.get_config(SECTIONS_CONFIG_KEY))
+        self._subframemode = next(iter(self._sections))
         self._readmode = ReadMode.RX
         self._size: Optional[Tuple[int, int]] = None
         self._bounds: Optional[Tuple[int, int, int, int]] = None
+        self._acquisition = _Acquisition()
         # subframemode and readmode both re-derive the ACF mode, so the whole
         # sequence is applied under one lock rather than interleaved
         self._apply_lock = threading.Lock()
+
+    @staticmethod
+    def _read_sections(sections: Any) -> Dict[str, str]:
+        """Validate the subframe mode to ACF section map from config."""
+        if not isinstance(sections, Mapping) or not sections:
+            raise RuntimeError(f"{SECTIONS_CONFIG_KEY} must map subframe modes "
+                               f"({', '.join(SUBFRAME_MODES)}) to ACF sections")
+        unknown = sorted(set(sections) - set(SUBFRAME_MODES))
+        if unknown:
+            raise RuntimeError(f"{SECTIONS_CONFIG_KEY}: unknown subframe modes "
+                               f"{', '.join(unknown)}; expected {', '.join(SUBFRAME_MODES)}")
+        return {str(mode): str(section) for mode, section in sections.items()}
 
     @property
     def camera(self) -> TrackingCamera:
@@ -56,7 +84,7 @@ class Instrument:
                         getter=lambda: self._subframemode,
                         setter=self._set_subframemode,
                         validator=self._check_subframemode,
-                        description=f"Subframe mode: {' or '.join(SUBFRAME_MODES)}.")
+                        description=f"Subframe mode: {', '.join(self._sections)}.")
         for name in ("y0", "y1", "x0", "x1"):
             registry.int(name,
                          getter=self._bound_getter(name),
@@ -83,6 +111,18 @@ class Instrument:
         registry.string("geometrystatus",
                         getter=self._geometry_status,
                         description="How the geometry in force was derived.")
+        registry.bool("autofetch",
+                      getter=lambda: self._acquisition.autofetch,
+                      setter=self._set_autofetch,
+                      description="Archon pushes frames as they are read; "
+                                  "write false to stop a stream.")
+        registry.bool("freerun",
+                      getter=lambda: self._acquisition.freerun,
+                      setter=self._set_freerun,
+                      description="expose starts a continuous loop that abort ends.")
+        registry.int("frameswritten",
+                     getter=self._frames_written,
+                     description="Frames written by the busiest frame output.")
         registry.bool("debug",
                       setter=self._set_debug,
                       description="Per-frame debug logging.")
@@ -108,19 +148,16 @@ class Instrument:
         """
         camera = self.camera
         with self._apply_lock:
-            if self._subframemode == GUIDING:
-                camera.set_camera_mode("GUIDING")
-                camera.set_readmode(self._readmode)
-                if self._bounds is not None:
-                    camera.set_guiding_roi(*self._bounds)
-            else:
-                camera.set_camera_mode(self._readmode.value.upper())
-                if self._size is not None:
-                    camera.set_centred_roi(*self._size)
+            camera.set_camera_mode(self._sections[self._subframemode])
+            camera.set_readmode(self._readmode)
+            if self._subframemode == GUIDING and self._bounds is not None:
+                camera.set_guiding_roi(*self._bounds)
+            elif self._subframemode == ROI and self._size is not None:
+                camera.set_centred_roi(*self._size)
 
     def _check_subframemode(self, value: Any) -> Optional[str]:
-        if str(value) not in SUBFRAME_MODES:
-            return f"subframemode must be one of {', '.join(SUBFRAME_MODES)}"
+        if str(value) not in self._sections:
+            return f"subframemode must be one of {', '.join(self._sections)}"
         return None
 
     def _set_subframemode(self, value: str) -> None:
@@ -185,6 +222,21 @@ class Instrument:
             self._size = (size["height"], size["width"])
             self._apply()
         return setter
+
+    ### acquisition
+
+    def _set_autofetch(self, value: bool) -> None:
+        self.camera.set_autofetch(bool(value))
+        self._acquisition.autofetch = bool(value)
+
+    def _set_freerun(self, value: bool) -> None:
+        self.camera.set_freerun(bool(value))
+        self._acquisition.freerun = bool(value)
+
+    def _frames_written(self) -> int:
+        # Every output writes the same frames, so summing would overcount
+        return max((output.frames_written for output in self.camera.output_status()),
+                   default=0)
 
     ### diagnostics
 
