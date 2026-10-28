@@ -20,14 +20,14 @@ class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
 
         self.ip_address = None
         self.tcp_port = None
-        self.bus_address = None
+        self.bus_address = 5
         self.pressure = None
         self._pressure_keyword = None
         self.current = None
         self.voltage = None
         self.units = 'T'
         self.error = None
-        self.controller = SpceController(log=True)
+        self.controller = SpceController(log=True, bus_address=self.bus_address)
         self.daemon_description = "Gamma Vacuum Vac-Ion Pressure Daemon"
 
     def on_start(self, libby):
@@ -36,6 +36,7 @@ class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
         self.ip_address = self.get_config("hardware.ip_address")
         self.tcp_port = self.get_config("hardware.tcp_port")
         self.bus_address = self.get_config("hardware.bus_address")
+        self.controller.bus_address = self.bus_address
 
         self.logger.info("Starting %s daemon with %d bus address", self.peer_id, self.bus_address)
 
