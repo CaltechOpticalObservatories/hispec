@@ -1,0 +1,15 @@
+# YJEtVacIon — Gamma Vacuum SPCe Vac-Ion pressure gauge
+#
+# Usage:
+#   daemons/hscal/gammavac -c config/hscal/hscal_yjetvacion.yaml
+
+peer_id: yjetvacion
+group_id: hscal
+
+hardware:
+  ip_address: 192.168.29.153
+  tcp_port: 10016
+  bus_address: 5
+
+logging:
+  level: INFO

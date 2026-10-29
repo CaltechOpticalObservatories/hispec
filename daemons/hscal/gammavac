@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""
+Gamma Vacuum Vac-Ion Pressure Daemon
+
+Exposes the Gamma Vacuum Vac-Ion pressure commands as libby keywords.
+"""
+
+import argparse
+import sys
+
+from hispec import HispecDaemon
+from hispec.driver.gammavac.SPCe import SpceController
+
+# pylint: disable=too-many-instance-attributes
+class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
+    """Daemon for controlling the Gamma Vacuum Vac-Ion pressure gauges via keywords."""
+
+    def __init__(self):
+        super().__init__()
+
+        self.ip_address = None
+        self.tcp_port = None
+        self.bus_address = 5
+        self.pressure = None
+        self._pressure_keyword = None
+        self.current = None
+        self.voltage = None
+        self.units = 'T'
+        self.error = None
+        self.controller = SpceController(log=True, bus_address=self.bus_address)
+        self.daemon_description = "Gamma Vacuum Vac-Ion Pressure Daemon"
+
+    def on_start(self, libby):
+        """Called when the daemon starts - register keywords and connect."""
+        # from_config populates _config after __init__, so read it here
+        self.ip_address = self.get_config("hardware.ip_address")
+        self.tcp_port = self.get_config("hardware.tcp_port")
+        self.bus_address = self.get_config("hardware.bus_address")
+        self.controller.bus_address = self.bus_address
+
+        self.logger.info("Starting %s daemon with %d bus address", self.peer_id, self.bus_address)
+
+        self.keyword_registry.bool("isconnected",
+                                   getter=self.controller.is_connected,
+                                   setter=self._set_connected,
+                                   description="Gamma Vacuum Vac-Ion Pressure controller is "
+                                               "connected.")
+        self.keyword_registry.string("error",
+                                     getter=self._error_string,
+                                     description="Last error from the Gamma Vacuum Vac-Ion "
+                                                 "pressure controller.")
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the GammaVac as a "
+                                                 "(code, message) string.")
+        self.keyword_registry.string("model",
+                                     getter=self.controller.read_model,
+                                     description="Model of the Gamma Vacuum Vac-Ion")
+        self.keyword_registry.string("version",
+                                     getter=self.controller.read_version,
+                                     description="Version of the Gamma Vacuum Vac-Ion")
+        self.keyword_registry.int("pump_status",
+                                  getter=self.controller.get_pump_status,
+                                  description="Status of the pump as a number: "
+                                              "0 = standby, 1 = starting, 2 = running, "
+                                              "3 = cooldown, 4 = error")
+        self.keyword_registry.int("pump_size",
+                                  getter=self.controller.get_pump_size,
+                                  description="Size of the pump in L/s")
+        self.keyword_registry.int("hv_status",
+                                  getter=self.controller.high_voltage_on,
+                                  description="Is High Voltage on?")
+        self.keyword_registry.trigger("start_pump",
+                                      action=self.controller.start_pump,
+                                      description="Start pump")
+        self.keyword_registry.trigger("stop_pump",
+                                      action=self.controller.stop_pump,
+                                      description="Stop pump")
+        self.keyword_registry.float("current",
+                                    getter=self.controller.read_current,
+                                    description="Current in Amps of the Gamma Vacuum Vac-Ion")
+        self.keyword_registry.float("voltage",
+                                    getter=self.controller.read_voltage,
+                                    description="Voltage of the Gamma Vacuum Vac-Ion")
+        self._pressure_keyword = self.keyword_registry.float("pressure",
+                                                             getter=self._get_pressure,
+                                                             description="Pressure from gauge")
+        self.keyword_registry.string("units",
+                                     getter=self._get_pressure_units,
+                                     setter=self._set_pressure_units,
+                                     description="Pressure units code: "
+                                                 "M - mbar, T - Torr, P - Pascal")
+        self.keyword_registry.trigger("shutdown",
+                                      action=self._shutdown,
+                                      description="Shutdown the daemon now.")
+
+        if not (self.ip_address and self.tcp_port):
+            self.logger.error("No IP address or port specified")
+            return
+
+        try:
+            self._connect_hardware()
+            self.logger.info("Daemon started successfully and connected to hardware")
+        except Exception as e:  # pylint: disable=W0718
+            self.logger.error("Failed to connect to hardware: %s", e)
+            self.error = str(e)
+            self.logger.warning("Daemon will start but hardware is not available")
+
+    def _shutdown(self):
+        """Shutdown the daemon"""
+        self.logger.info("Shutting down")
+        # on_stop handles teardown; a driver error here would block shutdown
+        self.request_stop()
+
+    def on_stop(self, libby=None):
+        """Cleanup when the daemon shuts down."""
+        self.logger.info("Shutting down %s daemon", self.peer_id)
+        try:
+            self.controller.disconnect()
+            self.logger.info("Disconnected from Gamma Vacuum Vac-Ion pressure controller")
+        except Exception as e:  # pylint: disable=W0718
+            self.logger.error("Error disconnecting: %s", e)
+            self.error = str(e)
+
+    def _connect_hardware(self):
+        self.logger.info("Connecting to Gamma Vacuum Vac-Ion pressure controller at %s:%s",
+                         self.ip_address, self.tcp_port)
+        self.controller.connect(host=self.ip_address, port=int(self.tcp_port))
+        # The drivers signal failure by staying disconnected rather than raising
+        if not self.controller.is_connected():
+            raise RuntimeError(
+                f"no connection to {self.ip_address}:{self.tcp_port}")
+        self.controller.initialize()
+        self.controller.set_units(self.units)
+
+    def _set_connected(self, value: bool) -> None:
+        if value:
+            self._connect_hardware()
+        else:
+            self.controller.disconnect()
+
+    def _status(self):
+        """Handles status."""
+        if not self.controller.is_connected():
+            return str((-1, "ERROR: Not connected to hardware"))
+        return str(self.controller.get_status())
+
+    def _get_pressure(self):
+        """Read the pressure from the Gamma Vacuum Vac-Ion Pressure controller"""
+        self.pressure = self.controller.read_pressure()
+        # Read the unit with the value: the front panel can change it between reads
+        self._pressure_keyword.units = self.units
+        return self.pressure
+
+    def _get_pressure_units(self):
+        """Read the pressure units from the Gamma Vacuum Vac-Ion Pressure controller"""
+        return self.units
+
+    def _set_pressure_units(self, code: str ='T') -> bool:
+        """Set the pressure units from the Gamma Vacuum Vac-Ion Pressure controller
+
+        :parm code: The integer new pressure units code:
+            M - mbar, T - Torr, P - Pascal
+        """
+        if self.controller.set_units(code):
+            self.units = code
+            self.error = ""
+            return True
+        self.error = "Could not set pressure units"
+        return False
+
+    def _error_string(self) -> str:
+        """Return last error string"""
+        return self.error
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(description='Gamma Vacuum Vac-Ion Pressure Daemon')
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        daemon = GammaVacDaemon.from_config_file(args.config)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e:  # pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
