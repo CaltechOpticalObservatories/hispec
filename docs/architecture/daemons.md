@@ -21,6 +21,7 @@ their shared `pdu_base.py` base class.
 | `generic/lakeshore` | `lakeshore.lakeshore` | Lakeshore 336/224 temperature controller | `hsfei_atctherm`, `hscal_gcellheater1/2` |
 | `generic/srsthermal` | `srs.ptc10` | SRS PTC10 thermal controller | `hscal_hkettherm`, `hscal_yjettherm` |
 | `generic/inficon` | `inficon.inficonvgc502` | Inficon VGC502 vacuum gauge controller | `hsfei_atcpress` |
+| `generic/camera` | `tracking_camera.TrackingCamera` | H2RG on an STA Archon, through `camera_interface_tracking` | `hsfei_atcam` |
 | `hsfei/pi-daemon` | `pi.PIControllerBase` | PI C-663 / C-863 / E-754 motion controllers | `hsfei_atcl`, `hsfei_atcp`, `hsfei_feipo`, `hsfei_lsm`, `hsfei_ms` |
 | `hsfei/adc` | `newport.smc100pp` | Newport SMC100PP ADC prism rotators | `hsfei_adc` |
 | `hsfei/atccryo` | `sunpower.sunpower_cryocooler` | Sunpower cryocooler | `hsfei_atccryo` |
@@ -56,6 +57,7 @@ camera) environment.
 | `hsfei_atctherm` | ATC temperature control |
 | `hsfei_atcpress` | ATC vacuum pressure |
 | `hsfei_atccryo` | ATC cryocooler |
+| `hsfei_atcam` | ATC camera, the only instance on `feiserver` |
 
 ### `hscal` — Calibration
 

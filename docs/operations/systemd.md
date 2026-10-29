@@ -436,6 +436,7 @@ dependencies or `hispec@.service` changed. `/opt/hispec` belongs to
 | `hscal_yjettherm` | `hispecserver` | `generic/srsthermal` | `config/hscal/hscal_yjettherm.yaml` |
 | `hscal_hketatten` | `hispecserver` | `hscal/smc8_attenuator` | `config/hscal/hscal_hketatten.yaml` |
 | `hsfei_adc` | `hispecserver` | `hsfei/adc` | `config/hsfei/hsfei_adc.yaml` |
+| `hsfei_atcam` | `feiserver` | `generic/camera` | `config/hsfei/hsfei_atcam.yaml` |
 | `hsfei_atccryo` | `hispecserver` | `hsfei/atccryo` | `config/hsfei/hsfei_atccryo.yaml` |
 | `hsfei_atcl` | `hispecserver` | `hsfei/pi-daemon` | `config/hsfei/hsfei_atcl.yaml` |
 | `hsfei_atcp` | `hispecserver` | `hsfei/pi-daemon` | `config/hsfei/hsfei_atcp.yaml` |

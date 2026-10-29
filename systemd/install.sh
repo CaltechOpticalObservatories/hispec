@@ -5,10 +5,11 @@
 #   sudo ./systemd/install.sh                    # set the host up
 #   sudo ./systemd/install.sh alice bob          # ... and enrol two operators
 #   sudo HISPEC_OPS_USERS="alice bob" ./systemd/install.sh   # same thing
-#   sudo ./systemd/install.sh --extra atcam      # ... with the tracking camera
+#   sudo ./systemd/install.sh --extra scripts    # ... with an optional extra
 #
 # Extras are recorded in /etc/hispec/extras, and every later run syncs them
-# again, so a plain re-run keeps a camera host's camera module.
+# again. The atcam extra follows the host role instead: feiserver always gets
+# the tracking camera module, and any other role is refused it.
 #
 # Re-run it to enrol operators, after a dependency change, or to repair a host.
 # It is NOT part of adding a daemon: once a host is set up, operators do that
@@ -27,6 +28,9 @@ set -euo pipefail
 REPO_DIR="${HISPEC_REPO_DIR:-/opt/hispec/app}"
 VENV_DIR="${HISPEC_VENV_DIR:-/opt/hispec/venv}"
 EXTRAS_FILE="${HISPEC_ETC_DIR:-/etc/hispec}/extras"
+HOST_FILE="${HISPEC_ETC_DIR:-/etc/hispec}/host"
+CAMERA_EXTRA=atcam
+CAMERA_ROLE=feiserver
 DEPLOY_KEY="${HISPEC_ETC_DIR:-/etc/hispec}/deploy-key"
 UV_VERSION="${HISPEC_UV_VERSION:-0.12.23}"
 # Its own copy rather than whatever uv is on PATH, since a snap refreshes
@@ -60,12 +64,31 @@ EXTRAS=()
 if [[ -f "$EXTRAS_FILE" ]]; then
     mapfile -t EXTRAS <"$EXTRAS_FILE"
 fi
+ROLE_ARG=""
 while (($#)); do
     case $1 in
         --extra) EXTRAS+=("$2"); shift 2 ;;
+        --host-role) ROLE_ARG=$2; INSTALL_ARGS+=("$1" "$2"); shift 2 ;;
+        --host-role=*) ROLE_ARG=${1#*=}; INSTALL_ARGS+=("$1"); shift ;;
         *) INSTALL_ARGS+=("$1"); shift ;;
     esac
 done
+
+# Same precedence as `hispec install`, which never overwrites a recorded role
+ROLE=""
+if [[ -f "$HOST_FILE" ]]; then
+    ROLE=$(tr -d '[:space:]' <"$HOST_FILE")
+fi
+ROLE=${ROLE:-${ROLE_ARG:-$(hostname -s)}}
+
+if [[ $ROLE == "$CAMERA_ROLE" ]]; then
+    EXTRAS+=("$CAMERA_EXTRA")
+elif printf '%s\n' "${EXTRAS[@]}" | grep -qx "$CAMERA_EXTRA"; then
+    echo "error: the $CAMERA_EXTRA extra is for $CAMERA_ROLE only; this host is '$ROLE'." >&2
+    echo "Drop --extra $CAMERA_EXTRA, or remove it from $EXTRAS_FILE." >&2
+    exit 1
+fi
+
 if ((${#EXTRAS[@]})); then
     mapfile -t EXTRAS < <(printf '%s\n' "${EXTRAS[@]}" | sort -u)
 fi
