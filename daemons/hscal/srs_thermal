@@ -105,7 +105,7 @@ class SrsDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attrib
                 continue
 
             self.keyword_registry.float(
-                f"{keyword}_setpoint",
+                keyword,
                 getter=self._make_setpoint_getter(output),
                 setter=self._make_setpoint_setter(output),
                 units=self.units,
