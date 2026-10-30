@@ -15,11 +15,6 @@ from hispec.driver.srs.ptc10 import PTC10
 class SrsDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attributes
     """Daemon for controlling the SRS via keywords."""
 
-    # Keyword suffix, index into the controller's (p, i, d) tuple, and label.
-    PID_TERMS = (("p", 0, "proportional"),
-                 ("i", 1, "integral"),
-                 ("d", 2, "derivative"))
-
     def __init__(self):
         super().__init__()
 
@@ -118,19 +113,8 @@ class SrsDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attrib
             self.keyword_registry.float(
                 f"{keyword}_output",
                 getter=self._make_output_getter(output),
-                units="percent",
+                units="Amps",
                 description=f"Output power of heater output {output}.")
-            self.keyword_registry.string(
-                f"{keyword}_status",
-                getter=self._make_status_getter(output),
-                description=f"Status of heater output {output}.")
-
-            for term, index, label in self.PID_TERMS:
-                self.keyword_registry.float(
-                    f"{keyword}_{term}",
-                    getter=self._make_pid_getter(output, index),
-                    setter=self._make_pid_setter(output, index),
-                    description=f"PID {label} term for heater output {output}.")
 
     def _make_temperature_getter(self, channel):
         """Return a zero-argument getter reading the temperature at `channel`."""
@@ -141,53 +125,21 @@ class SrsDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attrib
     def _make_setpoint_getter(self, output):
         """Return a zero-argument getter reading the setpoint of heater `output`."""
         def getter():
-            return self.controller.get_heater_setpoint(output)
+            return self.controller.get_setpoint(output)
         return getter
 
     def _make_setpoint_setter(self, output):
         """Return a one-argument setter writing the setpoint of heater `output`."""
         def setter(value):
-            if not self.controller.set_heater_setpoint(output, value):
+            if not self.controller.set_setpoint(output, value):
                 raise RuntimeError(f"Failed to set setpoint for heater output {output}")
         return setter
 
     def _make_output_getter(self, output):
         """Return a zero-argument getter reading the power of heater `output`."""
         def getter():
-            return self.controller.get_heater_output(output)
+            return self.controller.get_atomic_value(output)
         return getter
-
-    def _make_status_getter(self, output):
-        """Return a zero-argument getter reading the status of heater `output`."""
-        def getter():
-            return self.controller.get_heater_status(output)
-        return getter
-
-    def _make_pid_getter(self, output, index):
-        """Return a zero-argument getter reading one PID term of heater `output`."""
-        def getter():
-            values = self.controller.get_heater_pid(output)
-            return None if values is None else values[index]
-        return getter
-
-    def _make_pid_setter(self, output, index):
-        """Return a one-argument setter writing one PID term of heater `output`.
-
-        The controller writes P, I and D as a single command and rejects the
-        write command unless all three are in range, so the other two terms are read
-        back and resent unchanged.
-        """
-        def setter(value):
-            values = self.controller.get_heater_pid(output)
-            if values is None:
-                raise RuntimeError(
-                    f"Unable to read PID values for heater output {output}")
-            terms = list(values)
-            terms[index] = value
-            if not self.controller.set_heater_pid(output, *terms):
-                raise RuntimeError(
-                    f"Failed to set PID values for heater output {output}")
-        return setter
 
     def _shutdown(self):
         """Shutdown the daemon"""
