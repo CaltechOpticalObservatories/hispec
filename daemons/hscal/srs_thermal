@@ -58,8 +58,8 @@ class SrsDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attrib
                                      getter=self._error_string,
                                      description="Last error from the SRS controller.")
         self.keyword_registry.string("status",
-                        getter=self._status,
-                        description="Status of the SRS as a (code, message) string.")
+                                     getter=self._status,
+                                     description="Status of the SRS as a (code, message) string.")
         self.keyword_registry.trigger("shutdown",
                                       action=self._shutdown,
                                       description="Shutdown the daemon now.")
@@ -105,7 +105,7 @@ class SrsDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attrib
                 continue
 
             self.keyword_registry.float(
-                keyword,
+                f"{keyword}_setpoint",
                 getter=self._make_setpoint_getter(output),
                 setter=self._make_setpoint_setter(output),
                 units=self.units,
@@ -114,7 +114,7 @@ class SrsDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attrib
                 f"{keyword}_output",
                 getter=self._make_output_getter(output),
                 units="Amps",
-                description=f"Output power of heater output {output}.")
+                description=f"Heater output in amps: {output}.")
 
     def _make_temperature_getter(self, channel):
         """Return a zero-argument getter reading the temperature at `channel`."""
