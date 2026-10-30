@@ -1,7 +1,7 @@
 # CAL RED (HK) Etalon SRS PTC10 daemon config
 #
 # Usage:
-#   daemons/generic/srstherm -c config/hscal/hscal_hkettherm.yaml
+#   daemons/hscal/srs_thermal -c config/hscal/hscal_hkettherm.yaml
 
 peer_id: hkettherm
 group_id: hscal

@@ -19,7 +19,7 @@ their shared `pdu_base.py` base class.
 |---|---|---|---|
 | `generic/filterwheel` | `thorlabs.fw102c` | Thorlabs FW102C filter wheel | `hsfei_atcfw`, `hscal_hkcalfwheel1/2`, `hscal_hkgcellfwheel`, `hscal_yjcalfwheel1/2` |
 | `generic/lakeshore` | `lakeshore.lakeshore` | Lakeshore 336/224 temperature controller | `hsfei_atctherm`, `hscal_gcellheater1/2` |
-| `generic/srsthermal` | `srs.ptc10` | SRS PTC10 thermal controller | `hscal_hkettherm`, `hscal_yjettherm` |
+| `hscal/srs_thermal` | `srs.ptc10` | SRS PTC10 thermal controller | `hscal_hkettherm`, `hscal_yjettherm` |
 | `generic/inficon` | `inficon.inficonvgc502` | Inficon VGC502 vacuum gauge controller | `hsfei_atcpress` |
 | `generic/camera` | `tracking_camera.TrackingCamera` | H2RG on an STA Archon, through `camera_interface_tracking` | `hsfei_atcam` |
 | `hsfei/pi-daemon` | `pi.PIControllerBase` | PI C-663 / C-863 / E-754 motion controllers | `hsfei_atcl`, `hsfei_atcp`, `hsfei_feipo`, `hsfei_lsm`, `hsfei_ms` |
@@ -172,10 +172,10 @@ aggregates likewise and one write closes every loop. A single-stage config
 registers the bare names directly, so a client that only cares about the
 mechanism as a whole uses the same keyword either way.
 
-**Thermal daemons** (`lakeshore`, `srsthermal`) generate their keywords from
+**Thermal daemons** (`lakeshore`, `srs_thermal`) generate their keywords from
 config. Each entry in `sensors:` produces one read-only temperature keyword
 under the name the config chose; each entry in `heaters:` produces a writable
-setpoint plus, for the Lakeshore, `<name>_output`, `<name>_status` and one
+setpoint and `<name>_output` plus, for the Lakeshore, `<name>_status` and one
 keyword per PID term.
 
 **`atccryo`** exposes cryocooler state — `cold_head_temp`, `reject_temp`,
