@@ -432,8 +432,8 @@ dependencies or `hispec@.service` changed. `/opt/hispec` belongs to
 | `hscal_gcellheater1` | `hispecserver` | `generic/lakeshore` | `config/hscal/hscal_gcellheater1.yaml` |
 | `hscal_gcellheater2` | `hispecserver` | `generic/lakeshore` | `config/hscal/hscal_gcellheater2.yaml` |
 | `hsfei_atctherm` | `hispecserver` | `generic/lakeshore` | `config/hsfei/hsfei_atctherm.yaml` |
-| `hscal_hkettherm` | `hispecserver` | `generic/srsthermal` | `config/hscal/hscal_hkettherm.yaml` |
-| `hscal_yjettherm` | `hispecserver` | `generic/srsthermal` | `config/hscal/hscal_yjettherm.yaml` |
+| `hscal_hkettherm` | `hispecserver` | `hscal/srs_thermal` | `config/hscal/hscal_hkettherm.yaml` |
+| `hscal_yjettherm` | `hispecserver` | `hscal/srs_thermal` | `config/hscal/hscal_yjettherm.yaml` |
 | `hscal_hketatten` | `hispecserver` | `hscal/smc8_attenuator` | `config/hscal/hscal_hketatten.yaml` |
 | `hsfei_adc` | `hispecserver` | `hsfei/adc` | `config/hsfei/hsfei_adc.yaml` |
 | `hsfei_atccryo` | `hispecserver` | `hsfei/atccryo` | `config/hsfei/hsfei_atccryo.yaml` |
