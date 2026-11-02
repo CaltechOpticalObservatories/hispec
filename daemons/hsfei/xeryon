@@ -293,6 +293,10 @@ class XeryonDaemon(HispecDaemon):  # pylint: disable=W0223
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Active faults, per axis.")
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the Xeryon "
+                                                 "as a (code, message) string.")
         self.keyword_registry.trigger("halt",
                                       action=self._halt_all,
                                       description="Halt motion on all axes.")
@@ -385,6 +389,12 @@ class XeryonDaemon(HispecDaemon):  # pylint: disable=W0223
             raise RuntimeError("an axis is moving; halt before shutting down")
         self.logger.info("Shutting down on keyword request")
         self.request_stop()
+
+    def _status(self):
+        """Handles status."""
+        if not self._is_connected():
+            return str((-1, "ERROR: Not connected to hardware"))
+        return str(self.controller.get_status())
 
     def _register_consolidated_keywords(self) -> None:
         """Register whole-mechanism isreferenced/isloopclosed/ismoving, and

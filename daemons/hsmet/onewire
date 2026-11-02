@@ -85,6 +85,10 @@ class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Last error from the OneWire controller.")
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the OneWire "
+                                                 "as a (code, message) string.")
         self.keyword_registry.trigger("shutdown",
                                       action=self._shutdown,
                                       description="Shutdown the daemon now.")
@@ -244,6 +248,12 @@ class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
         # on_stop handles teardown; a driver error here would block shutdown
         self.request_stop()
 
+    def _status(self):
+        """Handles status."""
+        if not self._connected():
+            return str((-1, "ERROR: Not connected to hardware"))
+        return str(self.controller.get_status())
+
     def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
@@ -273,6 +283,11 @@ class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
     def _error_string(self) -> str:
         """Return last error string"""
         return self.error
+
+    def _connected(self) -> bool:
+        """True when the driver holds an open session to the PDU."""
+        return self.controller is not None and bool(self.controller.is_connected())
+
 
 
 def main():
