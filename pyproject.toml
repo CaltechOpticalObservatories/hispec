@@ -30,6 +30,8 @@ dependencies = [
     # SSH transport for the DLI DC3 PDU; the pdu driver imports it
     # without declaring it
     "paramiko",
+    # MQTT 5 transport for the FIB PCBs in hispec.driver.fib
+    "paho-mqtt>=2",
     # influxdb extra: needed by daemons/generic/keygrabber
     "libby[influxdb]@git+https://github.com/CaltechOpticalObservatories/libby.git",
     "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base",
@@ -63,10 +65,12 @@ ignored-modules = [
     # Third-party dependencies, not installed in the lint environment
     "astropy",
     "camera_daemon",
+    "hardware_device_base",
     "instrumentctl",
     "libby",
     "matplotlib",
     "numpy",
+    "paho",
     "pysnmp",
     "pytest",
     "scipy",
@@ -84,10 +88,10 @@ ignored-modules = [
 
 # The vendor drivers are vendored as submodules so they can be fixed in place,
 # but their own dependencies still have to reach the environment. tracking_camera
-# is HISPEC's own code with no pyproject, so it is not a member.
+# and fib are HISPEC's own code with no pyproject, so they are not members.
 [tool.uv.workspace]
 members = ["src/hispec/driver/*"]
-exclude = ["src/hispec/driver/tracking_camera"]
+exclude = ["src/hispec/driver/tracking_camera", "src/hispec/driver/fib"]
 
 [tool.uv]
 # The drivers pin this to v1.0.0, v1.0.1 and unpinned between them, and uv
