@@ -52,7 +52,7 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
                                      description="Status of the cryocooler driver "
                                                  "as a (code, message) string.")
         self.keyword_registry.string("cryo_status",
-                                     getter=self._status,
+                                     getter=self._cryo_status,
                                      description="Status of the cryocooler "
                                                  "as a list of strings string.")
         self.keyword_registry.int("cooler_error",
