@@ -48,8 +48,9 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
                                    setter=self._set_connected,
                                    description="Sunpower Cryocooler is connected.")
         self.keyword_registry.string("status",
-                                     getter=self._get_status,
-                                     description="Full status report from the cryocooler.")
+                                     getter=self._status,
+                                     description="Status of the cryocooler "
+                                                 "as a (code, message) string.")
         self.keyword_registry.int("cooler_error",
                                   getter=self._get_cooler_error,
                                   description="Error code reported by the cryocooler itself.")
@@ -141,6 +142,12 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
         self.controller.disconnect()
         self.request_stop()
 
+    def _status(self):
+        """Handles status."""
+        if not self._connected():
+            return str((-1, "ERROR: Not connected to hardware"))
+        return str(self.controller.get_status())
+
     def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
@@ -165,6 +172,10 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
             self._connect_hardware()
         else:
             self.controller.disconnect()
+
+    def _connected(self) -> bool:
+        """True when the driver holds an open session to the PDU."""
+        return self.controller is not None and bool(self.controller.is_connected())
 
     def _read(self, label, getter, default=None):
         """Call a controller getter, reporting any failure via lasterror."""
@@ -227,10 +238,6 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
             self.logger.error("No reply setting %s", label)
             raise RuntimeError(f"No reply setting {label}")
         return reply
-
-    def _get_status(self) -> str:
-        """Read the full status report from the Sunpower Cryocooler"""
-        return self._read_string("status", self.controller.get_status)
 
     def _get_cooler_error(self) -> int | None:
         """Read the error state reported by the Sunpower Cryocooler"""
