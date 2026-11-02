@@ -204,6 +204,11 @@ class PiDaemon(HispecDaemon):
         self.keyword_registry.int("error",
                                   getter=self._error_code,
                                   description="Latest PI controller error code (0 = no error). Reading clears the register.")
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the Xeryon "
+                                                 "as a (code, message) string.")
+
         self.keyword_registry.trigger("halt",
                                       action=self._halt_all,
                                       description="Halt motion on all stages.")
@@ -285,6 +290,12 @@ class PiDaemon(HispecDaemon):
         self.logger.info("Shutting down on keyword request")
         self.request_stop()
 
+    def _status(self):
+        """Handles status."""
+        if not self._is_connected():
+            return str((-1, "ERROR: Not connected to hardware"))
+        return str(self.controller.get_status())
+
     def _register_consolidated_keywords(self) -> None:
         """Register whole-module isreferenced/isloopclosed/ismoving.
 
@@ -335,6 +346,9 @@ class PiDaemon(HispecDaemon):
                 stage.check_loop_closed()
             except Exception as e:
                 self.logger.error("Error preparing stage %r: %s", stage.name or "(default)", e)
+
+    def _is_connected(self) -> bool:
+        return bool(self.controller is not None and self.controller.is_connected())
 
     def on_stop(self, _libby):
         """Cleanup when daemon shuts down."""

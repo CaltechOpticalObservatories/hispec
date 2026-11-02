@@ -126,6 +126,10 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
                         setter=self.keyword_wrapper(self.connect, key="isconnected"),
                         description="Check if daemon can talk to the GimbalMount controller.",
                         timeout_s=self.timeout_s)
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the Piaa Gimbal Mount "
+                                                 "as a (code, message) string.")
         self.keyword_registry.string("error",
                         getter=lambda: self.state['error'],
                         description="Get the current error message.",
@@ -320,6 +324,12 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         """Stop the daemon; on_stop disconnects but leaves the loops closed"""
         self.logger.info("Shutting down %s on keyword request", self.daemon_desc)
         self.request_stop()
+
+    def _status(self):
+        """Handles status."""
+        if not self.dev.is_connected():
+            return str((-1, "ERROR: Not connected to hardware"))
+        return str(self.dev.get_status())
 
     def initialize(self):
         """Sync state and limits from the controller without sending any set commands.
