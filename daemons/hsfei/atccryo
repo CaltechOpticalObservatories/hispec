@@ -174,7 +174,7 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
             self.controller.disconnect()
 
     def _connected(self) -> bool:
-        """True when the driver holds an open session to the PDU."""
+        """True when the driver holds an open session to the Cryocooler controller."""
         return self.controller is not None and bool(self.controller.is_connected())
 
     def _read(self, label, getter, default=None):

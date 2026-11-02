@@ -234,7 +234,7 @@ class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-
         self.controller.initialize()
 
     def _connected(self) -> bool:
-        """True when the driver holds an open session to the PDU."""
+        """True when the driver holds an open session to the Lakeshore controller."""
         return self.controller is not None and bool(self.controller.is_connected())
 
     def _set_connected(self, value: bool) -> None:

@@ -285,7 +285,7 @@ class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
         return self.error
 
     def _connected(self) -> bool:
-        """True when the driver holds an open session to the PDU."""
+        """True when the driver holds an open session to the OneWire."""
         return self.controller is not None and bool(self.controller.is_connected())
 
 

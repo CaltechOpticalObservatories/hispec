@@ -101,6 +101,10 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
                         getter=lambda: self.state['error'],
                         description="Get the current error message.",
                         timeout_s=self.timeout_s)
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the Filter Wheel controller "
+                                                 "as a (code, message) string.")
         self.keyword_registry.string("nfilters",
                         getter=lambda: self.nfilters,
                         setter=self.keyword_wrapper(self.set_nfilters, key="nfilters"),
@@ -158,6 +162,12 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
         self.logger.info("Shutting down %s on keyword request", self.daemon_desc)
         self.request_stop()
 
+    def _status(self):
+        """Handles status."""
+        if not self._connected():
+            return str((-1, "ERROR: Not connected to hardware"))
+        return str(self.dev.get_status())
+
     def get_named_positions(self):
         """Get named positions from config (e.g., home, deployed, science)."""
         return self.named_positions or {}
@@ -209,6 +219,10 @@ class Filterwheel(HispecDaemon): #pylint: disable = W0223
             self.state['error'] = str(e)
             return {"ok": False, "error": str(e)}
         return {"ok": True, "isconnected": result}
+
+    def _connected(self) -> bool:
+        """True when the driver holds an open session to the filterwheel."""
+        return self.dev is not None and bool(self.dev.is_connected())
 
     def status(self):
         """handles status"""
