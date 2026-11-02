@@ -1,7 +1,7 @@
 # CAL BLUE (YJ) Etalon SRS PTC10 daemon config
 #
 # Usage:
-#   daemons/generic/srstherm -c config/hscal/hscal_yjettherm.yaml
+#   daemons/hscal/srs_thermal -c config/hscal/hscal_yjettherm.yaml
 
 peer_id: yjettherm
 group_id: hscal
