@@ -8,11 +8,11 @@ Exposes the SRS PTC10 etalon temperature controller commands as libby keywords.
 import argparse
 import sys
 
-from hispec import HispecDaemon
+from hispec import HispecDriverDaemon
 from hispec.driver.srs.ptc10 import PTC10
 
 
-class SrsDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attributes
+class SrsDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-instance-attributes
     """Daemon for controlling the SRS via keywords."""
 
     def __init__(self):
@@ -140,23 +140,6 @@ class SrsDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attrib
         def getter():
             return self.controller.get_atomic_value(output)
         return getter
-
-    def _shutdown(self):
-        """Shutdown the daemon"""
-        self.logger.info("Shutting down")
-        if self.controller is not None:
-            self.controller.disconnect()
-        self.request_stop()
-
-    def _connected(self) -> bool:
-        """True when the driver holds an open session to the SRS controller."""
-        return self.controller is not None and bool(self.controller.is_connected())
-
-    def _status(self):
-        """Handles status."""
-        if not self._connected():
-            return str((-1, "ERROR: Not connected to hardware"))
-        return str(self.controller.get_status())
 
     def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""

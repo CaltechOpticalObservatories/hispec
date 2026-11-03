@@ -18,14 +18,14 @@ import sys
 from typing import Any, Dict, Optional
 
 import hispec.driver.pdu  # pylint: disable=E0611
-from hispec.daemon import HispecDaemon  # pylint: disable=E0611
+from hispec.driverdaemon import HispecDriverDaemon  # pylint: disable=E0611
 
 _DRIVER_SRC = str(pathlib.Path(next(iter(hispec.driver.pdu.__path__))) / "src")
 if _DRIVER_SRC not in sys.path:
     sys.path.insert(0, _DRIVER_SRC)
 
 
-class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
+class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-methods
     """Base class for a daemon that controls one networked PDU."""
 
     # Port used when the config leaves hardware.tcp_port out.
@@ -236,10 +236,6 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
         for n in range(1, self.outlet_count + 1):
             self.register_outlet_keywords(n)
 
-    def _connected(self) -> bool:
-        """True when the driver holds an open session to the PDU."""
-        return self.dev is not None and bool(self.is_connected())
-
     def _set_connected(self, connect):
         """Handles connection."""
         connect = bool(connect)
@@ -275,18 +271,6 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
         except Exception as e: # pylint: disable=W0718
             return self._fail(str(e))
         return {"ok": True}
-
-    def _status(self):
-        """Handles status."""
-        if not self._connected():
-            return str((-1, "ERROR: Not connected to hardware"))
-        return str(self.dev.get_status())
-
-    def _shutdown(self):
-        """Shutdown the daemon"""
-        self.logger.info("Shutting down")
-        self.disconnect()
-        self.request_stop()
 
     @staticmethod
     def _confirm(ok, action: str) -> None:
