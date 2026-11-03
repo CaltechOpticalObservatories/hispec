@@ -385,8 +385,11 @@ calibration sequence, start and end of night — become procedures called by an
 orchestration daemon. Per the specification, it will use the same keyword
 contract as every other client.
 
-**Operator and engineering GUIs.** Built as keyword clients. The KTL-era `qt/`
-tree is not the starting point for this; see {doc}`evolution`.
+**Operator and engineering GUIs.** Built as keyword clients under `gui/`, a
+workspace package beside the drivers that reaches the daemons through the
+hispec API.
+The first is the light path GUI (`hispec-lightpath`), which runs on mock data
+until it is connected to the daemons.
 
 **Published telemetry.** Daemons currently expose state for polling. The
 direction is to publish slow-changing engineering telemetry — thermal, vacuum,

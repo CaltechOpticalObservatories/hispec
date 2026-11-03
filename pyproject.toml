@@ -69,6 +69,7 @@ ignored-modules = [
     "numpy",
     "pysnmp",
     "pytest",
+    "PySide6",
     "scipy",
     "serial",
     "zmq",
@@ -84,9 +85,10 @@ ignored-modules = [
 
 # The vendor drivers are vendored as submodules so they can be fixed in place,
 # but their own dependencies still have to reach the environment. tracking_camera
-# is HISPEC's own code with no pyproject, so it is not a member.
+# is HISPEC's own code with no pyproject, so it is not a member. gui/ is built
+# with the rest of the ICS, so every host gets the operator GUIs.
 [tool.uv.workspace]
-members = ["src/hispec/driver/*"]
+members = ["src/hispec/driver/*", "gui"]
 exclude = ["src/hispec/driver/tracking_camera"]
 
 [tool.uv]

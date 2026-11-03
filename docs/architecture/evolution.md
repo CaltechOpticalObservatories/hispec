@@ -45,9 +45,10 @@ per subsystem and `init.d` scripts to start them.
 
 The surviving artefacts are `daemons/hsowenv` (1-Wire environment),
 `daemons/hsdewar` (Lakeshore dewar control), `daemons/hsssd`, plus `Makefile`,
-`Mk.instrument`, `init.d/` and `qt/`. `daemons/hspower` was one of them until
-its KROOT scaffolding was removed and the directory reused for the libby PDU
-daemon.
+`Mk.instrument` and `init.d/`. `daemons/hspower` was one of them until its
+KROOT scaffolding was removed and the directory reused for the libby PDU
+daemon, and the KTL-era `qt/` GUI scaffolding was removed when `gui/` replaced
+it.
 
 **Why it moved on.** KROOT ties development to a summit-like environment: the
 build needs `/kroot` and Keck-internal modules (`DFW`, `SerialStream`) that do
@@ -135,7 +136,6 @@ These directories are from Era 1, are not built, and are not run:
 | `daemons/hsssd` | KTL spectrograph service | Dead. |
 | `Makefile`, `Mk.instrument` | KROOT build | Dead. Still references KPF in a comment. |
 | `init.d/` | KTL service startup | Dead. Superseded by `systemd/`. |
-| `qt/` | KTL-era Qt GUI scaffolding | Dead. Untouched since Oct 2024. Not a starting point for a libby GUI. |
 
 They have been left in place rather than deleted because the XML keyword
 definitions still document the intended keyword sets for subsystems whose libby
