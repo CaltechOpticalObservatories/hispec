@@ -1,0 +1,15 @@
+# TIB: FIB trunk interface box daemon config
+#
+# Usage:
+#   daemons/hsfib/tib -c config/hsfib/hsfib_tib.yaml
+
+peer_id: tib
+group_id: hsfib
+
+hardware:
+  device: hsfib-tib
+  broker: hispec.caltech.edu
+  port: 1883
+
+logging:
+  level: INFO
