@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-'''Module for Gimbal mount Daemon'''
+"""Module for Gimbal mount Daemon"""
 import argparse
 import json
 import sys
@@ -7,7 +7,7 @@ from enum import StrEnum
 from typing import Any, Dict, Optional
 
 # pylint: disable=import-error,no-name-in-module
-from hispec.daemon import HispecDaemon
+from hispec import HispecDriverDaemon
 from hispec.driver.thorlabs.ppc102 import Ppc102Controller
 # pylint: enable=import-error,no-name-in-module
 #from ppc102 import Ppc102Controller  # Assuming ppc102.py is in the same directory
@@ -19,8 +19,8 @@ class Quantity(StrEnum):
     VOLTAGE = "voltage"
 
 
-class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
-    '''Daemon for controlling the Blue Piaa Gimbal Mount via Thorlabs PPC102 controller'''
+class PiaaGimbalmount(HispecDriverDaemon):  # pylint: disable=abstract-method
+    """Daemon for controlling the Blue Piaa Gimbal Mount via Thorlabs PPC102 controller"""
 
     # A hardware daemon needs one attribute per configured limit and one public
     # method per keyword, so the stock pylint ceilings do not apply here.
@@ -46,7 +46,7 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         # Defaults
         self.host = None
         self.port = None
-        self.dev = Ppc102Controller(log=True)
+        self.controller = Ppc102Controller(log=True)
         self.daemon_desc = None
         self.units = None
         self.timeout_s = self.DEFAULT_TIMEOUT_S
@@ -75,8 +75,8 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
             'halted': False
         }
 
-    def on_start(self, libby):  # pylint: disable=unused-argument
-        '''Starts up daemon and initializies the hardware device'''
+    def on_start(self, _libby):
+        """Starts up daemon and initializies the hardware device"""
 
         # load configuration from hsfei.yaml
         self.host = self.get_config("hardware.ip_address")
@@ -122,7 +122,7 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
 
         # --- connection / general -------------------------------------------
         self.keyword_registry.bool("isconnected",
-                        getter=self.dev.is_connected,
+                        getter=self._connected,
                         setter=self.keyword_wrapper(self.connect, key="isconnected"),
                         description="Check if daemon can talk to the GimbalMount controller.",
                         timeout_s=self.timeout_s)
@@ -130,6 +130,10 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
                         getter=lambda: self.state['error'],
                         description="Get the current error message.",
                         timeout_s=self.timeout_s)
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the device driver as a "
+                                                 "(code, message) string.")
         # halt is a boolean keyword: writing True stops motion, writing False clears the
         self.keyword_registry.bool("halt",
                         getter=lambda: self.state['halted'],
@@ -316,18 +320,13 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
                         description="Gracefully stop this daemon",
                         timeout_s=self.timeout_s)
 
-    def _shutdown(self) -> None:
-        """Stop the daemon; on_stop disconnects but leaves the loops closed"""
-        self.logger.info("Shutting down %s on keyword request", self.daemon_desc)
-        self.request_stop()
-
     def initialize(self):
         """Sync state and limits from the controller without sending any set commands.
 
         Enabling a channel drives the piezo to its stored output, so channels are
         left as found and must be enabled explicitly through the isenabled keyword.
         """
-        if not self.dev.is_connected():
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
@@ -336,10 +335,10 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
                 self.logger.warning("%s channels disabled; set isenabled to enable",
                                     self.daemon_desc)
             # Route position writes to the loop mode the hardware is actually in
-            self.state['isloopclosed'] = self.dev.is_loop_closed()
-            self._hard_min_volt_x = self._hard_min_volt_y = self.dev.V_MIN
-            self._hard_max_volt_x = self.dev.get_max_output_voltage(channel=1)
-            self._hard_max_volt_y = self.dev.get_max_output_voltage(channel=2)
+            self.state['isloopclosed'] = self.controller.is_loop_closed()
+            self._hard_min_volt_x = self._hard_min_volt_y = self.controller.V_MIN
+            self._hard_max_volt_x = self.controller.get_max_output_voltage(channel=1)
+            self._hard_max_volt_y = self.controller.get_max_output_voltage(channel=2)
             if None in (self._hard_max_volt_x, self._hard_max_volt_y):
                 raise OSError("Failed to read max output voltage from controller")
             self.logger.debug("Initialized %s", self.daemon_desc)
@@ -351,12 +350,12 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
 
     def _channels_enabled(self) -> bool:
         """Return True only when the controller reports both channels enabled."""
-        return all(self.dev.get_enable(channel=channel) == self.dev.CHAN_ENABLED
+        return all(self.controller.get_enable(channel=channel) == self.controller.CHAN_ENABLED
                    for channel in (1, 2))
 
     def is_enabled(self):
-        '''checks if both channels are enabled'''
-        if not self.dev.is_connected():
+        """checks if both channels are enabled"""
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
         try:
             enabled = self._channels_enabled()
@@ -368,12 +367,12 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "isenabled": enabled}
 
     def set_enabled(self, enabled: bool):
-        '''enables or disables both channels'''
-        if not self.dev.is_connected():
+        """enables or disables both channels"""
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
         try:
-            state = self.dev.CHAN_ENABLED if enabled else self.dev.CHAN_DISABLED
-            self.dev.set_enable(channel=0, enable=state)
+            state = self.controller.CHAN_ENABLED if enabled else self.controller.CHAN_DISABLED
+            self.controller.set_enable(channel=0, enable=state)
             self.logger.info("set_enabled: %s", bool(enabled))
         except (OSError, ValueError) as e:
             self.logger.error("error: %s", e)
@@ -387,7 +386,7 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return result
 
     def on_stop(self, libby=None) -> None:  # pylint: disable=arguments-differ,unused-argument
-        '''Stops the daemon and disconnects from hardware device'''
+        """Stops the daemon and disconnects from hardware device"""
         try:
             self.connect(False)
             self.logger.info("Disconnected %s", self.daemon_desc)
@@ -398,10 +397,10 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         """handles connection"""
         try:
             if connect:
-                self.dev.connect(host=self.host, port=self.port)
+                self.controller.connect(host=self.host, port=self.port)
             else:
-                self.dev.disconnect()
-            result = self.dev.is_connected()
+                self.controller.disconnect()
+            result = self._connected()
             self.state['connected'] = result
             self.logger.info("is_connected: %s", result)
         except (OSError, ValueError) as e:
@@ -411,15 +410,15 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "is_connected": result, "isconnected": result}
 
     def clean_up_gimbal(self):
-        '''Cleans up gimbal settings'''
-        if not self.dev.is_connected():
+        """Cleans up gimbal settings"""
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            self.dev.set_loop(channel=0, loop=1)  # Open loops
-            self.dev.set_enable(channel=0, enable=1)  # Device can stay enabled
-            self.dev.set_output_volts(channel=1, volts=0)  # Set output voltages to 0
-            self.dev.set_output_volts(channel=2, volts=0)
+            self.controller.set_loop(channel=0, loop=1)  # Open loops
+            self.controller.set_enable(channel=0, enable=1)  # Device can stay enabled
+            self.controller.set_output_volts(channel=1, volts=0)  # Set output voltages to 0
+            self.controller.set_output_volts(channel=2, volts=0)
             self.state['isloopclosed'] = False
             self.logger.info("Cleaned up %s", self.daemon_desc)
         except (OSError, ValueError) as e:
@@ -429,17 +428,17 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "message": "Gimbal cleaned up"}
 
     def halt(self):
-        '''Immediately stop motion on both axes by re-commanding the current output.'''
-        if not self.dev.is_connected():
+        """Immediately stop the motion on both axes by re-commanding the current output."""
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
             for chan in (1, 2):
-                res = self.dev.get_status_update(channel=chan)
+                res = self.controller.get_status_update(channel=chan)
                 if self.state['isloopclosed']:
-                    self.dev.set_pos(channel=chan, pos=float(res[1]))
+                    self.controller.set_pos(channel=chan, pos=float(res[1]))
                 else:
-                    self.dev.set_output_volts(channel=chan, volts=float(res[0]))
+                    self.controller.set_output_volts(channel=chan, volts=float(res[0]))
             self.state['halted'] = True
             self.logger.info("Halted %s", self.daemon_desc)
         except (OSError, ValueError, TypeError, IndexError) as e:
@@ -449,7 +448,7 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "halted": True}
 
     def set_halt(self, halted: bool):
-        '''Boolean setter for the halt keyword; False clears the latched halt flag.'''
+        """Boolean setter for the halt keyword; False clears the latched halt flag."""
         if halted:
             return self.halt()
         self.state['halted'] = False
@@ -457,17 +456,17 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
 
     def status(self):
         """handles status"""
-        if not self.dev.is_connected():
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            res_x = self.dev.get_status_update(channel=1)
-            res_y = self.dev.get_status_update(channel=2)
-            enabled_x = self.dev.get_enable(channel=1)
-            enabled_y = self.dev.get_enable(channel=2)
+            res_x = self.controller.get_status_update(channel=1)
+            res_y = self.controller.get_status_update(channel=2)
+            enabled_x = self.controller.get_enable(channel=1)
+            enabled_y = self.controller.get_enable(channel=2)
             enabled = enabled_x == 1 and enabled_y == 1
             status = {
-                "is_connected": self.dev.is_connected(),
+                "is_connected": self._connected(),
                 "position_x": res_x[1],
                 "position_y": res_y[1],
                 "voltage_x": res_x[0],
@@ -475,7 +474,7 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
                 "flag_x": res_x[2],
                 "flag_y": res_y[2],
                 "enabled": enabled,
-                "isloopclosed": self.dev.is_loop_closed()
+                "isloopclosed": self.controller.is_loop_closed()
             }
             self.logger.debug("status: %s", status)
         except (OSError, ValueError, TypeError, IndexError) as e:
@@ -492,12 +491,12 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "status": json.dumps(result["status"])}
 
     def is_loops_closed(self):
-        '''checks if loops are closed'''
-        if not self.dev.is_connected():
+        """checks if loops are closed"""
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            closed = self.dev.is_loop_closed()
+            closed = self.controller.is_loop_closed()
             self.state['isloopclosed'] = closed
             self.logger.debug("is_loops_closed: %s", closed)
         except (OSError, ValueError) as e:
@@ -507,18 +506,18 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "isloopclosed": closed}
 
     def set_loops(self, loops: bool):
-        '''sets control loops'''
-        if not self.dev.is_connected():
+        """sets control loops"""
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
             if loops:
-                self.dev.set_loop(channel=0, loop=2)
+                self.controller.set_loop(channel=0, loop=2)
                 self.logger.debug("close loops sent")
             else:
-                self.dev.set_loop(channel=0, loop=1)
+                self.controller.set_loop(channel=0, loop=1)
                 self.logger.debug("open loops sent")
-            result = self.dev.is_loop_closed()
+            result = self.controller.is_loop_closed()
             self.state['isloopclosed'] = result
             if result != bool(loops):
                 return {"ok": False,
@@ -531,19 +530,19 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "isloopclosed": result}
 
     def is_loop_closed_x(self):
-        '''checks if the X axis loop is closed'''
+        """checks if the X axis loop is closed"""
         return self.is_loop_closed(axis=0)
 
     def is_loop_closed_y(self):
-        '''checks if the Y axis loop is closed'''
+        """checks if the Y axis loop is closed"""
         return self.is_loop_closed(axis=1)
 
     def is_loop_closed(self, axis: int):
-        '''checks if a single axis loop is closed'''
-        if not self.dev.is_connected():
+        """checks if a single axis loop is closed"""
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
         try:
-            closed = int(self.dev.get_loop(channel=self._channel(axis))) == 2
+            closed = int(self.controller.get_loop(channel=self._channel(axis))) == 2
             self.logger.debug("is_loop_closed axis %s: %s", axis, closed)
         except (OSError, ValueError, TypeError) as e:
             self.logger.error("error: %s", e)
@@ -552,19 +551,19 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "isloopclosed": closed}
 
     def set_loop_x(self, closed: bool):
-        '''sets the X axis control loop'''
+        """sets the X axis control loop"""
         return self.set_loop(axis=0, closed=closed)
 
     def set_loop_y(self, closed: bool):
-        '''sets the Y axis control loop'''
+        """sets the Y axis control loop"""
         return self.set_loop(axis=1, closed=closed)
 
     def set_loop(self, axis: int, closed: bool):
-        '''sets a single axis control loop'''
-        if not self.dev.is_connected():
+        """sets a single axis control loop"""
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
         try:
-            self.dev.set_loop(channel=self._channel(axis), loop=2 if closed else 1)
+            self.controller.set_loop(channel=self._channel(axis), loop=2 if closed else 1)
             self.logger.debug("set_loop axis %s: %s", axis, closed)
             check = self.is_loop_closed(axis=axis)
             if not check.get("ok"):
@@ -584,28 +583,28 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "isloopclosed": result}
 
     def get_xpos(self):
-        '''gets current X position'''
+        """gets current X position"""
         return self.get_pos(axis=0)
 
     def get_ypos(self):
-        '''gets current Y position'''
+        """gets current Y position"""
         return self.get_pos(axis=1)
 
     def get_xvolts(self):
-        '''gets current X voltage'''
+        """gets current X voltage"""
         return self.get_volts(axis=0)
 
     def get_yvolts(self):
-        '''gets current Y voltage'''
+        """gets current Y voltage"""
         return self.get_volts(axis=1)
 
     def get_pos(self, axis: int):
-        '''gets current position'''
+        """gets current position"""
         problem = self._require_ready(loop_closed=True)
         if problem:
             return problem
         try:
-            position = float(self.dev.get_pos(channel=self._channel(axis)))
+            position = float(self.controller.get_pos(channel=self._channel(axis)))
             self.logger.debug("get_pos: %s", position)
         except (OSError, ValueError) as e:
             self.logger.error("error: %s", e)
@@ -614,12 +613,12 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "position": position}
 
     def get_volts(self, axis: int):
-        '''gets output voltage for open loop control'''
+        """gets output voltage for open loop control"""
         problem = self._require_ready(loop_closed=False, action="get volts")
         if problem:
             return problem
         try:
-            voltage = float(self.dev.get_output_volts(channel=self._channel(axis)))
+            voltage = float(self.controller.get_output_volts(channel=self._channel(axis)))
             self.logger.debug("get_volts: %s", voltage)
         except (OSError, ValueError) as e:
             self.logger.error("error: %s", e)
@@ -628,27 +627,27 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "voltage": voltage}
 
     def set_xpos(self, pos: float):
-        '''sets current X position'''
+        """sets current X position"""
         if self.state['isloopclosed']:
             return self.set_pos(axis=0, pos=pos)
         return self.set_volts(axis=0, volts=pos)
 
     def set_ypos(self, pos: float):
-        '''sets current Y position'''
+        """sets current Y position"""
         if self.state['isloopclosed']:
             return self.set_pos(axis=1, pos=pos)
         return self.set_volts(axis=1, volts=pos)
 
     def set_xvolts(self, volts: float):
-        '''sets output voltage for open loop control'''
+        """sets output voltage for open loop control"""
         return self.set_volts(axis=0, volts=volts)
 
     def set_yvolts(self, volts: float):
-        '''sets output voltage for open loop control'''
+        """sets output voltage for open loop control"""
         return self.set_volts(axis=1, volts=volts)
 
     def set_volts(self, axis: int, volts: float):
-        '''sets output voltage for open loop control'''
+        """sets output voltage for open loop control"""
         problem = self._require_ready(loop_closed=False, action="set volts")
         if problem:
             return problem
@@ -660,9 +659,9 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
                 self.logger.error("%s", problem)
                 return {"ok": False, "error": problem}
             # convert volts to int between -32768 and 32,767 for PPC102
-            self.dev.set_output_volts(channel=chan, volts=volts)
+            self.controller.set_output_volts(channel=chan, volts=volts)
             self.logger.debug("set_volts: %s", volts)
-            voltage = self.dev.get_status_update(channel=chan)[0]
+            voltage = self.controller.get_status_update(channel=chan)[0]
         except (OSError, ValueError, TypeError, IndexError) as e:
             self.logger.error("error: %s", e)
             self.state['error'] = str(e)
@@ -670,7 +669,7 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return {"ok": True, "voltage": voltage}
 
     def set_pos(self, axis: int, pos: float):
-        '''sets current position'''
+        """sets current position"""
         problem = self._require_ready(loop_closed=True)
         if problem:
             return problem
@@ -681,9 +680,9 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
             if problem:
                 self.logger.error("%s", problem)
                 return {"ok": False, "error": problem}
-            self.dev.set_pos(channel=chan, pos=pos)
+            self.controller.set_pos(channel=chan, pos=pos)
             self.logger.debug("set_pos: %s", pos)
-            position = self.dev.get_pos(channel=chan)
+            position = self.controller.get_pos(channel=chan)
         except (OSError, ValueError) as e:
             self.logger.error("error: %s", e)
             self.state['error'] = str(e)
@@ -703,8 +702,8 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
         return None
 
     def goto_named_pos(self, name: str):
-        '''moves to named position'''
-        if not self.dev.is_connected():
+        """moves to named position"""
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
@@ -719,7 +718,7 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
                 if not result.get("ok"):
                     return result
             self.logger.debug("goto_named_pos: %s -> %s", name, goal)
-            cur_pos = (self.dev.get_pos(channel=1), self.dev.get_pos(channel=2))
+            cur_pos = (self.controller.get_pos(channel=1), self.controller.get_pos(channel=2))
         except (OSError, ValueError, TypeError, IndexError) as e:
             self.logger.error("error: %s", e)
             self.state['error'] = str(e)
@@ -728,13 +727,13 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
 
     def cur_named_position(self):
         """Get the name of the current position, if it matches a named position."""
-        if not self.dev.is_connected():
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
             current_pos = (
-                float(self.dev.get_pos(channel=1)),
-                float(self.dev.get_pos(channel=2))
+                float(self.controller.get_pos(channel=1)),
+                float(self.controller.get_pos(channel=2))
                 )
 
             for name, pos in self.get_named_positions().items():
@@ -752,7 +751,7 @@ class PiaaGimbalmount(HispecDaemon):  # pylint: disable=abstract-method
     def _require_ready(self, loop_closed: Optional[bool] = None,
                        action: str = "") -> Optional[Dict[str, Any]]:
         """Return an error result if the device is not ready for the requested operation."""
-        if not self.dev.is_connected():
+        if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
         if not self.state['enabled']:
             return {"ok": False, "error": "Device not enabled"}

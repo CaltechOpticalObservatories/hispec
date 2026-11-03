@@ -8,11 +8,11 @@ Exposes the Lakeshore Temperature controller commands as libby keywords.
 import argparse
 import sys
 
-from hispec import HispecDaemon
+from hispec import HispecDriverDaemon
 from hispec.driver.lakeshore.lakeshore import LakeshoreController
 
 
-class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-attributes
+class LakeshoreDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-instance-attributes
     """Daemon for controlling the Lakeshore via keywords."""
 
     # Keyword suffix, index into the controller's (p, i, d) tuple, and label.
@@ -38,7 +38,7 @@ class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-
         # after __init__ returns, so it is built in on_start instead.
         self.controller = None
 
-    def on_start(self, libby):
+    def on_start(self, _libby):
         """Called when the daemon starts - register keywords and connect."""
 
         # from_config populates _config after __init__, so read it here
@@ -68,12 +68,16 @@ class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-
         self._register_heater_keywords()
 
         self.keyword_registry.bool("isconnected",
-                                   getter=self.controller.is_connected,
+                                   getter=self._connected,
                                    setter=self._set_connected,
                                    description="Lakeshore controller is connected.")
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Last error from the Lakeshore controller.")
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the device driver as a "
+                                                 "(code, message) string.")
         self.keyword_registry.trigger("shutdown",
                                       action=self._shutdown,
                                       description="Shutdown the daemon now.")
@@ -194,14 +198,7 @@ class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-
                     f"Failed to set PID values for heater output {output}")
         return setter
 
-    def _shutdown(self):
-        """Shutdown the daemon"""
-        self.logger.info("Shutting down")
-        if self.controller is not None:
-            self.controller.disconnect()
-        self.request_stop()
-
-    def on_stop(self, libby=None):
+    def on_stop(self, _libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         if self.controller is None:
@@ -218,7 +215,7 @@ class LakeshoreDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-instance-
                          self.ip_address, self.tcp_port)
         self.controller.connect(host=self.ip_address, port=int(self.tcp_port))
         # The drivers signal failure by staying disconnected rather than raising
-        if not self.controller.is_connected():
+        if not self._connected():
             raise RuntimeError(
                 f"no connection to {self.ip_address}:{self.tcp_port}")
         self.controller.initialize()

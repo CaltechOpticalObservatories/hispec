@@ -37,5 +37,6 @@ class HispecDriverDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public
     def _shutdown(self):
         """Shutdown the daemon"""
         self.logger.info("Shutting down")
-        self.controller.disconnect()
+        if self.controller is not None:
+            self.controller.disconnect()
         self.request_stop()

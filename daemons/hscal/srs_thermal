@@ -31,7 +31,7 @@ class SrsDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-instance-
         # after __init__ returns, so it is built in on_start instead.
         self.controller = None
 
-    def on_start(self, libby):
+    def on_start(self, _libby):
         """Called when the daemon starts - register keywords and connect."""
 
         # from_config populates _config after __init__, so read it here
@@ -51,7 +51,7 @@ class SrsDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-instance-
         self._register_heater_keywords()
 
         self.keyword_registry.bool("isconnected",
-                                   getter=self.controller.is_connected,
+                                   getter=self._connected,
                                    setter=self._set_connected,
                                    description="SRS controller is connected.")
         self.keyword_registry.string("error",
@@ -59,7 +59,8 @@ class SrsDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-instance-
                                      description="Last error from the SRS controller.")
         self.keyword_registry.string("status",
                                      getter=self._status,
-                                     description="Status of the SRS as a (code, message) string.")
+                                     description="Status of the device driver as a "
+                                                 "(code, message) string.")
         self.keyword_registry.trigger("shutdown",
                                       action=self._shutdown,
                                       description="Shutdown the daemon now.")
@@ -141,7 +142,7 @@ class SrsDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-instance-
             return self.controller.get_atomic_value(output)
         return getter
 
-    def on_stop(self, libby=None):
+    def on_stop(self, _libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         if self.controller is None:

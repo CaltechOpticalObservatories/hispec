@@ -10,11 +10,11 @@ import sys
 
 from hispec.driver.inficon.inficonvgc502 import UnknownResponse
 
-from hispec import HispecDaemon
+from hispec import HispecDriverDaemon
 from hispec.driver.inficon.inficonvgc502 import InficonVGC502
 
 # pylint: disable=too-many-instance-attributes
-class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
+class InficonDaemon(HispecDriverDaemon):  # pylint: disable=W0223
     """Daemon for controlling the Inficon pressure gauges via keywords."""
 
     def __init__(self):
@@ -32,7 +32,7 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         self.controller = InficonVGC502(log=True)
         self.daemon_description = "Inficon Pressure Daemon"
 
-    def on_start(self, libby):
+    def on_start(self, _libby):
         """Called when the daemon starts - register keywords and connect."""
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
@@ -48,14 +48,16 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Last error from the Inficon pressure controller.")
-        self._pressure1_keyword = self.keyword_registry.float(
-            "pressure1",
-            getter=self._get_pressure1,
-            description="Pressure from gauge 1.")
-        self._pressure2_keyword = self.keyword_registry.float(
-            "pressure2",
-            getter=self._get_pressure2,
-            description="Pressure from gauge 2.")
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the device driver as a "
+                                                 "(code, message) string.")
+        self._pressure1_keyword = self.keyword_registry.float("pressure1",
+                                                              getter=self._get_pressure1,
+                                                              description="Pressure from gauge 1.")
+        self._pressure2_keyword = self.keyword_registry.float("pressure2",
+                                                              getter=self._get_pressure2,
+                                                              description="Pressure from gauge 2.")
         self.keyword_registry.float("temperature",
                                     getter=self.controller.read_temperature,
                                     units="C",
@@ -83,13 +85,7 @@ class InficonDaemon(HispecDaemon):  # pylint: disable=W0223
             self.error = str(e)
             self.logger.warning("Daemon will start but hardware is not available")
 
-    def _shutdown(self):
-        """Shutdown the daemon"""
-        self.logger.info("Shutting down")
-        # on_stop handles teardown; a driver error here would block shutdown
-        self.request_stop()
-
-    def on_stop(self, libby=None):
+    def on_stop(self, _libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:

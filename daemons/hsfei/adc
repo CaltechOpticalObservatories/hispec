@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from libby import KeywordRegistry
 
-from hispec import HispecDaemon
+from hispec import HispecDriverDaemon
 from hispec.driver.newport.smc100pp import StageController
 
 
@@ -134,7 +134,7 @@ class _Stage:
                 raise RuntimeError("controller rejected reference move")
 
 
-class AdcDaemon(HispecDaemon):  # pylint: disable=W0223
+class AdcDaemon(HispecDriverDaemon):  # pylint: disable=W0223
     """Daemon for controlling the ADC prism rotators via keywords."""
 
     def __init__(self):
@@ -172,6 +172,10 @@ class AdcDaemon(HispecDaemon):  # pylint: disable=W0223
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="ADC error string for either rotator stage.")
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the device driver as a "
+                                                 "(code, message) string.")
         self.keyword_registry.trigger("halt",
                                       action=self._halt_all,
                                       description="Halt all ADC rotator motion.")
