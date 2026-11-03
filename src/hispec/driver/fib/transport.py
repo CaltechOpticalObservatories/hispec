@@ -24,6 +24,7 @@ KEEPALIVE_S: Final = 30
 QUERY_KEYS: Final = frozenset({
     "help", "help/options", "status", "time", "ip", "mqtt", "serialguard",
     "mems", "mems/route", "temps", "mems/split/yj", "mems/split/hk",
+    "pd/settings/yj", "pd/settings/hk",
 })
 MEMS_SWITCH_KEY: Final = re.compile(r"mems/(yj|hk)_[a-z0-9_]+")
 STATUS_OPTIONS: Final = frozenset({"ip", "lasers", "attens"})

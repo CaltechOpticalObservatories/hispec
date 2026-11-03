@@ -29,7 +29,7 @@ their shared `pdu_base.py` base class.
 | `hsfei/xeryon` | `xeryon.XeryonController` | Xeryon XD-M-3 piezo motion controllers | `hsfei_hkfam`, `hsfei_piaadeploy`, `hsfei_yjfam` |
 | `hscal/smc8_attenuator` | `standa.smc8` | Standa SMC8 (libximc) attenuator | `hscal_hketatten` |
 | `hspower/eaton_pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | `hspower_fei3/4`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
-| `hsfib/tib` | `fib.TrunkInterfaceBox` | FIB trunk interface box, over MQTT 5 | `hsfib_tib` |
+| `hsfibers/trunkfiberbox` | `fib.TrunkInterfaceBox` | FIB trunk interface box, over MQTT 5 | `hsfibers_trunkfiberbox` |
 
 Thirty-five instances are currently defined under `systemd/instances/`,
 running twelve distinct daemon scripts — the config-driven design paying off
@@ -74,7 +74,7 @@ the gas cell.
 | `hscal_hkettherm` / `hscal_yjettherm` | etalon thermal control |
 | `hscal_hketatten` | HK etalon attenuator |
 
-### `hsfib`: FIB
+### `hsfibers`: FIB
 
 The FIB PCBs run their own firmware and are reached over MQTT 5 through the
 mosquitto broker on `hispec.caltech.edu`. The daemon is read only: its driver
@@ -83,7 +83,7 @@ switch.
 
 | Instance | Mechanism |
 |---|---|
-| `hsfib_tib` | trunk interface box: MEMS switches, routes, laser bank state |
+| `hsfibers_trunkfiberbox` | trunk interface box: MEMS switches, routes, lasers, attenuators, photodiodes, all read only |
 
 ### `hspower` — power distribution
 

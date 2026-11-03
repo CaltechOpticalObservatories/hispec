@@ -9,8 +9,9 @@ trunk interface box).
 
 The driver can only send queries. `FibPcbClient` publishes an allowlisted key with no payload,
 or `status` with its `ip`, `lasers` and `attens` flags, and raises `FibRefusedError` for anything
-else before it reaches the broker. Nothing under `laser`, `atten`, `pd`, `measure_throughput` or
-`reboot` can be sent, so the driver cannot turn on a laser, power the laser bank or move a switch.
+else before it reaches the broker. Nothing under `laser`, `atten`, `measure_throughput` or `reboot`
+can be sent, and under `pd` only `pd/settings/yj|hk`, so the driver cannot turn on a laser, power
+the laser bank or a photodiode, or move a switch.
 
 ## Usage
 
@@ -25,6 +26,7 @@ tib.active_routes()    # inputs routed to each output
 tib.temps()            # ambient, laser bank and per-laser TEC temperatures
 tib.lasers()           # compact per-laser state
 tib.attenuations_db()  # applied attenuation per laser
+tib.photodiode_settings("yj")  # photodiode relay intent and auto-off
 tib.disconnect()
 ```
 

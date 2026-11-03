@@ -10,7 +10,8 @@ from paho.mqtt.properties import Properties
 from paho.mqtt.reasoncodes import ReasonCode
 
 from hispec.driver.fib import (FibCommandError, FibError, FibRefusedError, FibTimeoutError,
-                               LaserSummary, MemsSwitch, TrunkInterfaceBox)
+                               LaserSummary, MemsSwitch, PhotodiodeSettings,
+                               TrunkInterfaceBox)
 from hispec.driver.fib.transport import query_payload
 
 DEVICE = "hsfib-tib"
@@ -28,12 +29,16 @@ OPTIONS = {"board": "tib", "lasers": ["1028y", "1270j"], "route_inputs": ["yj_14
            "route_outputs": ["yj_ao", "yj_fei"], "routes": [["yj_1430", "yj_ao"]]}
 LASERS = {"1028y": {"power_mw": 0.0, "ready": True, "tec_on_s": None, "off_in_s": None},
           "1270j": {"power_mw": None, "ready": False, "tec_on_s": 12, "off_in_s": 288}}
+PD_SETTINGS = {"channel": "yj", "noisewarn_mv": 3.0, "responsivity_a_per_w": 0.93,
+               "transimpedance_v_per_a": 2.0e10, "power": "auto", "autooff_s": 300,
+               "off_in_s": None}
 ATTENS = {"1028y": {"value_db": 3.5}, "1270j": {"value_db": None}}
 
 REFUSED_KEYS = ["laser", "laser/status", "laser/tune", "laser/settings", "laser/bankpower",
                 "laser/bankpower/override_on", "laser/bankheater/auto", "laser/clearfaults",
                 "measure_throughput", "atten/1028y", "atten/calibrate", "pd", "pd/yj",
-                "pd/dark/yj", "reboot", "mems/route/loss", "mems/split", "status/x", ""]
+                "pd/dark/yj", "pd/settings", "pd/settings/yj/x", "reboot", "mems/route/loss",
+                "mems/split", "status/x", ""]
 
 
 def status_reply(payload):
@@ -109,7 +114,8 @@ def fixture_fake():
     return FakeMqttClient({"status": status_reply, "mems": MEMS, "mems/route": ROUTES,
                            "help/options": OPTIONS, "time": {"utc": 1, "uptime_s": 2},
                            "temps": {"ambient_c": 21.5, "laserbank_c": None,
-                                     "lasers": {"1028y": 19.0}}})
+                                     "lasers": {"1028y": 19.0}},
+                           "pd/settings/yj": PD_SETTINGS})
 
 
 @pytest.fixture(name="tib")
@@ -151,7 +157,7 @@ def test_refused_query_publishes_nothing(tib, fake):
 def test_every_driver_query_is_allowlisted_and_unretained(tib, fake):
     """Keep every driver read inside the allowlist and unretained"""
     for read in (tib.board_status, tib.time, tib.options, tib.mems, tib.active_routes, tib.temps,
-                 tib.lasers, tib.attenuations_db):
+                 tib.lasers, tib.attenuations_db, lambda: tib.photodiode_settings("yj")):
         read()
     for request in fake.published:
         key = request.topic.removeprefix(f"cmd/{DEVICE}/req/")
@@ -207,6 +213,18 @@ def test_lasers_and_attenuations(tib, fake):
     assert tib.lasers()["1270j"] == LaserSummary(None, False, 12, 288)
     assert json.loads(fake.published[-1].payload) == {"lasers": True}
     assert tib.attenuations_db() == {"1028y": 3.5, "1270j": None}
+
+
+def test_photodiode_settings(tib):
+    """Parse one channel's photodiode settings"""
+    assert tib.photodiode_settings("yj") == PhotodiodeSettings("auto", 300, None, None)
+
+
+def test_photodiode_settings_with_powered(tib, fake):
+    """Accept the powered field and a missing off_in_s, as some firmware sends"""
+    fake.replies["pd/settings/yj"] = {"channel": "yj", "power": "auto", "powered": False,
+                                      "autooff_s": 36000}
+    assert tib.photodiode_settings("yj") == PhotodiodeSettings("auto", 36000, False, None)
 
 
 def test_temps(tib):
