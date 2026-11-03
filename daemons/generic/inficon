@@ -55,7 +55,8 @@ class InficonDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         self._pressure1_keyword = self.keyword_registry.float("pressure1",
                                                               getter=self._get_pressure1,
                                                               description="Pressure from gauge 1.")
-        self._pressure2_keyword = self.keyword_registry.float("pressure2",
+        if self.n_gauges >= 2:
+            self._pressure2_keyword = self.keyword_registry.float("pressure2",
                                                               getter=self._get_pressure2,
                                                               description="Pressure from gauge 2.")
         self.keyword_registry.float("temperature",
