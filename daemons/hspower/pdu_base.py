@@ -34,7 +34,7 @@ class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-me
     def __init__(self):
         """Initialize the PDU daemon.
 
-        A subclass calls this first, then sets self.dev to its vendor driver.
+        A subclass calls this first, then sets self.controller to its vendor driver.
         """
         super().__init__()
 
@@ -44,7 +44,6 @@ class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-me
         self.password = None
         self.outlet_count = 0
         self.outlet_names: Dict[int, str] = {}
-        self.dev = None
         self.daemon_desc = "PDU Daemon"
 
         # Daemon state
