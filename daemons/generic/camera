@@ -26,7 +26,7 @@ class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
         self.instrument = None
         self.service = CameraService(self)
 
-    def on_start(self, _libby):
+    def on_start(self, libby):
         """Register keywords, then try to reach the camera."""
         self.instrument = self._load_instrument()
 
@@ -37,7 +37,7 @@ class CameraDaemon(HispecDaemon):  # pylint: disable=W0223
         self.logger.info("Starting %s", self.peer_id)
         self.service.connect()
 
-    def on_stop(self, _libby=None):
+    def on_stop(self, libby=None):
         """Release the camera."""
         self.logger.info("Shutting down %s", self.peer_id)
         self.service.on_stop()

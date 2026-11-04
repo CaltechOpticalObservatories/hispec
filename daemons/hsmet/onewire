@@ -61,7 +61,7 @@ class OneWireDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         # when the count changes rather than on every poll.
         self._last_count = None
 
-    def on_start(self, _libby):
+    def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
@@ -242,7 +242,7 @@ class OneWireDaemon(HispecDriverDaemon):  # pylint: disable=W0223
             count, self.n_sensors,
             [sensor.get("rom_id") for sensor in sensors])
 
-    def on_stop(self, _libby=None):
+    def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:
