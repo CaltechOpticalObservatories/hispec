@@ -8,12 +8,12 @@ Exposes:
 
 from .board import (BoardOptions, BoardStatus, BoardTime, FibBoard, LastCommand, MemsSwitch,
                     Temperatures)
-from .tib import LaserSummary, TrunkInterfaceBox
+from .tib import LaserSummary, PhotodiodeSettings, TrunkInterfaceBox
 from .transport import (FibCommandError, FibError, FibPcbClient, FibRefusedError,
                         FibTimeoutError)
 
 __all__ = [
-    "TrunkInterfaceBox", "LaserSummary",
+    "TrunkInterfaceBox", "LaserSummary", "PhotodiodeSettings",
     "FibBoard", "BoardOptions", "BoardStatus", "BoardTime", "LastCommand", "MemsSwitch",
     "Temperatures",
     "FibPcbClient", "FibError", "FibCommandError", "FibRefusedError", "FibTimeoutError",

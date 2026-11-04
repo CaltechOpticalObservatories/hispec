@@ -1,0 +1,342 @@
+#!/usr/bin/env python3
+"""
+FIB Trunk Interface Box Daemon (trunkfiberbox)
+
+Exposes the read-only state of the FIB trunk interface box (TIB) as libby
+keywords, covering the hs.fib.tib keys in the hispec-fib "HISPEC FIB Control"
+document. The board is reached over MQTT 5 through `hardware.broker` by its
+device name, `hardware.device`.
+
+Keywords suffixed `b` and `r` are the blue (YJ) and red (HK) channels. Switch,
+route and laser keywords are named from what the board reports, since the
+firmware owns those names: `switch_<switch>`, `route_<output>`,
+`laser_<laser>_*`, `temp_<laser>` and `atten_<laser>`. They are registered on
+the first successful connect, so a board that is offline at startup gains
+them once `isconnected` is set.
+
+The driver only sends allowlisted queries, so nothing here can turn on a
+laser or change hardware state.
+"""
+
+import argparse
+import sys
+import threading
+import time
+
+from hispec import HispecDaemon
+from hispec.driver.fib import FibError, TrunkInterfaceBox
+from hispec.driver.fib.transport import DEFAULT_PORT
+
+# Long enough that a sweep of every keyword shares one query per kind
+DEFAULT_POLL_TTL_S = 1.0
+
+# Keyword suffix to firmware channel prefix
+CHANNELS = {"b": "yj", "r": "hk"}
+
+# The forward/retro selector feeds the 1430 laser forward through the FEI in A
+FORWARD_STATE = "A"
+RETRO_STATE = "B"
+
+
+# pylint: disable=too-many-instance-attributes
+class TrunkFiberBoxDaemon(HispecDaemon):  # pylint: disable=W0223
+    """Daemon exposing the FIB trunk interface box via keywords."""
+
+    def __init__(self):
+        super().__init__()
+
+        self.device = None
+        self.broker = None
+        self.port = DEFAULT_PORT
+        self.poll_ttl_s = DEFAULT_POLL_TTL_S
+        self.tib = TrunkInterfaceBox(log=True)
+        self.daemon_description = "FIB Trunk Interface Box Daemon"
+
+        self._board_keywords_registered = False
+        self._cache = {}
+        self._cache_lock = threading.Lock()
+
+    def on_start(self, libby):  # pylint: disable=unused-argument
+        """Register keywords and connect to the board."""
+        self.device = self.get_config("hardware.device")
+        self.broker = self.get_config("hardware.broker")
+        self.port = int(self.get_config("hardware.port", DEFAULT_PORT))
+        self.poll_ttl_s = float(self.get_config("polling.ttl_s", DEFAULT_POLL_TTL_S))
+
+        self.logger.info("Starting %s daemon for %s via %s:%s",
+                         self.peer_id, self.device, self.broker, self.port)
+
+        self._register_board_status_keywords()
+        for suffix, channel in CHANNELS.items():
+            self._register_channel_keywords(suffix, channel)
+        self.keyword_registry.trigger("shutdown",
+                                      action=self._shutdown,
+                                      description="Shutdown the daemon now.")
+
+        if not (self.device and self.broker):
+            self.logger.error("No hardware.device or hardware.broker specified")
+            return
+
+        try:
+            self._connect_hardware()
+            self.logger.info("Daemon started successfully and connected to hardware")
+        except FibError as e:
+            self.logger.error("Failed to connect to hardware: %s", e)
+            self.logger.warning("Daemon will start but hardware is not available")
+
+    def on_stop(self, libby=None):  # pylint: disable=unused-argument
+        """Disconnect from the board."""
+        self.logger.info("Shutting down %s daemon", self.peer_id)
+        self.tib.disconnect()
+
+    def _register_board_status_keywords(self):
+        """Register the board-wide status and temperature keywords."""
+        registry = self.keyword_registry
+        registry.bool("isconnected",
+                      getter=self._is_connected,
+                      setter=self._set_connected,
+                      description="TIB is connected and answering queries.")
+        registry.string("status",
+                        getter=self._status_summary,
+                        description="Overall TIB status: ok, or what is wrong.")
+        registry.string("firmware",
+                        getter=lambda: self._status().firmware,
+                        description="TIB firmware version.")
+        registry.int("boots",
+                     getter=lambda: self._status().boots,
+                     description="TIB boot count.")
+        registry.float("temp",
+                       getter=lambda: self._temps().ambient_c,
+                       units="degC", nullable=True,
+                       description="TIB ambient temperature.")
+        registry.float("laserbanktemp",
+                       getter=lambda: self._temps().laser_bank_c,
+                       units="degC", nullable=True,
+                       description="Mean temperature of the idle laser diodes; "
+                                   "null while every TEC is active or the bank is off.")
+        registry.int("laserbankontime",
+                     getter=lambda: self._status().laser_bank_on_s,
+                     units="s",
+                     description="Seconds the laser bank has been powered.")
+        registry.int("photodiodeontime",
+                     getter=lambda: self._status().photodiode_on_s,
+                     units="s",
+                     description="Seconds the photodiodes have been powered.")
+
+    def _register_channel_keywords(self, suffix, channel):
+        """Register the photodiode, feed and flux monitor keywords for one channel."""
+        registry = self.keyword_registry
+        registry.string(f"photodiode_{suffix}",
+                        getter=lambda: self._photodiode(channel).power,
+                        description=f"{channel.upper()} photodiode relay intent: "
+                                    "auto, override_on or override_off.")
+        registry.bool(f"photodiode_{suffix}_powered",
+                      getter=lambda: self._photodiode(channel).powered,
+                      nullable=True,
+                      description=f"{channel.upper()} photodiode relay is on; "
+                                  "null if the firmware does not report it.")
+        registry.int(f"photodiode_{suffix}_offin",
+                     getter=lambda: self._photodiode(channel).off_in_s,
+                     units="s", nullable=True,
+                     description=f"Seconds until the {channel.upper()} photodiode powers off; "
+                                 "null unless an auto-off is armed.")
+        registry.float(f"foreaft_feed{suffix}_fore",
+                       getter=lambda: self._fore_fraction(channel),
+                       nullable=True,
+                       description=f"Fraction of {channel.upper()} 1430 laser light fed "
+                                   "forward through the FEI.")
+        registry.float(f"foreaft_feed{suffix}_aft",
+                       getter=lambda: self._aft_fraction(channel),
+                       nullable=True,
+                       description=f"Fraction of {channel.upper()} 1430 laser light fed "
+                                   "back through the retro fibers.")
+        registry.bool(f"retrofeed{suffix}",
+                      getter=lambda: self._retrofeed(channel),
+                      nullable=True,
+                      description=f"{channel.upper()} retro fibers are fed for part "
+                                  "or all of the time.")
+        registry.string(f"monitor_flux{suffix}",
+                        getter=lambda: self._monitored_input(channel),
+                        nullable=True,
+                        description=f"Fiber routed to the {channel.upper()} photodiode, "
+                                    "MM or SM; empty when none.")
+
+    def _connect_hardware(self):
+        self.tib.connect(self.device, self.broker, self.port)
+        if not self._board_keywords_registered:
+            self._register_board_keywords()
+
+    def _register_board_keywords(self):
+        """Register a keyword per switch, route output and laser the board reports."""
+        registry = self.keyword_registry
+        for switch in self.tib.mems():
+            registry.string(f"switch_{switch}",
+                            getter=self._make_switch_getter(switch),
+                            nullable=True,
+                            description=f"Requested state (A, B or ?) of MEMS switch {switch}.")
+        options = self.tib.options()
+        for output in options.route_outputs:
+            registry.string(f"route_{output}",
+                            getter=self._make_route_getter(output),
+                            nullable=True,
+                            description=f"Comma-separated inputs routed to {output}; "
+                                        "empty when none.")
+        for laser in options.lasers:
+            self._register_laser_keywords(laser)
+        self.register_keywords(registry.drain())
+        self._board_keywords_registered = True
+
+    def _register_laser_keywords(self, laser):
+        """Register the state, temperature and attenuation keywords of one laser."""
+        registry = self.keyword_registry
+        registry.float(f"laser_{laser}_power",
+                       getter=lambda: self._laser(laser, "power_mw"),
+                       units="mW", nullable=True,
+                       description=f"Estimated output power of laser {laser}.")
+        registry.bool(f"laser_{laser}_ready",
+                      getter=lambda: self._laser(laser, "ready"),
+                      nullable=True,
+                      description=f"Laser {laser} has no known blocker to starting.")
+        registry.int(f"laser_{laser}_tecontime",
+                     getter=lambda: self._laser(laser, "tec_on_s"),
+                     units="s", nullable=True,
+                     description=f"Seconds the laser {laser} TEC has been on; "
+                                 "null while off.")
+        registry.int(f"laser_{laser}_offin",
+                     getter=lambda: self._laser(laser, "off_in_s"),
+                     units="s", nullable=True,
+                     description=f"Seconds until laser {laser} auto-off; null while inactive.")
+        registry.float(f"temp_{laser}",
+                       getter=lambda: self._temps().lasers.get(laser),
+                       units="degC", nullable=True,
+                       description=f"TEC temperature of laser {laser}; "
+                                   "null while the bank is off.")
+        registry.float(f"atten_{laser}",
+                       getter=lambda: self._cached("attens", self.tib.attenuations_db).get(laser),
+                       units="dB", nullable=True,
+                       description=f"Applied attenuation on laser {laser}.")
+
+    def _make_switch_getter(self, switch):
+        def getter():
+            entry = self._mems().get(switch)
+            return entry.state if entry else None
+        return getter
+
+    def _make_route_getter(self, output):
+        def getter():
+            sources = self._routes().get(output)
+            return None if sources is None else ",".join(sources)
+        return getter
+
+    def _status(self):
+        return self._cached("status", self.tib.board_status)
+
+    def _temps(self):
+        return self._cached("temps", self.tib.temps)
+
+    def _mems(self):
+        return self._cached("mems", self.tib.mems)
+
+    def _routes(self):
+        return self._cached("routes", self.tib.active_routes)
+
+    def _photodiode(self, channel):
+        return self._cached(f"pd_{channel}", lambda: self.tib.photodiode_settings(channel))
+
+    def _laser(self, laser, field):
+        summary = self._cached("lasers", self.tib.lasers).get(laser)
+        return getattr(summary, field) if summary else None
+
+    def _fore_fraction(self, channel):
+        """Return the share of time the forward/retro selector feeds forward."""
+        entry = self._mems().get(f"{channel}_forward_retro")
+        if entry is None or entry.state not in (FORWARD_STATE, RETRO_STATE):
+            return None
+        if entry.duty_cycle is not None:
+            return entry.duty_cycle
+        return 1.0 if entry.state == FORWARD_STATE else 0.0
+
+    def _aft_fraction(self, channel):
+        fore = self._fore_fraction(channel)
+        return None if fore is None else 1.0 - fore
+
+    def _retrofeed(self, channel):
+        aft = self._aft_fraction(channel)
+        return None if aft is None else aft > 0.0
+
+    def _monitored_input(self, channel):
+        """Return MM or SM for the fiber routed to this channel's photodiode."""
+        sources = self._routes().get(f"{channel}_pd")
+        if sources is None:
+            return None
+        return ",".join(source.removeprefix(f"{channel}_").upper() for source in sources)
+
+    def _status_summary(self):
+        if not self.tib.is_connected():
+            return "disconnected"
+        try:
+            status = self._status()
+        except FibError:
+            return "not answering"
+        if not status.board_ok:
+            return "board not ok"
+        if status.relay_errors:
+            return f"relay errors {status.relay_errors}"
+        return "ok"
+
+    def _cached(self, name, fetch):
+        """Return fetch()'s result, reusing one younger than the poll TTL."""
+        with self._cache_lock:
+            now = time.monotonic()
+            fetched_at, value = self._cache.get(name, (None, None))
+            if fetched_at is not None and now - fetched_at < self.poll_ttl_s:
+                return value
+            try:
+                value = fetch()
+            except FibError as e:
+                self.logger.error("Failed to read %s from %s: %s", name, self.device, e)
+                raise
+            self._cache[name] = (now, value)
+            return value
+
+    def _is_connected(self) -> bool:
+        return self._status_summary() not in ("disconnected", "not answering")
+
+    def _set_connected(self, value: bool) -> None:
+        if value:
+            self._connect_hardware()
+        else:
+            self.tib.disconnect()
+
+    def _shutdown(self):
+        """Shutdown the daemon"""
+        self.logger.info("Shutting down")
+        # on_stop handles teardown; a driver error here would block shutdown
+        self.request_stop()
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(description='FIB Trunk Interface Box Daemon')
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        daemon = TrunkFiberBoxDaemon.from_config_file(args.config)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e:  # pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

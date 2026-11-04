@@ -1,0 +1,15 @@
+# trunkfiberbox: FIB trunk interface box daemon config
+#
+# Usage:
+#   daemons/hsfibers/trunkfiberbox -c config/hsfibers/hsfibers_trunkfiberbox.yaml
+
+peer_id: trunkfiberbox
+group_id: hsfibers
+
+hardware:
+  device: hsfib-tib
+  broker: hispec.caltech.edu
+  port: 1883
+
+logging:
+  level: INFO

@@ -448,7 +448,7 @@ dependencies or `hispec@.service` changed. `/opt/hispec` belongs to
 | `hsfei_hkfam` | `hispecserver` | `hsfei/xeryon` | `config/hsfei/hsfei_hkfam.yaml` |
 | `hsfei_piaadeploy` | `hispecserver` | `hsfei/xeryon` | `config/hsfei/hsfei_piaadeploy.yaml` |
 | `hsfei_yjfam` | `hispecserver` | `hsfei/xeryon` | `config/hsfei/hsfei_yjfam.yaml` |
-| `hsfib_tib` | `hispecserver` | `hsfib/tib` | `config/hsfib/hsfib_tib.yaml` |
+| `hsfibers_trunkfiberbox` | `hispecserver` | `hsfibers/trunkfiberbox` | `config/hsfibers/hsfibers_trunkfiberbox.yaml` |
 | `hispec_keygrabber` | `hispecserver` | `generic/keygrabber` | `config/hispec/hispec_keygrabber.yaml` |
 | `hspower_fei1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fei1.yaml` |
 | `hspower_fei2` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fei2.yaml` |
