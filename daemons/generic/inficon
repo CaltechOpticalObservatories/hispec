@@ -32,7 +32,7 @@ class InficonDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         self.controller = InficonVGC502(log=True)
         self.daemon_description = "Inficon Pressure Daemon"
 
-    def on_start(self, _libby):
+    def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
@@ -86,7 +86,7 @@ class InficonDaemon(HispecDriverDaemon):  # pylint: disable=W0223
             self.error = str(e)
             self.logger.warning("Daemon will start but hardware is not available")
 
-    def on_stop(self, _libby=None):
+    def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:

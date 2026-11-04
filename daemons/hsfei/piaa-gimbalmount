@@ -75,7 +75,7 @@ class PiaaGimbalmount(HispecDriverDaemon):  # pylint: disable=abstract-method
             'halted': False
         }
 
-    def on_start(self, _libby):
+    def on_start(self, libby):
         """Starts up daemon and initializies the hardware device"""
 
         # load configuration from hsfei.yaml

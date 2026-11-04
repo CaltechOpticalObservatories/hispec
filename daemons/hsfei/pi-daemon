@@ -184,7 +184,7 @@ class PiDaemon(HispecDaemon):
         self.stages: List[_Stage] = []
         self.controller = PIControllerBase(log=True)
 
-    def on_start(self, _libby):
+    def on_start(self, libby):
         """Called when daemon starts - initialize hardware."""
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
@@ -350,7 +350,7 @@ class PiDaemon(HispecDaemon):
     def _is_connected(self) -> bool:
         return bool(self.controller is not None and self.controller.is_connected())
 
-    def on_stop(self, _libby=None):
+    def on_stop(self, libby=None):
         """Cleanup when daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
 

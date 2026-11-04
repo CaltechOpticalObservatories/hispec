@@ -162,7 +162,7 @@ class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-me
             return func(*args, *value)
         return call
 
-    def on_start(self, _libby):
+    def on_start(self, libby):
         """Starts up daemon and initializes the hardware device."""
         self.host = self.get_config("hardware.ip_address")
         self.port = self._opt_int(self.get_config("hardware.tcp_port")) or self.default_port
@@ -205,7 +205,7 @@ class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-me
             return
         self.logger.info("Initialized %s", self.daemon_desc)
 
-    def on_stop(self, _libby) -> None: # pylint: disable=W0222
+    def on_stop(self, libby) -> None: # pylint: disable=W0222
         """Stops the daemon and disconnects from hardware device."""
         if self._set_connected(False).get("ok"):
             self.logger.info("Disconnected %s", self.daemon_desc)

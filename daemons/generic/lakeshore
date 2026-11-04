@@ -38,7 +38,7 @@ class LakeshoreDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-ins
         # after __init__ returns, so it is built in on_start instead.
         self.controller = None
 
-    def on_start(self, _libby):
+    def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
 
         # from_config populates _config after __init__, so read it here
@@ -198,7 +198,7 @@ class LakeshoreDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-ins
                     f"Failed to set PID values for heater output {output}")
         return setter
 
-    def on_stop(self, _libby=None):
+    def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         if self.controller is None:

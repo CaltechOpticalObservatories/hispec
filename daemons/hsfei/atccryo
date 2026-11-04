@@ -34,7 +34,7 @@ class AtcCryoDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         self.start_time = None
         self.controller = SunpowerCryocooler(log=True)
 
-    def on_start(self, _libby):
+    def on_start(self, libby):
         """Called when the daemon starts - register keywords and connect."""
 
         # from_config populates _config after __init__, so read it here
@@ -139,7 +139,7 @@ class AtcCryoDaemon(HispecDriverDaemon):  # pylint: disable=W0223
             self._write(f"pid_{term}", getattr(self.controller, f"set_pid_{term}"), value)
         return setter
 
-    def on_stop(self, _libby=None):
+    def on_stop(self, libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:
