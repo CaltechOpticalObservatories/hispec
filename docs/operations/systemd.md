@@ -248,10 +248,11 @@ doctor` reports anything deployed somewhere it does not belong. A host learns
 its own name from `/etc/hispec/host`, which the installer writes.
 
 Also add the row to the table in [Deployed instances](#deployed-instances) and
-to the inventory in {doc}`../architecture/daemons`. Commit, then on the host:
+to the inventory in {doc}`../architecture/daemons`. Merge it, cut a release
+(see {doc}`../install`), then on the host:
 
 ```bash
-git -C /opt/hispec/app pull
+sudo /opt/hispec/app/systemd/install.sh       # moves the host to the new release
 hispec deploy <name>
 ```
 
@@ -407,16 +408,17 @@ The config is read at startup. Edit `/etc/hispec/<name>.yaml`, then
 
 ### Picking up code changes
 
+Hosts run releases, so a change reaches a host once it is in a release (see
+{doc}`../install`):
+
 ```bash
-git -C /opt/hispec/app pull
+sudo /opt/hispec/app/systemd/install.sh       # moves the host to the newest release
 hispec restart <name>                # or: hispec restart fei
-hispec deploy --new                  # if the pull added instances
+hispec deploy --new                  # if the release added instances
 ```
 
-The venv install is editable, so a `pull` is enough, and it updates the
-`hispec` command too. An admin only needs to re-run `install.sh` if
-dependencies or `hispec@.service` changed. `/opt/hispec` belongs to
-`hispec-ops`, so pulling needs no `sudo`.
+`install.sh --ref main` runs `main` instead, to try a change before it is
+released.
 
 ## Deployed instances
 

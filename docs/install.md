@@ -43,8 +43,8 @@ activating anything.
        https://github.com/CaltechOpticalObservatories/hispec.git /opt/hispec/app
    ```
 
-3. Install the deploy key. `uv lock` reads every extra on every host, and the
-   tracking camera repo is private, so each host needs its read-only key:
+3. Install the deploy key. The lock references every extra, and the tracking
+   camera repo is private, so each host needs its read-only key:
 
    ```bash
    sudo install -D -m 600 -o root -g root <deploy-key> /etc/hispec/deploy-key
@@ -99,25 +99,53 @@ activating anything.
 
 ## What install.sh does
 
-It bootstraps a pinned `uv`, runs `uv lock --upgrade` and
-`uv sync --all-packages` into `/opt/hispec/venv`, then hands over to
+It moves the checkout to the newest release, bootstraps a pinned `uv`, runs
+`uv sync --locked --all-packages` into `/opt/hispec/venv`, then hands over to
 `hispec install`. That command comes from
 [instrumentctl](https://github.com/CaltechOpticalObservatories/instrumentctl#host-setup),
 whose README describes every step. It is shared with other instruments, so
 HISPEC only supplies `src/hispec/cli/instrument.toml`.
 
+## Releases
+
+Hosts run a release, never whatever `main` holds. A release is an annotated
+`hispec-X.Y` tag on `main`, and its message is the release notes. The tag
+pins everything: hispec's own code, its submodules, and through the committed
+`uv.lock` the exact commit of libby, instrumentctl and every other git
+dependency. A change merged into libby therefore reaches a host only when a
+hispec release locks it in.
+
+To cut one:
+
+1. If dependencies should move, open a PR that runs `uv lock --upgrade` and
+   commits `uv.lock`, so the new commits are reviewed like any change.
+2. Once it is on `main`, tag and push:
+
+   ```bash
+   git tag -a hispec-0.2 -m "What changed, for the release notes"
+   git push origin hispec-0.2
+   ```
+
+`install.sh` picks the newest `hispec-*` tag. `--ref` installs something else
+on purpose, a branch or an older tag, e.g. to try `main` on one host:
+
+```bash
+sudo /opt/hispec/app/systemd/install.sh --ref main
+```
+
+It refuses to move a checkout that has uncommitted edits; save them with
+`hispec hotfix` first.
+
 ## Re-running it
 
 `install.sh` is idempotent and reports only what it changes. Re-run it:
 
+- to move the host to a new release;
 - to enrol another operator: `sudo /opt/hispec/app/systemd/install.sh carol`;
-- after a pull that changed dependencies, or to pick up merged libby fixes,
-  since the lock is refreshed each run;
 - to repair anything `hispec doctor` flags.
 
-Neither adding a daemon nor picking up code changes needs it. A
-`git -C /opt/hispec/app pull` followed by `hispec deploy` or `hispec restart`
-covers both, with no `sudo`.
+Adding a daemon that the running release already contains does not need it:
+`hispec deploy` covers that, with no `sudo`.
 
 ## Changing an extra's code on a host
 

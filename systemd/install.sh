@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Host setup for running the hispec daemons under systemd. For admins / IT.
-# Run as root. Safe to re-run: it converges the host onto the current repo.
+# Run as root. Safe to re-run: it converges the host onto the latest release.
 #
 #   sudo ./systemd/install.sh                    # set the host up
 #   sudo ./systemd/install.sh alice bob          # ... and enrol two operators
 #   sudo HISPEC_OPS_USERS="alice bob" ./systemd/install.sh   # same thing
 #   sudo ./systemd/install.sh --extra scripts    # ... with an optional extra
+#   sudo ./systemd/install.sh --ref main         # install a branch or tag instead
+#
+# A release is an annotated hispec-X.Y tag. The checkout moves to the newest
+# one, and the venv is synced from that release's uv.lock, so every git
+# dependency is the exact commit the release pinned.
 #
 # Extras are recorded in /etc/hispec/extras, and every later run syncs them
 # again. Some follow the host role: feiserver always gets atcam, the tracking
@@ -29,6 +34,7 @@
 # instrumentctl and is shared with other instruments.
 
 set -euo pipefail
+ORIGINAL_ARGS=("$@")
 
 REPO_DIR="${HISPEC_REPO_DIR:-/opt/hispec/app}"
 VENV_DIR="${HISPEC_VENV_DIR:-/opt/hispec/venv}"
@@ -76,9 +82,12 @@ if [[ -f "$EXTRAS_FILE" ]]; then
     mapfile -t EXTRAS <"$EXTRAS_FILE"
 fi
 ROLE_ARG=""
+REF=""
 while (($#)); do
     case $1 in
         --extra) EXTRAS+=("$2"); shift 2 ;;
+        --ref) REF=$2; shift 2 ;;
+        --ref=*) REF=${1#*=}; shift ;;
         --host-role) ROLE_ARG=$2; INSTALL_ARGS+=("$1" "$2"); shift 2 ;;
         --host-role=*) ROLE_ARG=${1#*=}; INSTALL_ARGS+=("$1"); shift ;;
         *) INSTALL_ARGS+=("$1"); shift ;;
@@ -127,10 +136,40 @@ for extra in "${EXTRAS[@]}"; do
     EXTRA_FLAGS+=(--extra "$extra")
 done
 
-# uv lock resolves every extra on every host, including the private camera repo
+# Fetching the release and syncing the lock reach the private camera repo
 if [[ -f "$DEPLOY_KEY" ]]; then
     export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 fi
+
+# Refuse to move a checkout with edits in it: checking out the release would
+# carry them along or stop halfway. `hispec hotfix` saves them first.
+if [[ -n $(git -C "$REPO_DIR" status --porcelain --untracked-files=no) ]]; then
+    echo "error: $REPO_DIR has uncommitted edits:" >&2
+    git -C "$REPO_DIR" status --short --untracked-files=no >&2
+    echo 'Save them with: hispec hotfix "what you fixed"   (or discard: hispec hotfix --undo)' >&2
+    exit 1
+fi
+git -C "$REPO_DIR" fetch --quiet --tags --force origin
+if [[ -z $REF ]]; then
+    REF=$(git -C "$REPO_DIR" tag --list 'hispec-*' --sort=-version:refname | head -n1)
+    if [[ -z $REF ]]; then
+        echo "error: no hispec-* release tag yet; pass --ref main to install the branch." >&2
+        exit 1
+    fi
+fi
+if git -C "$REPO_DIR" show-ref --verify --quiet "refs/remotes/origin/$REF"; then
+    # A branch: follow its tip on origin, refusing rather than dropping local commits
+    git -C "$REPO_DIR" checkout --quiet "$REF"
+    git -C "$REPO_DIR" merge --quiet --ff-only "origin/$REF"
+else
+    git -C "$REPO_DIR" checkout --quiet --detach "$REF"
+fi
+git -C "$REPO_DIR" submodule update --quiet --init --recursive
+# The checkout may have replaced this very script; carry on in the release's copy
+if [[ -z ${HISPEC_INSTALL_CHECKED_OUT:-} ]]; then
+    HISPEC_INSTALL_CHECKED_OUT=1 exec "$REPO_DIR/systemd/install.sh" "${ORIGINAL_ARGS[@]}" --ref "$REF"
+fi
+echo "installing $REF ($(git -C "$REPO_DIR" rev-parse --short HEAD))"
 
 # Pinned, so re-running the installer cannot resolve with a different uv
 if [[ "$("$UV_BIN" --version 2>/dev/null)" != "uv $UV_VERSION"* ]]; then
@@ -140,14 +179,13 @@ if [[ "$("$UV_BIN" --version 2>/dev/null)" != "uv $UV_VERSION"* ]]; then
 fi
 
 # The virtualenv has to exist before the rest, since `hispec install` lives in
-# it. Upgrade the lock first: the git dependencies track their default branch
-# deliberately, and a reinstall is how a merged libby fix reaches a host.
+# it. --locked installs exactly the committed lock, and fails rather than
+# re-resolving if the lock no longer matches pyproject.toml.
 (
     cd "$REPO_DIR"
-    "$UV_BIN" lock --upgrade
     # --all-packages installs the vendored drivers too; plain sync covers only
     # the root project and leaves their dependencies out
-    "$UV_BIN" sync --all-packages "${EXTRA_FLAGS[@]}"
+    "$UV_BIN" sync --locked --all-packages "${EXTRA_FLAGS[@]}"
 )
 
 # Local clones go in after the sync, which installs every extra from GitHub
