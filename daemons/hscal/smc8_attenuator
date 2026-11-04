@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-'''Module for the SMC8 Attenuator Daemon
+"""Module for the SMC8 Attenuator Daemon
 
 Wraps the COO-Utilities standa SmcController (libximc based) for the HISPEC
 RED CAL etalon attenuator.
@@ -11,7 +11,7 @@ Notes on the driver contract (standa/smc8.py) that shape this daemon:
   * get_pos() and get_attenuation() return None on failure.
   * get_limits() returns {"1": (min, max)} and needs an open connection.
   * positions are controller steps; attenuation is dB, 0.0 - 40.0.
-'''
+"""
 import argparse
 import sys
 from typing import Optional
@@ -41,7 +41,7 @@ class SMC8Attenuator(HispecDriverDaemon): #pylint: disable = W0223
         self.tcp = None
         self.serial = None
         self.xinet = None
-        self.dev = SmcController(log=True)
+        self.controller = SmcController(log=True)
         self._step_size = DEFAULT_STEP_SIZE
         self._soft_min = None
         self._soft_max = None
@@ -109,9 +109,9 @@ class SMC8Attenuator(HispecDriverDaemon): #pylint: disable = W0223
         if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
         try:
-            if not self.dev.initialize():
+            if not self.controller.initialize():
                 raise RuntimeError("Driver failed to initialize the controller")
-            homed = self.dev.is_homed()
+            homed = self.controller.is_homed()
             if not homed:
                 self.logger.warning("Controller reports the stage is not homed")
         except Exception as e: # pylint: disable=W0718
@@ -172,14 +172,14 @@ class SMC8Attenuator(HispecDriverDaemon): #pylint: disable = W0223
 
     def is_connected(self) -> bool:
         """True when the driver holds an open connection to the controller."""
-        checker = getattr(self.dev, "is_connected", None)
+        checker = getattr(self.controller, "is_connected", None)
         if callable(checker):
             return bool(checker())
-        return bool(getattr(self.dev, "connected", False))
+        return bool(getattr(self.controller, "connected", False))
 
     def is_homed(self) -> bool:
         """True when the controller reports the stage as homed."""
-        return bool(self._connected() and self.dev.is_homed())
+        return bool(self._connected() and self.controller.is_homed())
 
     def connect(self, connect):
         """handles connection"""
@@ -187,18 +187,18 @@ class SMC8Attenuator(HispecDriverDaemon): #pylint: disable = W0223
         try:
             if connect:
                 if self.tcp is not None:
-                    ok = self.dev.connect(device_str=self.tcp, device_port=None,
+                    ok = self.controller.connect(device_str=self.tcp, device_port=None,
                                           connection_type='tcp', step_size=self._step_size)
                 elif self.serial is not None:
-                    ok = self.dev.connect(device_str=self.serial, device_port=None,
+                    ok = self.controller.connect(device_str=self.serial, device_port=None,
                                           connection_type='serial', step_size=self._step_size)
                 elif self.xinet is not None:
-                    ok = self.dev.connect(device_str=self.xinet, device_port=None,
+                    ok = self.controller.connect(device_str=self.xinet, device_port=None,
                                           connection_type='xinet', step_size=self._step_size)
                 else:
                     raise ConnectionError("No connection parameters specified")
             else:
-                ok = self.dev.disconnect()
+                ok = self.controller.disconnect()
             # The driver reports failure by return value, not by raising.
             if not ok:
                 raise ConnectionError("Driver reported failure, see the driver log for details")
@@ -244,7 +244,7 @@ class SMC8Attenuator(HispecDriverDaemon): #pylint: disable = W0223
         if not self._connected():
             return {"ok": False, "error": "Not connected to hardware"}
         try:
-            limits = self.dev.get_limits()
+            limits = self.controller.get_limits()
             axis = (limits or {}).get("1")
             if not axis:
                 raise RuntimeError(f"Controller returned no limits: {limits}")
@@ -259,7 +259,7 @@ class SMC8Attenuator(HispecDriverDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            position = self.dev.get_pos()
+            position = self.controller.get_pos()
             # get_pos() returns None instead of raising when the read fails.
             if position is None:
                 raise RuntimeError("Driver failed to read the position")
@@ -283,7 +283,7 @@ class SMC8Attenuator(HispecDriverDaemon): #pylint: disable = W0223
             return self._fail(message)
 
         try:
-            if not self.dev.set_pos(pos):
+            if not self.controller.set_pos(pos):
                 raise RuntimeError(f"Driver refused the move to {pos}")
             self.logger.debug("set_pos: %d", pos)
         except Exception as e: # pylint: disable=W0718
@@ -296,7 +296,7 @@ class SMC8Attenuator(HispecDriverDaemon): #pylint: disable = W0223
             return {"ok": False, "error": "Not connected to hardware"}
 
         try:
-            atten = self.dev.get_attenuation()
+            atten = self.controller.get_attenuation()
             if atten is None:
                 raise RuntimeError("Driver failed to read the attenuation")
             self.logger.debug("get_atten: %s", atten)
@@ -319,7 +319,7 @@ class SMC8Attenuator(HispecDriverDaemon): #pylint: disable = W0223
             return self._fail(message)
 
         try:
-            if not self.dev.set_attenuation(atten):
+            if not self.controller.set_attenuation(atten):
                 raise RuntimeError(f"Driver refused the move to {atten} dB")
             self.logger.debug("set_atten: %s", atten)
         except Exception as e: # pylint: disable=W0718
