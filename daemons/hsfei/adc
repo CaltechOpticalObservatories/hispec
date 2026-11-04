@@ -95,12 +95,9 @@ class _Stage:
         """Return the current stage position in degrees."""
         return self.controller.get_pos(self.stage_id)
 
-    def stop(self) -> None:
-        """Halt motion on this stage.
-        """
-        # The SMC100PP doesn't have a separate "halt" command; this will be implemented
-        # once the driver supports it. For now, just log a warning.
-        self.daemon.logger.warning("Halt command not implemented for stage %d", self.stage_id)
+    def stop(self) -> str:
+        """Halt motion on this stage."""
+        return self.controller.stop(self.stage_id)
 
     def _hard_limits(self) -> tuple:
         limits = self.controller.get_limits()
