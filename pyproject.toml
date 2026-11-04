@@ -46,6 +46,11 @@ dependencies = [
 atcam = [
     "camera-interface-tracking@git+ssh://git@github.com/CaltechOpticalObservatories/hispec-tracking-camera-instrument.git",
 ]
+# The SHM and FITS viewer; install.sh adds it on feiserver and hispecserver.
+# atlas needs Python 3.12, older than hispec's floor
+atlas = [
+    "atlas@git+https://github.com/CaltechOpticalObservatories/atlas.git ; python_version >= '3.12'",
+]
 # Plotting and FITS for the engineering scripts under scripts/, which no daemon
 # imports: install.sh --extra scripts
 scripts = [

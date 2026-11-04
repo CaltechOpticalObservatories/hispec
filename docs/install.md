@@ -64,10 +64,13 @@ activating anything.
    (`hispecserver`, `feiserver`, ...). Leave it out to use the short hostname.
    It is written once, to `/etc/hispec/host`; edit that file to change it.
 
-   On `feiserver` the installer also builds the tracking camera module into
-   the venv (the `atcam` extra); any other role is refused it. Other extras
-   are added with `--extra <name>` and recorded in `/etc/hispec/extras`, so
-   later runs keep them; `hispec doctor` reports one that has gone missing.
+   Some extras come with the role. On `feiserver` the installer builds the
+   tracking camera module into the venv (the `atcam` extra), which any other
+   role is refused. On `feiserver` and `hispecserver` it installs atlas, the
+   shared-memory and FITS viewer (the `atlas` extra), which needs a graphical
+   session such as `ssh -Y`. Other extras are added with `--extra <name>` and
+   recorded in `/etc/hispec/extras`, so later runs keep them; `hispec doctor`
+   reports one that has gone missing.
 
    Before `hispec deploy hsfei_atcam` on `feiserver`, put the ACF at
    `/etc/hispec/hispecatc.acf` and create `/opt/hispec/data` writable by
@@ -115,6 +118,38 @@ HISPEC only supplies `src/hispec/cli/instrument.toml`.
 Neither adding a daemon nor picking up code changes needs it. A
 `git -C /opt/hispec/app pull` followed by `hispec deploy` or `hispec restart`
 covers both, with no `sudo`.
+
+## Changing an extra's code on a host
+
+Extras install from GitHub, so a host has no source for them to edit. To change
+one on the host that runs it, clone it into `/opt/hispec/extra/`; `install.sh`
+then builds that extra from the clone instead:
+
+| Clone | Replaces | After an edit |
+|---|---|---|
+| `hispec-tracking-camera-instrument` | the camera module (`atcam`) | `sudo /opt/hispec/app/systemd/install.sh`, then `hispec restart hsfei_atcam` |
+| `camera-interface` | the core that module builds against; only with the clone above | the same |
+| `atlas` | the viewer (`atlas`), installed editable | restart `atlas` |
+
+```bash
+sudo mkdir -p /opt/hispec/extra && cd /opt/hispec/extra
+# private: cloned with the host's deploy key
+sudo env GIT_SSH_COMMAND="ssh -i /etc/hispec/deploy-key -o IdentitiesOnly=yes" \
+  git clone git@github.com:CaltechOpticalObservatories/hispec-tracking-camera-instrument.git
+sudo git clone https://github.com/CaltechOpticalObservatories/camera-interface.git
+sudo git clone https://github.com/CaltechOpticalObservatories/atlas.git
+sudo /opt/hispec/app/systemd/install.sh
+```
+
+Clone only what you need. `install.sh` refuses a clone for an extra this host
+does not install, hands the clones to `hispec-ops` and lets operators run git in
+them, and prints which local sources it used. `hispec doctor` warns while any
+clone is present, with its branch and anything uncommitted or not on GitHub.
+
+`hotfix` does not cover these. Keep a change with a commit, push and pull
+request from the clone; pushing needs a GitHub account with access, since the
+deploy key only reads. To go back to the GitHub build, remove the clone and
+re-run `install.sh`.
 
 ## Development checkouts
 

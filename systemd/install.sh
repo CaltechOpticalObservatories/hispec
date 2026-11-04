@@ -8,8 +8,13 @@
 #   sudo ./systemd/install.sh --extra scripts    # ... with an optional extra
 #
 # Extras are recorded in /etc/hispec/extras, and every later run syncs them
-# again. The atcam extra follows the host role instead: feiserver always gets
-# the tracking camera module, and any other role is refused it.
+# again. Some follow the host role: feiserver always gets atcam, the tracking
+# camera module, which any other role is refused; feiserver and hispecserver
+# always get atlas, the viewer.
+#
+# A clone in /opt/hispec/extra/ replaces the GitHub build of its extra, for
+# changing that code on this host; see docs/install.md. Remove the clone and
+# re-run to go back.
 #
 # Re-run it to enrol operators, after a dependency change, or to repair a host.
 # It is NOT part of adding a daemon: once a host is set up, operators do that
@@ -31,6 +36,12 @@ EXTRAS_FILE="${HISPEC_ETC_DIR:-/etc/hispec}/extras"
 HOST_FILE="${HISPEC_ETC_DIR:-/etc/hispec}/host"
 CAMERA_EXTRA=atcam
 CAMERA_ROLE=feiserver
+VIEWER_EXTRA=atlas
+VIEWER_ROLES=(feiserver hispecserver)
+EXTRA_DIR="${HISPEC_EXTRA_DIR:-/opt/hispec/extra}"
+INSTRUMENT_SRC="$EXTRA_DIR/hispec-tracking-camera-instrument"
+CORE_SRC="$EXTRA_DIR/camera-interface"
+VIEWER_SRC="$EXTRA_DIR/atlas"
 DEPLOY_KEY="${HISPEC_ETC_DIR:-/etc/hispec}/deploy-key"
 UV_VERSION="${HISPEC_UV_VERSION:-0.12.23}"
 # Its own copy rather than whatever uv is on PATH, since a snap refreshes
@@ -88,6 +99,25 @@ elif printf '%s\n' "${EXTRAS[@]}" | grep -qx "$CAMERA_EXTRA"; then
     echo "Drop --extra $CAMERA_EXTRA, or remove it from $EXTRAS_FILE." >&2
     exit 1
 fi
+if printf '%s\n' "${VIEWER_ROLES[@]}" | grep -qx "$ROLE"; then
+    EXTRAS+=("$VIEWER_EXTRA")
+fi
+
+has_extra() {
+    printf '%s\n' "${EXTRAS[@]}" | grep -qx "$1"
+}
+
+# A clone only replaces an extra this host installs; checked before syncing
+for source in "$INSTRUMENT_SRC:$CAMERA_EXTRA" "$CORE_SRC:$CAMERA_EXTRA" "$VIEWER_SRC:$VIEWER_EXTRA"; do
+    if [[ -d ${source%:*} ]] && ! has_extra "${source#*:}"; then
+        echo "error: ${source%:*} is for the ${source#*:} extra, which this host ('$ROLE') does not install." >&2
+        exit 1
+    fi
+done
+if [[ -d $CORE_SRC && ! -d $INSTRUMENT_SRC ]]; then
+    echo "error: $CORE_SRC is only built through $INSTRUMENT_SRC, which is missing." >&2
+    exit 1
+fi
 
 if ((${#EXTRAS[@]})); then
     mapfile -t EXTRAS < <(printf '%s\n' "${EXTRAS[@]}" | sort -u)
@@ -119,6 +149,22 @@ fi
     # the root project and leaves their dependencies out
     "$UV_BIN" sync --all-packages "${EXTRA_FLAGS[@]}"
 )
+
+# Local clones go in after the sync, which installs every extra from GitHub
+LOCAL_FLAGS=(--python "$VENV_DIR/bin/python" --no-deps --reinstall --no-cache)
+if [[ -d $INSTRUMENT_SRC ]]; then
+    CORE_FLAGS=()
+    if [[ -d $CORE_SRC ]]; then
+        CORE_FLAGS=(-C "cmake.define.FETCHCONTENT_SOURCE_DIR_CAMERA_INTERFACE=$CORE_SRC")
+    fi
+    "$UV_BIN" pip install "${LOCAL_FLAGS[@]}" "${CORE_FLAGS[@]}" "$INSTRUMENT_SRC"
+    echo "local source: $INSTRUMENT_SRC${CORE_FLAGS:+, against $CORE_SRC}"
+fi
+if [[ -d $VIEWER_SRC ]]; then
+    # Editable, so a Python edit takes effect the next time atlas starts
+    "$UV_BIN" pip install "${LOCAL_FLAGS[@]}" --editable "$VIEWER_SRC"
+    echo "local source: $VIEWER_SRC"
+fi
 
 # Only once the sync accepted them, so a mistyped extra is not kept
 if ((${#EXTRAS[@]})); then
