@@ -21,23 +21,23 @@ class EatonPdu(PduDaemon): #pylint: disable = W0223
 
     def __init__(self):
         super().__init__()
-        self.dev = EatonEMAT(log=True)
+        self.controller = EatonEMAT(log=True)
 
     def connect(self) -> bool:
-        return bool(self.dev.connect(self.host, self.port,
+        return bool(self.controller.connect(self.host, self.port,
                                      username=self.username, password=self.password))
 
     def disconnect(self) -> None:
-        self.dev.disconnect()
+        self.controller.disconnect()
 
     def is_connected(self) -> bool:
-        return bool(self.dev.is_connected())
+        return bool(self.controller.is_connected())
 
     def initialize(self) -> bool:
-        return bool(self.dev.initialize())
+        return bool(self.controller.initialize())
 
     def reported_outlet_count(self) -> Optional[int]:
-        return self.dev.outlet_count or None
+        return self.controller.outlet_count or None
 
     def get_model(self) -> str:
         return self._device("model")
@@ -50,14 +50,14 @@ class EatonPdu(PduDaemon): #pylint: disable = W0223
 
     def set_outlet_state(self, n: int, on: bool) -> None:
         on = bool(on)
-        self._confirm(self.dev.outlet_on(n) if on else self.dev.outlet_off(n),
+        self._confirm(self.controller.outlet_on(n) if on else self.controller.outlet_off(n),
                       f"switch outlet {n} {'on' if on else 'off'}")
 
     def get_outlet_name(self, n: int) -> str:
         return str(self._outlet(n, "name"))
 
     def set_outlet_name(self, n: int, name: str) -> None:
-        self._confirm(self.dev.set_outlet_name(n, str(name)), f"rename outlet {n}")
+        self._confirm(self.controller.set_outlet_name(n, str(name)), f"rename outlet {n}")
 
     def get_outlet_switchable(self, n: int) -> bool:
         return bool(self._outlet(n, "switchable"))
@@ -65,9 +65,9 @@ class EatonPdu(PduDaemon): #pylint: disable = W0223
     def set_outlet_switchable(self, n: int, switchable: bool) -> None:
         # The driver has no setter for Switchable, so build one from its GET
         # template rather than repeating the OID here.
-        path = self.dev.get_outlet_commands["switchable"][0].format(n=n)
+        path = self.controller.get_outlet_commands["switchable"][0].format(n=n)
         cmd = f"set {path} {1 if switchable else 0}"
-        self._confirm(self.dev._send_command(cmd),  # pylint: disable=protected-access
+        self._confirm(self.controller._send_command(cmd),  # pylint: disable=protected-access
                       f"set outlet {n} switchable state")
 
     def get_manufacturer(self) -> str:
@@ -95,7 +95,7 @@ class EatonPdu(PduDaemon): #pylint: disable = W0223
         value = int(value)
         if value not in (0, 1, 2):
             raise ValueError("auto-restart must be 0 (not powered), 1 (powered) or 2 (last state)")
-        self._confirm(self.dev.set_autostart(n, value), f"set outlet {n} auto-restart")
+        self._confirm(self.controller.set_autostart(n, value), f"set outlet {n} auto-restart")
 
     def get_outlet_energy(self, n: int) -> int:
         """Outlet ``n`` energy since its last reset, in watt-hours."""
@@ -103,7 +103,7 @@ class EatonPdu(PduDaemon): #pylint: disable = W0223
 
     def reset_outlet_statistics(self, n: int) -> None:
         """Zero outlet ``n`` energy statistics on the PDU."""
-        self._confirm(self.dev.reset_statistics(n), f"reset outlet {n} statistics")
+        self._confirm(self.controller.reset_statistics(n), f"reset outlet {n} statistics")
 
     def register_device_keywords(self) -> None:
         super().register_device_keywords()
@@ -153,14 +153,14 @@ class EatonPdu(PduDaemon): #pylint: disable = W0223
 
     def _device(self, item: str) -> str:
         """Read a device item, which the driver names without an outlet."""
-        value = self.dev.get_atomic_value(item)
+        value = self.controller.get_atomic_value(item)
         if value is None:
             raise RuntimeError(f"failed to read '{item}' from PDU")
         return str(value)
 
     def _outlet(self, n: int, item: str):
         """Read an outlet item, which the driver names item + outlet number."""
-        value = self.dev.get_atomic_value(f"{item}{n}")
+        value = self.controller.get_atomic_value(f"{item}{n}")
         if value is None:
             raise RuntimeError(f"failed to read outlet {n} {item}")
         return value

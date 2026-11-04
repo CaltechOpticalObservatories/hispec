@@ -21,7 +21,7 @@ import time
 
 #from hispec.driver.inficon.inficonvgc502 import UnknownResponse
 
-from hispec import HispecDaemon
+from hispec import HispecDriverDaemon
 from hispec.driver.onewire.onewire import ONEWIRE
 
 # Keyword suffix, key in the driver's sensor dict, and label.
@@ -35,7 +35,7 @@ DEFAULT_POLL_TTL_S = 5.0
 
 
 # pylint: disable=too-many-instance-attributes
-class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
+class OneWireDaemon(HispecDriverDaemon):  # pylint: disable=W0223
     """Daemon for controlling the Onewire Metrology logger via keywords."""
 
     def __init__(self):
@@ -61,7 +61,7 @@ class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
         # when the count changes rather than on every poll.
         self._last_count = None
 
-    def on_start(self, libby):
+    def on_start(self, _libby):
         """Called when the daemon starts - register keywords and connect."""
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
@@ -79,12 +79,16 @@ class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
         self._register_sensor_keywords()
 
         self.keyword_registry.bool("isconnected",
-                                   getter=self.controller.is_connected,
+                                   getter=self._connected,
                                    setter=self._set_connected,
                                    description="OneWire controller is connected.")
         self.keyword_registry.string("error",
                                      getter=self._error_string,
                                      description="Last error from the OneWire controller.")
+        self.keyword_registry.string("status",
+                                     getter=self._status,
+                                     description="Status of the device driver as a "
+                                                 "(code, message) string.")
         self.keyword_registry.trigger("shutdown",
                                       action=self._shutdown,
                                       description="Shutdown the daemon now.")
@@ -238,13 +242,7 @@ class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
             count, self.n_sensors,
             [sensor.get("rom_id") for sensor in sensors])
 
-    def _shutdown(self):
-        """Shutdown the daemon"""
-        self.logger.info("Shutting down")
-        # on_stop handles teardown; a driver error here would block shutdown
-        self.request_stop()
-
-    def on_stop(self, libby=None):
+    def on_stop(self, _libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:
@@ -259,7 +257,7 @@ class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
                          self.ip_address, self.tcp_port)
         self.controller.connect(host=self.ip_address, port=int(self.tcp_port))
         # The drivers signal failure by staying disconnected rather than raising
-        if not self.controller.is_connected():
+        if not self._connected():
             raise RuntimeError(
                 f"no connection to {self.ip_address}:{self.tcp_port}")
         self.controller.initialize()
@@ -269,6 +267,12 @@ class OneWireDaemon(HispecDaemon):  # pylint: disable=W0223
             self._connect_hardware()
         else:
             self.controller.disconnect()
+
+    def _status(self):
+        """Return the status of the driver."""
+        if not self.controller.initialized:
+            return str((-1, "ERROR: Hardware not initialized"))
+        return str(self.controller.get_status())
 
     def _error_string(self) -> str:
         """Return last error string"""

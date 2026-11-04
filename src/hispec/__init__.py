@@ -1,8 +1,13 @@
 """HISPEC instrument control software."""
 
-__all__ = [
-    "HispecDaemon",  # pylint: disable=undefined-all-variable
-]
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Seen by IDEs and linters only; at runtime __getattr__ below imports lazily.
+    from .daemon import HispecDaemon
+    from .driverdaemon import HispecDriverDaemon
+
+__all__ = ["HispecDaemon", "HispecDriverDaemon"]
 
 
 def __getattr__(name):
@@ -12,4 +17,7 @@ def __getattr__(name):
     if name == "HispecDaemon":
         from .daemon import HispecDaemon  # pylint: disable=import-outside-toplevel
         return HispecDaemon
+    if name == "HispecDriverDaemon":
+        from .driverdaemon import HispecDriverDaemon  # pylint: disable=import-outside-toplevel
+        return HispecDriverDaemon
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

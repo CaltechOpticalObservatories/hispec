@@ -8,14 +8,14 @@ Exposes the Sunpower cryocooler commands as libby keywords.
 import argparse
 import sys
 
-from hispec import HispecDaemon
+from hispec import HispecDriverDaemon
 from hispec.driver.sunpower.sunpower_cryocooler import SunpowerCryocooler
 
 # Errors the driver raises, or lets through, when a command goes wrong.
 HARDWARE_ERRORS = (IOError, ValueError, IndexError, TypeError)
 
 
-class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
+class AtcCryoDaemon(HispecDriverDaemon):  # pylint: disable=W0223
     """Daemon for controlling the ATC Sunpower cryocooler via keywords."""
 
     # Control modes accepted by the cryocooler's COOLER command.
@@ -34,7 +34,7 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
         self.start_time = None
         self.controller = SunpowerCryocooler(log=True)
 
-    def on_start(self, libby):
+    def on_start(self, _libby):
         """Called when the daemon starts - register keywords and connect."""
 
         # from_config populates _config after __init__, so read it here
@@ -44,11 +44,15 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
         self.logger.info("Starting %s daemon", self.peer_id)
 
         self.keyword_registry.bool("isconnected",
-                                   getter=self.controller.is_connected,
+                                   getter=self._connected,
                                    setter=self._set_connected,
                                    description="Sunpower Cryocooler is connected.")
         self.keyword_registry.string("status",
-                                     getter=self._get_status,
+                                     getter=self._status,
+                                     description="Status of the device driver as a "
+                                                 "(code, message) string.")
+        self.keyword_registry.string("cooler_status",
+                                     getter=self._get_cryo_status,
                                      description="Full status report from the cryocooler.")
         self.keyword_registry.int("cooler_error",
                                   getter=self._get_cooler_error,
@@ -135,13 +139,7 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
             self._write(f"pid_{term}", getattr(self.controller, f"set_pid_{term}"), value)
         return setter
 
-    def _shutdown(self):
-        """Shutdown the daemon"""
-        self.logger.info("Shutting down")
-        self.controller.disconnect()
-        self.request_stop()
-
-    def on_stop(self, libby=None):
+    def on_stop(self, _libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:
@@ -155,7 +153,7 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
                          self.ip_address, self.tcp_port)
         self.controller.connect(host=self.ip_address, port=int(self.tcp_port))
         # The drivers signal failure by staying disconnected rather than raising
-        if not self.controller.is_connected():
+        if not self._connected():
             raise RuntimeError(
                 f"no connection to {self.ip_address}:{self.tcp_port}")
         self.controller.initialize()
@@ -170,7 +168,7 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
         """Call a controller getter, reporting any failure via lasterror."""
         # The driver logs 'not connected' to its own logger, where lasterror
         # cannot see it, and then reports the read as an unparsable reply.
-        if not self.controller.is_connected():
+        if not self._connected():
             self.logger.error("Cannot read %s: not connected to the cryocooler", label)
             return default
         try:
@@ -214,7 +212,7 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
 
     def _write(self, label, setter, *args):
         """Send a set command, raising RuntimeError if the cooler does not take it."""
-        if not self.controller.is_connected():
+        if not self._connected():
             self.logger.error("Cannot set %s: not connected to the cryocooler", label)
             raise RuntimeError(f"Cannot set {label}: not connected to the cryocooler")
         try:
@@ -228,7 +226,7 @@ class AtcCryoDaemon(HispecDaemon):  # pylint: disable=W0223
             raise RuntimeError(f"No reply setting {label}")
         return reply
 
-    def _get_status(self) -> str:
+    def _get_cryo_status(self) -> str:
         """Read the full status report from the Sunpower Cryocooler"""
         return self._read_string("status", self.controller.get_status)
 

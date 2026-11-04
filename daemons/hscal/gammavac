@@ -8,11 +8,11 @@ Exposes the Gamma Vacuum Vac-Ion pressure commands as libby keywords.
 import argparse
 import sys
 
-from hispec import HispecDaemon
+from hispec import HispecDriverDaemon
 from hispec.driver.gammavac.SPCe import SpceController
 
 # pylint: disable=too-many-instance-attributes
-class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
+class GammaVacDaemon(HispecDriverDaemon):  # pylint: disable=W0223
     """Daemon for controlling the Gamma Vacuum Vac-Ion pressure gauges via keywords."""
 
     def __init__(self):
@@ -30,7 +30,7 @@ class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
         self.controller = SpceController(log=True, bus_address=self.bus_address)
         self.daemon_description = "Gamma Vacuum Vac-Ion Pressure Daemon"
 
-    def on_start(self, libby):
+    def on_start(self, _libby):
         """Called when the daemon starts - register keywords and connect."""
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
@@ -51,7 +51,7 @@ class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
                                                  "pressure controller.")
         self.keyword_registry.string("status",
                                      getter=self._status,
-                                     description="Status of the GammaVac as a "
+                                     description="Status of the device driver as a "
                                                  "(code, message) string.")
         self.keyword_registry.string("model",
                                      getter=self.controller.read_model,
@@ -106,13 +106,7 @@ class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
             self.error = str(e)
             self.logger.warning("Daemon will start but hardware is not available")
 
-    def _shutdown(self):
-        """Shutdown the daemon"""
-        self.logger.info("Shutting down")
-        # on_stop handles teardown; a driver error here would block shutdown
-        self.request_stop()
-
-    def on_stop(self, libby=None):
+    def on_stop(self, _libby=None):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:
@@ -138,12 +132,6 @@ class GammaVacDaemon(HispecDaemon):  # pylint: disable=W0223
             self._connect_hardware()
         else:
             self.controller.disconnect()
-
-    def _status(self):
-        """Handles status."""
-        if not self.controller.is_connected():
-            return str((-1, "ERROR: Not connected to hardware"))
-        return str(self.controller.get_status())
 
     def _get_pressure(self):
         """Read the pressure from the Gamma Vacuum Vac-Ion Pressure controller"""

@@ -18,14 +18,14 @@ import sys
 from typing import Any, Dict, Optional
 
 import hispec.driver.pdu  # pylint: disable=E0611
-from hispec.daemon import HispecDaemon  # pylint: disable=E0611
+from hispec.driverdaemon import HispecDriverDaemon  # pylint: disable=E0611
 
 _DRIVER_SRC = str(pathlib.Path(next(iter(hispec.driver.pdu.__path__))) / "src")
 if _DRIVER_SRC not in sys.path:
     sys.path.insert(0, _DRIVER_SRC)
 
 
-class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
+class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-methods
     """Base class for a daemon that controls one networked PDU."""
 
     # Port used when the config leaves hardware.tcp_port out.
@@ -34,7 +34,7 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
     def __init__(self):
         """Initialize the PDU daemon.
 
-        A subclass calls this first, then sets self.dev to its vendor driver.
+        A subclass calls this first, then sets self.controller to its vendor driver.
         """
         super().__init__()
 
@@ -44,7 +44,6 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
         self.password = None
         self.outlet_count = 0
         self.outlet_names: Dict[int, str] = {}
-        self.dev = None
         self.daemon_desc = "PDU Daemon"
 
         # Daemon state
@@ -163,7 +162,7 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
             return func(*args, *value)
         return call
 
-    def on_start(self, libby): #pylint: disable=W0613
+    def on_start(self, _libby):
         """Starts up daemon and initializes the hardware device."""
         self.host = self.get_config("hardware.ip_address")
         self.port = self._opt_int(self.get_config("hardware.tcp_port")) or self.default_port
@@ -206,7 +205,7 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
             return
         self.logger.info("Initialized %s", self.daemon_desc)
 
-    def on_stop(self, libby) -> None: #pylint: disable=W0222,W0613
+    def on_stop(self, _libby) -> None: # pylint: disable=W0222
         """Stops the daemon and disconnects from hardware device."""
         if self._set_connected(False).get("ok"):
             self.logger.info("Disconnected %s", self.daemon_desc)
@@ -235,10 +234,6 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
         self.register_device_keywords()
         for n in range(1, self.outlet_count + 1):
             self.register_outlet_keywords(n)
-
-    def _connected(self) -> bool:
-        """True when the driver holds an open session to the PDU."""
-        return self.dev is not None and bool(self.is_connected())
 
     def _set_connected(self, connect):
         """Handles connection."""
@@ -275,18 +270,6 @@ class PduDaemon(HispecDaemon):  # pylint: disable=W0223,too-many-public-methods
         except Exception as e: # pylint: disable=W0718
             return self._fail(str(e))
         return {"ok": True}
-
-    def _status(self):
-        """Handles status."""
-        if not self._connected():
-            return str((-1, "ERROR: Not connected to hardware"))
-        return str(self.dev.get_status())
-
-    def _shutdown(self):
-        """Shutdown the daemon"""
-        self.logger.info("Shutting down")
-        self.disconnect()
-        self.request_stop()
 
     @staticmethod
     def _confirm(ok, action: str) -> None:
