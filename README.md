@@ -66,14 +66,16 @@ without reinstalling. Run commands through `uv run <command>`, or activate
 workspace members, and a plain `uv sync` installs only this package's own
 dependencies, leaving theirs out.
 
-`uv.lock` is not committed while the git dependencies deliberately track their
-default branches. It still records which commit of libby, bamboo and the rest
-your checkout resolved to, which is how to tell what you are running. `uv sync`
-reuses that lock once it exists, so pick up a merged dependency change with:
+`uv.lock` is committed: it pins the exact commit of libby, instrumentctl and
+every other git dependency, and a release tag pins the lock. `uv sync` installs
+what it records. To move the dependencies forward, update it in a PR:
 
 ```bash
 uv lock --upgrade && uv sync --all-packages
 ```
+
+Hosts run releases rather than `main`; see [docs/install.md](docs/install.md) for how to cut
+one.
 
 ## Submodules
 
