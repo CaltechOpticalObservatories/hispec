@@ -268,6 +268,12 @@ class OneWireDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         else:
             self.controller.disconnect()
 
+    def _status(self):
+        """Return the status of the driver."""
+        if not self.controller.initialized:
+            return str((-1, "ERROR: Hardware not initialized"))
+        return str(self.controller.get_status())
+
     def _error_string(self) -> str:
         """Return last error string"""
         return self.error
