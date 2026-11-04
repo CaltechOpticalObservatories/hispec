@@ -31,8 +31,9 @@ a host][install].
 | `tests/` | Driver unit tests. |
 | `etc/` | Vendored externals: `camera-interface`, `PIPython`. |
 | `scripts/` | Engineering and performance-analysis scripts. |
+| `gui/` | Operator GUIs (`hispec-gui`), a uv workspace member built with the rest of the ICS; launch with `hispec-lightpath`. |
 
-`Makefile`, `Mk.instrument`, `init.d/`, `qt/` and `daemons/hs{owenv,dewar,power,ssd}/`
+`Makefile`, `Mk.instrument`, `init.d/` and `daemons/hs{owenv,dewar,power,ssd}/`
 are from the original KROOT/KTL build and are no longer used; see
 [Architecture Evolution][evolution].
 

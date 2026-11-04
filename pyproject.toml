@@ -79,6 +79,7 @@ ignored-modules = [
     "paho",
     "pysnmp",
     "pytest",
+    "PySide6",
     "scipy",
     "serial",
     "zmq",
@@ -95,8 +96,9 @@ ignored-modules = [
 # The vendor drivers are vendored as submodules so they can be fixed in place,
 # but their own dependencies still have to reach the environment. tracking_camera
 # and fib are HISPEC's own code with no pyproject, so they are not members.
+# gui/ is built with the rest of the ICS, so every host gets the operator GUIs.
 [tool.uv.workspace]
-members = ["src/hispec/driver/*"]
+members = ["src/hispec/driver/*", "gui"]
 exclude = ["src/hispec/driver/tracking_camera", "src/hispec/driver/fib"]
 
 [tool.uv]

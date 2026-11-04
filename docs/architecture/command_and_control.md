@@ -74,7 +74,8 @@ scripts.
 
 **Direct RPC** — `libby.rpc(peer, key, payload)` underneath both of the above.
 
-There is no GUI client at present.
+**GUI** — `gui/` holds the operator GUIs. The light path GUI
+(`hispec-lightpath`) runs on mock data until it is connected to the daemons.
 
 ## Validation and safety
 

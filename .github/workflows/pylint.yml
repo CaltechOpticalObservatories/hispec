@@ -37,7 +37,7 @@ jobs:
         echo "Excluding submodules:"
         echo "$submodules"
 
-        files=$(git ls-files '*.py' | grep -v '^qt/' | grep -v -E -f <(echo "$submodules" | sed 's|^|^|; s|$|/|') || true)
+        files=$(git ls-files '*.py' | grep -v -E -f <(echo "$submodules" | sed 's|^|^|; s|$|/|') || true)
 
         if [ -z "$files" ]; then
           echo "No Python files to lint"

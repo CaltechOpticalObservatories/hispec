@@ -1,0 +1,30 @@
+# HISPEC operator GUIs: a uv workspace member, built with the rest of the ICS.
+# Kept out of the hispec package itself, they reach the daemons through the
+# hispec API like any other client.
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hispec-gui"
+version = "0.1.0"
+description = "HISPEC operator GUIs"
+authors = [
+    { name="Prakriti Gupta", email="pgupta@astro.caltech.edu" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "hispec",
+    # 6.5 for QStyleHints.colorScheme, which picks the starting theme
+    "PySide6>=6.5",
+]
+
+[project.scripts]
+hispec-lightpath = "hispec_gui.lightpath.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["hispec_gui", "hispec_gui.*"]
+
+[tool.uv.sources]
+hispec = { workspace = true }
