@@ -95,7 +95,7 @@ class _Stage:
         """Return the current stage position in degrees."""
         return self.controller.get_pos(self.stage_id)
 
-    def stop(self) -> None:
+    def stop(self) -> str:
         """Halt motion on this stage."""
         return self.controller.stop(self.stage_id)
 
