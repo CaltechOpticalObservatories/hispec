@@ -27,6 +27,15 @@ example_subsystem = "hsfei"
 # the credential itself
 key_suffix = "_env"
 
+# libby's telemetry backend runs on hispecserver (hispec.caltech.edu). Prometheus,
+# Tempo and Loki answer on every interface for the Grafana on meridian; the
+# host firewall limits who reaches them
+[telemetry]
+backend_host = "hispecserver"
+query_bind = "0.0.0.0"
+metrics_retention = "5y"
+trace_retention = "336h"
+
 # Installed by older versions. doctor reports them so a host that predates the
 # rename is recognised rather than looking merely misconfigured.
 [legacy]

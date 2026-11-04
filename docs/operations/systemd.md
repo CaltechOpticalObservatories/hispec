@@ -492,6 +492,26 @@ libby show   hispec.keygrabber.%.%               # per-collection cadence
 libby modify hispec.keygrabber.reload=1          # re-read the config file
 ```
 
+### Telemetry
+
+The daemons can export OpenTelemetry traces and request metrics, and every
+host can ship its daemon logs and host metrics, to the telemetry backend on
+`hispecserver`: an OpenTelemetry Collector with Prometheus, Tempo and Loki
+behind it, read by the Grafana on meridian. `[telemetry]` in
+`src/hispec/cli/instrument.toml` names the host and the retention.
+
+On `hispecserver`, `hispec install` fetches the pinned binaries and renders
+`hispec-otelcol`, `hispec-prometheus`, `hispec-tempo` and `hispec-loki`. On any
+host, writing `/etc/hispec/otel.env` turns telemetry on:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://hispec.caltech.edu:4318
+```
+
+Then re-run `hispec install`, which also fetches the agent, and restart the
+daemons. `install` prints the `systemctl enable` lines for the units, and
+`hispec doctor` checks each piece. Without `otel.env` nothing is exported.
+
 ## Host setup (admins)
 
 Installing and re-running `install.sh` is described in {doc}`../install`.

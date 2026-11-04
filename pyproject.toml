@@ -33,7 +33,8 @@ dependencies = [
     # MQTT 5 transport for the FIB PCBs in hispec.driver.fib
     "paho-mqtt>=2",
     # influxdb extra: needed by daemons/generic/keygrabber
-    "libby[influxdb]@git+https://github.com/CaltechOpticalObservatories/libby.git",
+    # otel extra: OpenTelemetry export, on once /etc/hispec/otel.env names the backend
+    "libby[influxdb,otel]@git+https://github.com/CaltechOpticalObservatories/libby.git",
     "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base",
     "instrumentctl@git+https://github.com/CaltechOpticalObservatories/instrumentctl.git",
     "camera_daemon@git+https://github.com/COO-Utilities/camera-daemon.git"
