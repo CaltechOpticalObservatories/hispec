@@ -126,6 +126,11 @@ To cut one:
    git push origin hispec-0.2
    ```
 
+Pushing the tag runs the Release workflow, which creates the GitHub release
+from the tag message and posts it to Slack. It refuses a lightweight tag, so
+always tag with `-a`. To announce a tag again, run the workflow by hand from
+the Actions tab.
+
 `install.sh` picks the newest `hispec-*` tag. `--ref` installs something else
 on purpose, a branch or an older tag, e.g. to try `main` on one host:
 
