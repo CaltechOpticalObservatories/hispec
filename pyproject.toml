@@ -34,7 +34,7 @@ dependencies = [
     "paho-mqtt>=2",
     # influxdb extra: needed by daemons/generic/keygrabber
     # otel extra: OpenTelemetry export, on once /etc/hispec/otel.env names the backend
-    "libby[influxdb,otel]@git+https://github.com/CaltechOpticalObservatories/libby.git",
+    "libby[influxdb,otel]@git+https://github.com/CaltechOpticalObservatories/libby.git@libby-0.1.0",
     "hardware_device_base@git+https://github.com/COO-Utilities/hardware_device_base",
     "instrumentctl@git+https://github.com/CaltechOpticalObservatories/instrumentctl.git",
     "camera_daemon@git+https://github.com/COO-Utilities/camera-daemon.git"
