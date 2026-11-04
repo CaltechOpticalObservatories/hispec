@@ -6,30 +6,25 @@ everything common to any camerad camera.
 
 ## Prerequisite
 
-pycamerad wraps a pybind11 module built from
-[camera-interface](https://github.com/CaltechOpticalObservatories/camera-interface).
-It is a compiled extension built per instrument rather than a package on an
-index, so it cannot be a dependency in `pyproject.toml` and has to be built
-and installed separately.
+pycamerad wraps `camera_interface_tracking`, a pybind11 module built from
+[hispec-tracking-camera-instrument](https://github.com/CaltechOpticalObservatories/hispec-tracking-camera-instrument)
+against [camera-interface](https://github.com/CaltechOpticalObservatories/camera-interface).
+It is compiled per instrument, so it comes with the `atcam` extra, which
+`systemd/install.sh` installs on `feiserver` only. To change its code on that
+host, see "Changing an extra's code on a host" in `docs/install.md`.
 
-Clone it wherever you keep sources and install into whichever environment you
-run hispec from, alongside hispec itself:
+Anywhere else, install it into whichever environment runs hispec. The
+instrument repository is private:
 
 ```bash
-git clone --recursive https://github.com/CaltechOpticalObservatories/camera-interface
-pip install ./camera-interface/packaging/tracking
+pip install "camera-interface-tracking @ git+ssh://git@github.com/CaltechOpticalObservatories/hispec-tracking-camera-instrument.git"
 ```
 
-That package fixes the instrument and names the module
-`camera_interface_tracking`, which is what `TrackingCamera.MODULE_NAME` loads.
-Building a second instrument under its own name lets both live in one
-environment. Add `--config-settings=cmake.define.ENABLE_SHM_OUTPUT=ON` for the
-shared-memory output, and `cmake.define.ImageStreamIO_DIR=<dir>` if
-ImageStreamIO is not under `/usr/local/lib/cmake`.
-
-The import then works with no `PYTHONPATH`, and `camerad` is on `PATH`
-whenever that environment is active. pybind11 is fetched into an isolated
-build environment, so it never has to be installed by hand.
+The module is named `camera_interface_tracking`, which is what
+`TrackingCamera.MODULE_NAME` loads, so it can share an environment with other
+instruments' builds. The shared-memory output is on in that package and needs
+ImageStreamIO, found under `/usr/local` with no flags; for another prefix add
+`--config-settings=cmake.define.ImageStreamIO_DIR=<prefix>/lib/cmake`.
 
 ### Build dependencies
 
