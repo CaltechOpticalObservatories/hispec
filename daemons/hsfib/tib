@@ -1,0 +1,203 @@
+#!/usr/bin/env python3
+"""
+FIB Trunk Interface Box Daemon
+
+Exposes the read-only state of the FIB trunk interface box (TIB) as libby
+keywords. The board is reached over MQTT 5 through `hardware.broker` by its
+device name, `hardware.device`.
+
+Switch and route keywords are named from what the board reports when it
+connects, `mems_<switch>` and `route_<output>`, since the firmware owns those
+names. They are registered on the first successful connect, so a board that
+is offline at startup gains them once `isconnected` is set.
+
+The driver only sends allowlisted queries, so nothing here can turn on a
+laser or change hardware state.
+"""
+
+import argparse
+import sys
+import threading
+import time
+
+from hispec import HispecDaemon
+from hispec.driver.fib import FibError, TrunkInterfaceBox
+from hispec.driver.fib.transport import DEFAULT_PORT
+
+# Long enough that a sweep of every keyword shares one query per kind
+DEFAULT_POLL_TTL_S = 1.0
+
+
+# pylint: disable=too-many-instance-attributes
+class TibDaemon(HispecDaemon):  # pylint: disable=W0223
+    """Daemon exposing the FIB trunk interface box via keywords."""
+
+    def __init__(self):
+        super().__init__()
+
+        self.device = None
+        self.broker = None
+        self.port = DEFAULT_PORT
+        self.poll_ttl_s = DEFAULT_POLL_TTL_S
+        self.tib = TrunkInterfaceBox(log=True)
+        self.daemon_description = "FIB Trunk Interface Box Daemon"
+
+        self._board_keywords_registered = False
+        self._cache = {}
+        self._cache_lock = threading.Lock()
+
+    def on_start(self, libby):  # pylint: disable=unused-argument
+        """Register keywords and connect to the board."""
+        self.device = self.get_config("hardware.device")
+        self.broker = self.get_config("hardware.broker")
+        self.port = int(self.get_config("hardware.port", DEFAULT_PORT))
+        self.poll_ttl_s = float(self.get_config("polling.ttl_s", DEFAULT_POLL_TTL_S))
+
+        self.logger.info("Starting %s daemon for %s via %s:%s",
+                         self.peer_id, self.device, self.broker, self.port)
+
+        self.keyword_registry.bool("isconnected",
+                                   getter=self._is_connected,
+                                   setter=self._set_connected,
+                                   description="TIB is connected and answering queries.")
+        self.keyword_registry.string("firmware",
+                                     getter=lambda: self._status().firmware,
+                                     description="TIB firmware version.")
+        self.keyword_registry.int("boots",
+                                  getter=lambda: self._status().boots,
+                                  description="TIB boot count.")
+        self.keyword_registry.float("ambienttemp",
+                                    getter=lambda: self._status().ambient_c,
+                                    units="degC", nullable=True,
+                                    description="TIB ambient temperature.")
+        self.keyword_registry.int("laserbankontime",
+                                  getter=lambda: self._status().laser_bank_on_s,
+                                  units="s",
+                                  description="Seconds the laser bank has been powered.")
+        self.keyword_registry.float("laserbanktemp",
+                                    getter=lambda: self._temps().laser_bank_c,
+                                    units="degC", nullable=True,
+                                    description="Mean temperature of the idle laser diodes; "
+                                                "null while every TEC is active or the bank is off.")
+        self.keyword_registry.trigger("shutdown",
+                                      action=self._shutdown,
+                                      description="Shutdown the daemon now.")
+
+        if not (self.device and self.broker):
+            self.logger.error("No hardware.device or hardware.broker specified")
+            return
+
+        try:
+            self._connect_hardware()
+            self.logger.info("Daemon started successfully and connected to hardware")
+        except FibError as e:
+            self.logger.error("Failed to connect to hardware: %s", e)
+            self.logger.warning("Daemon will start but hardware is not available")
+
+    def on_stop(self, libby=None):  # pylint: disable=unused-argument
+        """Disconnect from the board."""
+        self.logger.info("Shutting down %s daemon", self.peer_id)
+        self.tib.disconnect()
+
+    def _connect_hardware(self):
+        self.tib.connect(self.device, self.broker, self.port)
+        if not self._board_keywords_registered:
+            self._register_board_keywords()
+
+    def _register_board_keywords(self):
+        """Register a keyword per switch and per route output the board reports."""
+        for switch in self.tib.mems():
+            self.keyword_registry.string(
+                f"mems_{switch}",
+                getter=self._make_switch_getter(switch),
+                nullable=True,
+                description=f"Requested state (A, B or ?) of MEMS switch {switch}.")
+        for output in self.tib.options().route_outputs:
+            self.keyword_registry.string(
+                f"route_{output}",
+                getter=self._make_route_getter(output),
+                nullable=True,
+                description=f"Comma-separated inputs routed to {output}; empty when none.")
+        self.register_keywords(self.keyword_registry.drain())
+        self._board_keywords_registered = True
+
+    def _make_switch_getter(self, switch):
+        def getter():
+            entry = self._cached("mems", self.tib.mems).get(switch)
+            return entry.state if entry else None
+        return getter
+
+    def _make_route_getter(self, output):
+        def getter():
+            sources = self._cached("routes", self.tib.active_routes).get(output)
+            return None if sources is None else ",".join(sources)
+        return getter
+
+    def _status(self):
+        return self._cached("status", self.tib.board_status)
+
+    def _temps(self):
+        return self._cached("temps", self.tib.temps)
+
+    def _cached(self, name, fetch):
+        """Return fetch()'s result, reusing one younger than the poll TTL."""
+        with self._cache_lock:
+            now = time.monotonic()
+            fetched_at, value = self._cache.get(name, (None, None))
+            if fetched_at is not None and now - fetched_at < self.poll_ttl_s:
+                return value
+            try:
+                value = fetch()
+            except FibError as e:
+                self.logger.error("Failed to read %s from %s: %s", name, self.device, e)
+                raise
+            self._cache[name] = (now, value)
+            return value
+
+    def _is_connected(self) -> bool:
+        if not self.tib.is_connected():
+            return False
+        try:
+            self._status()
+        except FibError:
+            return False
+        return True
+
+    def _set_connected(self, value: bool) -> None:
+        if value:
+            self._connect_hardware()
+        else:
+            self.tib.disconnect()
+
+    def _shutdown(self):
+        """Shutdown the daemon"""
+        self.logger.info("Shutting down")
+        # on_stop handles teardown; a driver error here would block shutdown
+        self.request_stop()
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(description='FIB Trunk Interface Box Daemon')
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        daemon = TibDaemon.from_config_file(args.config)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e:  # pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
