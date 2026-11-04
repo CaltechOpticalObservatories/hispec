@@ -117,8 +117,10 @@ hispec release locks it in.
 
 To cut one:
 
-1. If dependencies should move, open a PR that runs `uv lock --upgrade` and
-   commits `uv.lock`, so the new commits are reviewed like any change.
+1. If dependencies should move, open a PR that updates them and commits
+   `uv.lock`, so the new commits are reviewed like any change. libby is pinned
+   to a release tag in `pyproject.toml`, so moving it means changing that tag;
+   `uv lock --upgrade` moves the others.
 2. Once it is on `main`, tag and push:
 
    ```bash
