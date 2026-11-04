@@ -12,11 +12,6 @@ broker.
   freerun   --freerun; one continuous session until --seconds or Ctrl-C
 
     run_atcam_script.py -m guiding -e rx -r 10 -a -n 300
-
-The broker credentials come from HISPEC_RABBITMQ_USER and
-HISPEC_RABBITMQ_PASSWORD, as for the daemons:
-
-    set -a; . /etc/hispec/secrets.env; set +a
 """
 
 import argparse
@@ -76,13 +71,18 @@ class Atcam:
         if self.get(name) != value:
             self.set(name, value)
 
-    def wait_idle(self, timeout_s=None):
-        """Wait for the run to settle; raise if it ends in error or times out."""
+    def wait_settled(self, timeout_s=None):
+        """Wait until no run is in progress and return the state it settled in."""
         deadline = None if timeout_s is None else time.monotonic() + timeout_s
         while (state := self.get("state")) in BUSY_STATES:
             if deadline is not None and time.monotonic() > deadline:
                 raise SystemExit(f"{self.daemon} still {state} after {timeout_s:.0f}s")
             time.sleep(POLL_S)
+        return state
+
+    def wait_idle(self, timeout_s=None):
+        """Wait for the run to settle; raise if it ends in error or times out."""
+        state = self.wait_settled(timeout_s)
         if state != STATE_IDLE:
             raise SystemExit(f"{self.daemon} ended in state {state}; "
                              f"lasterror: {self.get('lasterror')}")
@@ -168,7 +168,11 @@ def configure(atcam, args):
     """Apply the subframe mode, readout mode, geometry and exposure settings."""
     if args.init:
         atcam.trigger("initialize", timeout_s=INITIALIZE_TIMEOUT_S)
-    atcam.wait_idle()
+    # error only records how the previous run ended; the next expose clears it
+    if atcam.wait_settled() == STATE_ERROR:
+        print(f"previous run failed: {atcam.get('lasterror')}")
+    else:
+        atcam.wait_idle()
     atcam.ensure("autofetch", False)
     atcam.ensure("freerun", False)
     atcam.set("datacube", args.exposure in ("utr_rr", "utr_gr"))
@@ -232,16 +236,22 @@ def run_autofetch(atcam, args):
     started = time.monotonic()
     atcam.trigger("expose")
     print(f"autofetch running, {args.frames} frames; Ctrl-C to stop")
+    state = None
     try:
-        atcam.wait_idle()
+        state = atcam.wait_settled()
     except KeyboardInterrupt:
         print("\ninterrupted")
         stop_autofetch_run(atcam)
     else:
+        # Disarmed whatever the outcome: left armed, the Archon keeps pushing
+        # onto the connection every later command replies on
         atcam.set("autofetch", False)
     elapsed = time.monotonic() - started
     frames = atcam.get("frameswritten") - start_count
     print(f"{frames} frames in {elapsed:.2f}s = {frames / elapsed:.1f} fps")
+    if state == STATE_ERROR:
+        raise SystemExit(f"{atcam.daemon} ended in state error; "
+                         f"lasterror: {atcam.get('lasterror')}")
 
 
 def run_freerun(atcam, args):
