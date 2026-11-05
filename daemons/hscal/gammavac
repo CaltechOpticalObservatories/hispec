@@ -30,7 +30,7 @@ class GammaVacDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         self.controller = SpceController(log=True, bus_address=self.bus_address)
         self.daemon_description = "Gamma Vacuum Vac-Ion Pressure Daemon"
 
-    def on_start(self, libby):
+    def on_start(self):
         """Called when the daemon starts - register keywords and connect."""
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
@@ -106,7 +106,7 @@ class GammaVacDaemon(HispecDriverDaemon):  # pylint: disable=W0223
             self.error = str(e)
             self.logger.warning("Daemon will start but hardware is not available")
 
-    def on_stop(self, libby=None):
+    def on_stop(self):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:

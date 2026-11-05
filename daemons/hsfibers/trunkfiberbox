@@ -56,7 +56,7 @@ class TrunkFiberBoxDaemon(HispecDaemon):  # pylint: disable=W0223
         self._cache = {}
         self._cache_lock = threading.Lock()
 
-    def on_start(self, libby):  # pylint: disable=unused-argument
+    def on_start(self):  # pylint: disable=unused-argument
         """Register keywords and connect to the board."""
         self.device = self.get_config("hardware.device")
         self.broker = self.get_config("hardware.broker")
@@ -84,7 +84,7 @@ class TrunkFiberBoxDaemon(HispecDaemon):  # pylint: disable=W0223
             self.logger.error("Failed to connect to hardware: %s", e)
             self.logger.warning("Daemon will start but hardware is not available")
 
-    def on_stop(self, libby=None):  # pylint: disable=unused-argument
+    def on_stop(self):  # pylint: disable=unused-argument
         """Disconnect from the board."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         self.tib.disconnect()

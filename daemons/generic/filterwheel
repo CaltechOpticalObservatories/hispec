@@ -36,7 +36,7 @@ class Filterwheel(HispecDriverDaemon): #pylint: disable = W0223
             'connected': False,
         }
 
-    def on_start(self, libby):
+    def on_start(self):
         """Starts up daemon and initializies the hardware device"""
         self.host = self.get_config("hardware.ip_address")
         self.port = self.get_config("hardware.tcp_port")
@@ -184,7 +184,7 @@ class Filterwheel(HispecDriverDaemon): #pylint: disable = W0223
         # Sitting between named positions is a normal state, not an error.
         return {"ok": True, "named_pos": "", "position": current_pos}
 
-    def on_stop(self, libby=None) -> None: #pylint: disable=W0222
+    def on_stop(self) -> None: #pylint: disable=W0222
         """Stops the daemon and disconnects from hardware device"""
         try:
             self.connect(False)
