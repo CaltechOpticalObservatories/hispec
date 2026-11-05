@@ -186,6 +186,40 @@ request from the clone; pushing needs a GitHub account with access, since the
 deploy key only reads. To go back to the GitHub build, remove the clone and
 re-run `install.sh`.
 
+## Running a developer-managed checkout
+
+Sometimes a host has to run code that is not in a release yet, edited and
+pulled by a developer working on that host. `--local` makes `install.sh` leave
+the hispec checkout alone and install it as it is:
+
+```bash
+sudo /opt/hispec/app/systemd/install.sh --local
+```
+
+In this mode `install.sh` never pulls. It runs no `git fetch`, `pull`,
+`checkout` or `submodule update` in `/opt/hispec/app`, and it accepts
+uncommitted edits. Bringing in new commits is up to the developer:
+
+```bash
+git -C /opt/hispec/app pull
+git -C /opt/hispec/app submodule update --init --recursive
+```
+
+Dependencies are still installed exactly: the venv is synced with
+`uv sync --locked` from that checkout's `uv.lock`. hispec itself is installed
+editable, so an edit under `src/hispec` takes effect at the next
+`hispec restart <instance>`. Re-run `install.sh` only after `pyproject.toml` or
+`uv.lock` changes.
+
+The choice is recorded in `/etc/hispec/source`, so later runs, such as
+enrolling another operator, stay local without the flag. To go back to
+releases, commit or discard the edits, then pass a ref, which also clears the
+record:
+
+```bash
+sudo /opt/hispec/app/systemd/install.sh --ref hispec-X.Y
+```
+
 ## Development checkouts
 
 Your own clone for development is separate from all of this. Build it with

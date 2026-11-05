@@ -300,6 +300,15 @@ EOF
 
 Without them a daemon is refused with `ACCESS_REFUSED ... mechanism PLAIN`.
 
+The broker is `hispec.caltech.edu` unless `HISPEC_BROKER_HOST` names another,
+for a host with its own broker:
+
+```bash
+echo HISPEC_BROKER_HOST=localhost | sudo tee -a /etc/hispec/secrets.env
+```
+
+The user and password above still apply to it.
+
 Any top-level config key can also be replaced by a `LIBBY_<KEY>` variable, so
 `LIBBY_RABBITMQ_URL` points one host at a different broker entirely. It
 replaces the whole URL, credentials included, and wins over the two variables
