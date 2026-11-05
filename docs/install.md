@@ -99,59 +99,47 @@ activating anything.
 
 ## What install.sh does
 
-It moves the checkout to the newest release, bootstraps a pinned `uv`, runs
-`uv sync --locked --all-packages` into `/opt/hispec/venv`, then hands over to
-`hispec install`. That command comes from
+It installs `/opt/hispec/app` as it is, edits included, and runs no git command
+that changes it. It bootstraps a pinned `uv`, runs
+`uv sync --locked --all-packages` into `/opt/hispec/venv` from the checkout's
+`uv.lock`, then hands over to `hispec install`. That command comes from
 [instrumentctl](https://github.com/CaltechOpticalObservatories/instrumentctl#host-setup),
 whose README describes every step. It is shared with other instruments, so
 HISPEC only supplies `src/hispec/cli/instrument.toml`.
 
-## Releases
+## Updating a host
 
-Hosts run a release, never whatever `main` holds. A release is an annotated
-`hispec-X.Y` tag on `main`, and its message is the release notes. The tag
-pins everything: hispec's own code, its submodules, and through the committed
-`uv.lock` the exact commit of libby, instrumentctl and every other git
-dependency. A change merged into libby therefore reaches a host only when a
-hispec release locks it in.
-
-To cut one:
-
-1. If dependencies should move, open a PR that updates them and commits
-   `uv.lock`, so the new commits are reviewed like any change. libby is pinned
-   to a release tag in `pyproject.toml`, so moving it means changing that tag;
-   `uv lock --upgrade` moves the others.
-2. Once it is on `main`, tag and push:
-
-   ```bash
-   git tag -a hispec-0.2 -m "What changed, for the release notes"
-   git push origin hispec-0.2
-   ```
-
-Pushing the tag runs the Release workflow, which creates the GitHub release
-from the tag message and posts it to Slack. It refuses a lightweight tag, so
-always tag with `-a`. To announce a tag again, run the workflow by hand from
-the Actions tab.
-
-`install.sh` picks the newest `hispec-*` tag. `--ref` installs something else
-on purpose, a branch or an older tag, e.g. to try `main` on one host:
+Hosts run `main`. Pulling is a separate step from installing:
 
 ```bash
-sudo /opt/hispec/app/systemd/install.sh --ref main
+git -C /opt/hispec/app pull
+git -C /opt/hispec/app submodule update --init --recursive
 ```
 
-It refuses to move a checkout that has uncommitted edits; save them with
-`hispec hotfix` first.
+`hispec update` does the same, and keeps a driver that runs an unmerged hotfix
+on its branch. hispec and every driver are installed editable, so the pulled
+code takes effect at the next `hispec restart <instance>`. Re-run `install.sh`
+only after `pyproject.toml` or `uv.lock` changes.
+
+An edit made on the host, in hispec or in a driver, is installed as it is.
+Keep it with `hispec hotfix "what you fixed"`, which sends a driver edit to
+the driver's own repository; see
+[instrumentctl](https://github.com/CaltechOpticalObservatories/instrumentctl#hotfixes).
+
+Dependencies move only through a PR that updates `uv.lock`, so the new commits
+are reviewed like any change. libby is pinned to a release tag in
+`pyproject.toml`, so moving it means changing that tag; `uv lock --upgrade`
+moves the others.
 
 ## Re-running it
 
 `install.sh` is idempotent and reports only what it changes. Re-run it:
 
-- to move the host to a new release;
+- after a pull that changed `pyproject.toml` or `uv.lock`;
 - to enrol another operator: `sudo /opt/hispec/app/systemd/install.sh carol`;
 - to repair anything `hispec doctor` flags.
 
-Adding a daemon that the running release already contains does not need it:
+Adding a daemon that the checkout already contains does not need it:
 `hispec deploy` covers that, with no `sudo`.
 
 ## Changing an extra's code on a host
@@ -185,40 +173,6 @@ clone is present, with its branch and anything uncommitted or not on GitHub.
 request from the clone; pushing needs a GitHub account with access, since the
 deploy key only reads. To go back to the GitHub build, remove the clone and
 re-run `install.sh`.
-
-## Running a developer-managed checkout
-
-Sometimes a host has to run code that is not in a release yet, edited and
-pulled by a developer working on that host. `--local` makes `install.sh` leave
-the hispec checkout alone and install it as it is:
-
-```bash
-sudo /opt/hispec/app/systemd/install.sh --local
-```
-
-In this mode `install.sh` never pulls. It runs no `git fetch`, `pull`,
-`checkout` or `submodule update` in `/opt/hispec/app`, and it accepts
-uncommitted edits. Bringing in new commits is up to the developer:
-
-```bash
-git -C /opt/hispec/app pull
-git -C /opt/hispec/app submodule update --init --recursive
-```
-
-Dependencies are still installed exactly: the venv is synced with
-`uv sync --locked` from that checkout's `uv.lock`. hispec itself is installed
-editable, so an edit under `src/hispec` takes effect at the next
-`hispec restart <instance>`. Re-run `install.sh` only after `pyproject.toml` or
-`uv.lock` changes.
-
-The choice is recorded in `/etc/hispec/source`, so later runs, such as
-enrolling another operator, stay local without the flag. To go back to
-releases, commit or discard the edits, then pass a ref, which also clears the
-record:
-
-```bash
-sudo /opt/hispec/app/systemd/install.sh --ref hispec-X.Y
-```
 
 ## Development checkouts
 
