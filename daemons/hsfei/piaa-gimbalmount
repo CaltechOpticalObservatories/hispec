@@ -75,7 +75,7 @@ class PiaaGimbalmount(HispecDriverDaemon):  # pylint: disable=abstract-method
             'halted': False
         }
 
-    def on_start(self, libby):
+    def on_start(self):
         """Starts up daemon and initializies the hardware device"""
 
         # load configuration from hsfei.yaml
@@ -385,7 +385,7 @@ class PiaaGimbalmount(HispecDriverDaemon):  # pylint: disable=abstract-method
                              f"hardware reports {result['isenabled']}"}
         return result
 
-    def on_stop(self, libby=None) -> None:  # pylint: disable=arguments-differ,unused-argument
+    def on_stop(self) -> None:  # pylint: disable=arguments-differ,unused-argument
         """Stops the daemon and disconnects from hardware device"""
         try:
             self.connect(False)

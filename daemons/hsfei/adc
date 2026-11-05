@@ -145,7 +145,7 @@ class AdcDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         # Two daisy-chained rotators; stage count is fixed by the ADC design.
         self.controller = StageController(num_stages=2, log=True)
 
-    def on_start(self, libby):
+    def on_start(self):
         """Called when the daemon starts - register keywords and connect."""
         # from_config populates _config after __init__, so read it here
         self.ip_address = self.get_config("hardware.ip_address")
@@ -207,7 +207,7 @@ class AdcDaemon(HispecDriverDaemon):  # pylint: disable=W0223
             self.logger.error("Failed to connect to hardware: %s", e)
             self.logger.warning("Daemon will start but hardware is not available")
 
-    def on_stop(self, libby=None):
+    def on_stop(self):
         """Cleanup when the daemon shuts down."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:
