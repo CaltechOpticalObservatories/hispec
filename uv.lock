@@ -1034,7 +1034,7 @@ wheels = [
 [[package]]
 name = "instrumentctl"
 version = "0.3.0"
-source = { git = "https://github.com/CaltechOpticalObservatories/instrumentctl.git#6523b893696f711f1cde424beb796791e1b3a38c" }
+source = { git = "https://github.com/CaltechOpticalObservatories/instrumentctl.git#2341de7a28fc747d275b5f9e47b5bc412aa2e391" }
 dependencies = [
     { name = "pyyaml" },
 ]
