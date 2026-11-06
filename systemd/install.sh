@@ -2,7 +2,8 @@
 # Host setup for running the hispec daemons under systemd. For admins / IT.
 # Run as root. Safe to re-run.
 #
-#   sudo ./systemd/install.sh                    # set the host up
+#   sudo ./systemd/install.sh                    # set the host up, asking its role once
+#   sudo ./systemd/install.sh --host-role feiserver   # ... naming the role instead
 #   sudo ./systemd/install.sh alice bob          # ... and enrol two operators
 #   sudo HISPEC_OPS_USERS="alice bob" ./systemd/install.sh   # same thing
 #   sudo ./systemd/install.sh --extra scripts    # ... with an optional extra
@@ -13,14 +14,19 @@
 # its submodules, refusing a checkout with edits. The venv is synced from the
 # checkout's uv.lock, so every git dependency is the exact commit it records.
 #
+# The role (feiserver, hispecserver, ...) is recorded in /etc/hispec/host on the
+# first run and read from there after; edit that file to change it.
+#
 # Extras are recorded in /etc/hispec/extras, and every later run syncs them
 # again. Some follow the host role: feiserver always gets atcam, the tracking
-# camera module, which any other role is refused; feiserver and hispecserver
-# always get atlas, the viewer.
+# camera module, which any other role is refused, and scripts; feiserver and
+# hispecserver always get atlas, the viewer.
 #
 # A clone in /opt/hispec/extra/ replaces the GitHub build of its extra, for
 # changing that code on this host; see docs/install.md. Remove the clone and
-# re-run to go back.
+# re-run to go back. On feiserver the camera module and atlas are cloned there
+# when missing, and ImageStreamIO is built into /usr/local when missing; an
+# existing clone is never pulled or reset.
 #
 # Re-run it to enrol operators, after a dependency change, or to repair a host.
 # It is NOT part of adding a daemon: once a host is set up, operators do that
@@ -43,12 +49,18 @@ EXTRAS_FILE="${HISPEC_ETC_DIR:-/etc/hispec}/extras"
 HOST_FILE="${HISPEC_ETC_DIR:-/etc/hispec}/host"
 CAMERA_EXTRA=atcam
 CAMERA_ROLE=feiserver
+CAMERA_ROLE_EXTRAS=(scripts)
 VIEWER_EXTRA=atlas
 VIEWER_ROLES=(feiserver hispecserver)
 EXTRA_DIR="${HISPEC_EXTRA_DIR:-/opt/hispec/extra}"
 INSTRUMENT_SRC="$EXTRA_DIR/hispec-tracking-camera-instrument"
 CORE_SRC="$EXTRA_DIR/camera-interface"
 VIEWER_SRC="$EXTRA_DIR/atlas"
+INSTRUMENT_URL=git@github.com:CaltechOpticalObservatories/hispec-tracking-camera-instrument.git
+VIEWER_URL=https://github.com/CaltechOpticalObservatories/atlas.git
+IMAGESTREAMIO_URL=https://github.com/milk-org/ImageStreamIO.git
+IMAGESTREAMIO_REF="${HISPEC_IMAGESTREAMIO_REF:-3b366508f79f996fc47c9006b09e074a2e6c9bc9}"
+IMAGESTREAMIO_CONFIG=/usr/local/lib/cmake/ImageStreamIOConfig.cmake
 DEPLOY_KEY="${HISPEC_ETC_DIR:-/etc/hispec}/deploy-key"
 UV_VERSION="${HISPEC_UV_VERSION:-0.12.23}"
 # Its own copy rather than whatever uv is on PATH, since a snap refreshes
@@ -99,11 +111,33 @@ done
 ROLE=""
 if [[ -f "$HOST_FILE" ]]; then
     ROLE=$(tr -d '[:space:]' <"$HOST_FILE")
+    if [[ -n $ROLE_ARG && $ROLE_ARG != "$ROLE" ]]; then
+        echo "warning: this host is recorded as '$ROLE' in $HOST_FILE, so --host-role $ROLE_ARG is ignored; edit that file to change it." >&2
+    fi
 fi
-ROLE=${ROLE:-${ROLE_ARG:-$(hostname -s)}}
+ROLE=${ROLE:-$ROLE_ARG}
+if [[ -z $ROLE ]]; then
+    mapfile -t KNOWN_ROLES < <(sed -n 's/^HISPEC_HOST=//p' "$REPO_DIR"/systemd/instances/*.env | sort -u)
+    if [[ ! -t 0 || ${#KNOWN_ROLES[@]} -eq 0 ]]; then
+        echo "error: no host role yet; pass --host-role <role>, one of: ${KNOWN_ROLES[*]}" >&2
+        exit 1
+    fi
+    echo "Which role does this host play? It is recorded in $HOST_FILE."
+    PS3="role: "
+    select ROLE in "${KNOWN_ROLES[@]}"; do
+        [[ -n $ROLE ]] && break
+    done
+    if [[ -z $ROLE ]]; then
+        echo "error: no role chosen." >&2
+        exit 1
+    fi
+fi
+if [[ -z $ROLE_ARG ]]; then
+    INSTALL_ARGS+=(--host-role "$ROLE")
+fi
 
 if [[ $ROLE == "$CAMERA_ROLE" ]]; then
-    EXTRAS+=("$CAMERA_EXTRA")
+    EXTRAS+=("$CAMERA_EXTRA" "${CAMERA_ROLE_EXTRAS[@]}")
 elif printf '%s\n' "${EXTRAS[@]}" | grep -qx "$CAMERA_EXTRA"; then
     echo "error: the $CAMERA_EXTRA extra is for $CAMERA_ROLE only; this host is '$ROLE'." >&2
     echo "Drop --extra $CAMERA_EXTRA, or remove it from $EXTRAS_FILE." >&2
@@ -159,8 +193,10 @@ if [[ -n $CHECKOUT_REF && -z ${HISPEC_INSTALL_CHECKED_OUT:-} ]]; then
         git -C "$REPO_DIR" checkout --quiet --detach "$CHECKOUT_REF"
     fi
     git -C "$REPO_DIR" submodule update --quiet --init --recursive
-    # The checkout may have replaced this very script; carry on in its copy
-    HISPEC_INSTALL_CHECKED_OUT=1 exec "$REPO_DIR/systemd/install.sh" "${ORIGINAL_ARGS[@]}"
+    # The checkout may have replaced this very script; carry on in its copy,
+    # with the role so it is not asked twice
+    HISPEC_INSTALL_CHECKED_OUT=1 exec "$REPO_DIR/systemd/install.sh" "${ORIGINAL_ARGS[@]}" \
+        --host-role "$ROLE"
 fi
 
 CHECKOUT_DESC=$(git -C "$REPO_DIR" symbolic-ref --short -q HEAD ||
@@ -169,6 +205,37 @@ if [[ -n $(git -C "$REPO_DIR" status --porcelain --untracked-files=no) ]]; then
     CHECKOUT_DESC+=", modified"
 fi
 echo "installing $REPO_DIR ($CHECKOUT_DESC)"
+
+# On the camera host, edits to the camera module and atlas are the norm
+if [[ $ROLE == "$CAMERA_ROLE" ]]; then
+    mkdir -p "$EXTRA_DIR"
+    for clone in "$INSTRUMENT_SRC=$INSTRUMENT_URL" "$VIEWER_SRC=$VIEWER_URL"; do
+        if [[ ! -d ${clone%%=*} ]]; then
+            git clone --quiet "${clone#*=}" "${clone%%=*}"
+            echo "cloned ${clone#*=} into ${clone%%=*}"
+        fi
+    done
+fi
+
+# The camera module builds against ImageStreamIO, which no distro packages
+if has_extra "$CAMERA_EXTRA" && [[ ! -f $IMAGESTREAMIO_CONFIG ]]; then
+    for tool in git cmake cc; do
+        if ! command -v "$tool" >/dev/null; then
+            echo "error: building ImageStreamIO needs $tool: apt install build-essential cmake git" >&2
+            exit 1
+        fi
+    done
+    IMAGESTREAMIO_BUILD=$(mktemp -d)
+    git clone --quiet "$IMAGESTREAMIO_URL" "$IMAGESTREAMIO_BUILD/src"
+    git -C "$IMAGESTREAMIO_BUILD/src" checkout --quiet "$IMAGESTREAMIO_REF"
+    cmake -S "$IMAGESTREAMIO_BUILD/src" -B "$IMAGESTREAMIO_BUILD/build" \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local >/dev/null
+    cmake --build "$IMAGESTREAMIO_BUILD/build" -j"$(nproc)" >/dev/null
+    cmake --install "$IMAGESTREAMIO_BUILD/build" >/dev/null
+    ldconfig
+    rm -rf "$IMAGESTREAMIO_BUILD"
+    echo "installed ImageStreamIO ${IMAGESTREAMIO_REF:0:7} in /usr/local"
+fi
 
 # Pinned, so re-running the installer cannot resolve with a different uv
 if [[ "$("$UV_BIN" --version 2>/dev/null)" != "uv $UV_VERSION"* ]]; then
