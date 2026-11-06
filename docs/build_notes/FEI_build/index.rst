@@ -11,13 +11,14 @@ HISPEC FEI Server: Headless Real-time Build
 
 A COTS ``x86_64`` server running a ``PREEMPT_RT`` kernel with Intel TCC, hard
 CPU shielding and stripped services, dedicated to the camera/controller loop.
-Follow the three parts in order:
+Follow the four parts in order:
 
 #. **Physical build:** hardware assembly and modifications.
 #. **RT build:** BIOS, TCC and hardware RAID, OS install, network, RT kernel and
    CPU shielding.
 #. **Software build:** system packages, Python environment, drivers and
    instrument utilities.
+#. **Tracking camera:** installing, running and changing the camera software.
 
 .. toctree::
    :maxdepth: 1
@@ -25,3 +26,4 @@ Follow the three parts in order:
    physical_build
    rt_build
    software_build
+   tracking_camera
