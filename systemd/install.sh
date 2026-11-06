@@ -7,6 +7,7 @@
 #   sudo HISPEC_OPS_USERS="alice bob" ./systemd/install.sh   # same thing
 #   sudo ./systemd/install.sh --extra scripts    # ... with an optional extra
 #   sudo ./systemd/install.sh --ref main         # install a branch or tag instead
+#   sudo ./systemd/install.sh --local            # install the checkout as it is
 #
 # A release is an annotated hispec-X.Y tag. The checkout moves to the newest
 # one, and the venv is synced from that release's uv.lock, so every git
@@ -16,6 +17,12 @@
 # again. Some follow the host role: feiserver always gets atcam, the tracking
 # camera module, which any other role is refused; feiserver and hispecserver
 # always get atlas, the viewer.
+#
+# --local leaves the hispec checkout to whoever develops on this host: no
+# fetch, pull, checkout or submodule update, and edits are allowed. It installs
+# whatever is checked out, dependencies from that checkout's uv.lock. It is
+# recorded in /etc/hispec/source, so later runs stay local until one passes
+# --ref. See docs/install.md.
 #
 # A clone in /opt/hispec/extra/ replaces the GitHub build of its extra, for
 # changing that code on this host; see docs/install.md. Remove the clone and
@@ -40,6 +47,7 @@ REPO_DIR="${HISPEC_REPO_DIR:-/opt/hispec/app}"
 VENV_DIR="${HISPEC_VENV_DIR:-/opt/hispec/venv}"
 EXTRAS_FILE="${HISPEC_ETC_DIR:-/etc/hispec}/extras"
 HOST_FILE="${HISPEC_ETC_DIR:-/etc/hispec}/host"
+SOURCE_FILE="${HISPEC_ETC_DIR:-/etc/hispec}/source"
 CAMERA_EXTRA=atcam
 CAMERA_ROLE=feiserver
 VIEWER_EXTRA=atlas
@@ -83,9 +91,11 @@ if [[ -f "$EXTRAS_FILE" ]]; then
 fi
 ROLE_ARG=""
 REF=""
+LOCAL_ARG=""
 while (($#)); do
     case $1 in
         --extra) EXTRAS+=("$2"); shift 2 ;;
+        --local) LOCAL_ARG=1; shift ;;
         --ref) REF=$2; shift 2 ;;
         --ref=*) REF=${1#*=}; shift ;;
         --host-role) ROLE_ARG=$2; INSTALL_ARGS+=("$1" "$2"); shift 2 ;;
@@ -93,6 +103,22 @@ while (($#)); do
         *) INSTALL_ARGS+=("$1"); shift ;;
     esac
 done
+
+# Local source: asked for now, or recorded by an earlier --local run. An
+# explicit --ref goes back to installing releases.
+if [[ -n ${HISPEC_LOCAL_SOURCE:-} ]]; then
+    LOCAL_ARG=1
+fi
+if [[ -n $LOCAL_ARG && -n $REF ]]; then
+    echo "error: --local installs the checkout as it is; it cannot be combined with --ref." >&2
+    exit 1
+fi
+LOCAL=""
+if [[ -n $LOCAL_ARG ]]; then
+    LOCAL=1
+elif [[ -z $REF && -f $SOURCE_FILE && $(tr -d '[:space:]' <"$SOURCE_FILE") == local ]]; then
+    LOCAL=1
+fi
 
 # Same precedence as `hispec install`, which never overwrites a recorded role
 ROLE=""
@@ -141,35 +167,45 @@ if [[ -f "$DEPLOY_KEY" ]]; then
     export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 fi
 
-# Refuse to move a checkout with edits in it: checking out the release would
-# carry them along or stop halfway. `hispec hotfix` saves them first.
-if [[ -n $(git -C "$REPO_DIR" status --porcelain --untracked-files=no) ]]; then
-    echo "error: $REPO_DIR has uncommitted edits:" >&2
-    git -C "$REPO_DIR" status --short --untracked-files=no >&2
-    echo 'Save them with: hispec hotfix "what you fixed"   (or discard: hispec hotfix --undo)' >&2
-    exit 1
-fi
-git -C "$REPO_DIR" fetch --quiet --tags --force origin
-if [[ -z $REF ]]; then
-    REF=$(git -C "$REPO_DIR" tag --list 'hispec-*' --sort=-version:refname | head -n1)
-    if [[ -z $REF ]]; then
-        echo "error: no hispec-* release tag yet; pass --ref main to install the branch." >&2
+if [[ -n $LOCAL ]]; then
+    # The developer owns the checkout: no git command here changes it
+    LOCAL_DESC=$(git -C "$REPO_DIR" symbolic-ref --short -q HEAD ||
+        git -C "$REPO_DIR" rev-parse --short HEAD)
+    if [[ -n $(git -C "$REPO_DIR" status --porcelain --untracked-files=no) ]]; then
+        LOCAL_DESC+=", modified"
+    fi
+    echo "installing local checkout $REPO_DIR ($LOCAL_DESC); not pulling, that is up to you"
+else
+    # Refuse to move a checkout with edits in it: checking out the release would
+    # carry them along or stop halfway. `hispec hotfix` saves them first.
+    if [[ -n $(git -C "$REPO_DIR" status --porcelain --untracked-files=no) ]]; then
+        echo "error: $REPO_DIR has uncommitted edits:" >&2
+        git -C "$REPO_DIR" status --short --untracked-files=no >&2
+        echo 'Save them with: hispec hotfix "what you fixed"   (or discard: hispec hotfix --undo)' >&2
         exit 1
     fi
+    git -C "$REPO_DIR" fetch --quiet --tags --force origin
+    if [[ -z $REF ]]; then
+        REF=$(git -C "$REPO_DIR" tag --list 'hispec-*' --sort=-version:refname | head -n1)
+        if [[ -z $REF ]]; then
+            echo "error: no hispec-* release tag yet; pass --ref main to install the branch." >&2
+            exit 1
+        fi
+    fi
+    if git -C "$REPO_DIR" show-ref --verify --quiet "refs/remotes/origin/$REF"; then
+        # A branch: follow its tip on origin, refusing rather than dropping local commits
+        git -C "$REPO_DIR" checkout --quiet "$REF"
+        git -C "$REPO_DIR" merge --quiet --ff-only "origin/$REF"
+    else
+        git -C "$REPO_DIR" checkout --quiet --detach "$REF"
+    fi
+    git -C "$REPO_DIR" submodule update --quiet --init --recursive
+    # The checkout may have replaced this very script; carry on in the release's copy
+    if [[ -z ${HISPEC_INSTALL_CHECKED_OUT:-} ]]; then
+        HISPEC_INSTALL_CHECKED_OUT=1 exec "$REPO_DIR/systemd/install.sh" "${ORIGINAL_ARGS[@]}" --ref "$REF"
+    fi
+    echo "installing $REF ($(git -C "$REPO_DIR" rev-parse --short HEAD))"
 fi
-if git -C "$REPO_DIR" show-ref --verify --quiet "refs/remotes/origin/$REF"; then
-    # A branch: follow its tip on origin, refusing rather than dropping local commits
-    git -C "$REPO_DIR" checkout --quiet "$REF"
-    git -C "$REPO_DIR" merge --quiet --ff-only "origin/$REF"
-else
-    git -C "$REPO_DIR" checkout --quiet --detach "$REF"
-fi
-git -C "$REPO_DIR" submodule update --quiet --init --recursive
-# The checkout may have replaced this very script; carry on in the release's copy
-if [[ -z ${HISPEC_INSTALL_CHECKED_OUT:-} ]]; then
-    HISPEC_INSTALL_CHECKED_OUT=1 exec "$REPO_DIR/systemd/install.sh" "${ORIGINAL_ARGS[@]}" --ref "$REF"
-fi
-echo "installing $REF ($(git -C "$REPO_DIR" rev-parse --short HEAD))"
 
 # Pinned, so re-running the installer cannot resolve with a different uv
 if [[ "$("$UV_BIN" --version 2>/dev/null)" != "uv $UV_VERSION"* ]]; then
@@ -208,6 +244,13 @@ fi
 if ((${#EXTRAS[@]})); then
     mkdir -p "$(dirname "$EXTRAS_FILE")"
     printf '%s\n' "${EXTRAS[@]}" >"$EXTRAS_FILE"
+fi
+# Remembered so a later plain run (enrolling an operator, say) stays local
+if [[ -n $LOCAL ]]; then
+    mkdir -p "$(dirname "$SOURCE_FILE")"
+    echo local >"$SOURCE_FILE"
+else
+    rm -f "$SOURCE_FILE"
 fi
 
 exec "$VENV_DIR/bin/hispec" install "${INSTALL_ARGS[@]}"
