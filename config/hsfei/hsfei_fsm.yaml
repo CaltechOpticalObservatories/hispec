@@ -1,0 +1,46 @@
+# FSM: PI 2-axis fast steering mirror on an E-727 controller. The daemon
+# drives it over GCS TCP/IP and hands it to the tracking loop while tracking
+#
+# Usage:
+#   daemons/hsfei/fsm -c config/hsfei/hsfei_fsm.yaml
+
+peer_id: fsm
+group_id: hsfei
+
+hardware:
+  ip_address:              # TODO: E-727 address; without it the daemon starts disconnected
+  tcp_port: 50000          # TODO: confirm (GCS default)
+  position_tolerance: 0.1  # urad, how close counts as being at a named position; TODO tune
+
+stages:
+  - name: x
+    axis: "1"              # TODO: confirm E-727 axis id
+    units: urad
+    # Closed-loop range is 0 to 35 urad; MOV needs a closed servo loop, so
+    # these only ever apply in closed loop. Open-loop range not yet known
+    softmin: 0.0
+    softmax: 35.0
+    named_positions:
+      center: 17.5         # midpoint of the closed-loop range; TODO confirm
+  - name: y
+    axis: "2"              # TODO: confirm E-727 axis id
+    units: urad
+    # Closed-loop range is 0 to 35 urad; MOV needs a closed servo loop, so
+    # these only ever apply in closed loop. Open-loop range not yet known
+    softmin: 0.0
+    softmax: 35.0
+    named_positions:
+      center: 17.5         # midpoint of the closed-loop range; TODO confirm
+
+tracking:
+  shm_name:                # TODO: ImageStreamIO stream the loop publishes its state to
+  default_algorithm:       # TODO: a name under algorithms, or empty for none selected
+  stop_timeout_s: 3.0      # stop_tracking: SIGTERM grace before SIGKILL
+  halt_timeout_s: 0.5      # halt: shorter grace, then SIGKILL
+  algorithms:              # name -> binary; only these can ever be launched
+    example:
+      binary: /opt/hispec/bin/fsm_track_example  # TODO
+      args: []
+
+logging:
+  level: INFO

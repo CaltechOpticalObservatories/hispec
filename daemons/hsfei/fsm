@@ -1,0 +1,798 @@
+#!/usr/bin/env python3
+"""
+HSFEI Fast Steering Mirror Daemon
+
+Exposes the two axes of the PI E-727 fast steering mirror as libby keywords,
+with the same keyword set as pi-daemon, plus the keywords that hand the mirror
+to the tracking loop and take it back. The daemon only ever talks to the
+mirror over GCS TCP/IP; while tracking it lets go of that connection and the
+loop owns the mirror.
+"""
+
+import argparse
+import os
+import sys
+import threading
+import time
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Optional, TypeVar
+
+from libby import KeywordRegistry
+from pipython import GCSError
+
+from hispec import HispecDriverDaemon
+from hispec.driver.pi import PIControllerBase
+
+T = TypeVar("T")
+
+DEFAULT_TCP_PORT = 50000
+# The E-727 is a single controller on its own port, not a daisy chain
+DEVICE_ID = 1
+NUM_AXES = 2
+DEFAULT_POSITION_TOLERANCE = 1.0
+DEFAULT_STOP_TIMEOUT_S = 3.0
+DEFAULT_HALT_TIMEOUT_S = 0.5
+# hispec@.service SIGKILLs a daemon that takes longer than this to stop, so
+# on_stop has to stop the loop well inside it
+SYSTEMD_STOP_TIMEOUT_S = 10.0
+# Allowance on top of the loop timeouts for reconnecting to the E-727
+RECONNECT_ALLOWANCE_S = 5.0
+START_TRACKING_TIMEOUT_S = 10.0
+HALT_SETTLE_TIMEOUT_S = 0.5
+HALT_POLL_INTERVAL_S = 0.01
+
+CUSTOM_POSITION = "custom"
+TRACKING_STOPPED = "stopped"
+UNDER_LOOP_CONTROL = ("the mirror is under tracking loop control; "
+                      "stop_tracking or halt first")
+
+
+def _optional_float(value: Any, where: str) -> Optional[float]:
+    """Return value as a float, None when unset, or raise naming the config key."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{where} must be a number, got {value!r}") from error
+
+
+def _timeout(raw: Mapping[str, Any], key: str, default: float) -> float:
+    """Read a tracking timeout that has to fit inside the systemd stop budget."""
+    value = _optional_float(raw.get(key), f"tracking.{key}")
+    if value is None:
+        return default
+    if not 0.0 < value < SYSTEMD_STOP_TIMEOUT_S:
+        raise ValueError(f"tracking.{key} must be between 0 and "
+                         f"{SYSTEMD_STOP_TIMEOUT_S} s, got {value}")
+    return value
+
+
+@dataclass(frozen=True)
+class Algorithm:
+    """One tracking algorithm: the binary that runs it and its arguments."""
+
+    name: str
+    binary: Path
+    args: tuple[str, ...] = ()
+
+    @property
+    def argv(self) -> tuple[str, ...]:
+        """Return the command line that launches this algorithm."""
+        return (str(self.binary), *self.args)
+
+    def require_executable(self) -> None:
+        """Raise unless the binary exists and can be run."""
+        if not self.binary.is_file() or not os.access(self.binary, os.X_OK):
+            raise RuntimeError(f"algorithm '{self.name}': {self.binary} "
+                               "is not an executable file")
+
+
+def _parse_algorithms(raw: Any) -> dict[str, Algorithm]:
+    """Build the algorithm allowlist from tracking.algorithms."""
+    if not raw:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError("tracking.algorithms must map names to a binary")
+    algorithms: dict[str, Algorithm] = {}
+    for name, spec in raw.items():
+        where = f"tracking.algorithms.{name}"
+        if not isinstance(spec, Mapping) or not spec.get("binary"):
+            raise ValueError(f"{where}: binary is required")
+        binary = Path(str(spec["binary"]))
+        if not binary.is_absolute():
+            raise ValueError(f"{where}: binary must be an absolute path, got {binary}")
+        args = tuple(str(arg) for arg in spec.get("args") or ())
+        algorithms[str(name)] = Algorithm(name=str(name), binary=binary, args=args)
+    return algorithms
+
+
+@dataclass(frozen=True)
+class TrackingConfig:
+    """Settings from the config's tracking section."""
+
+    shm_name: Optional[str] = None
+    stop_timeout_s: float = DEFAULT_STOP_TIMEOUT_S
+    halt_timeout_s: float = DEFAULT_HALT_TIMEOUT_S
+    algorithms: Mapping[str, Algorithm] = field(default_factory=dict)
+    default_algorithm: Optional[str] = None
+
+    @classmethod
+    def from_config(cls, raw: Any) -> "TrackingConfig":
+        """Parse and validate the tracking section."""
+        if not isinstance(raw, Mapping):
+            raise ValueError("tracking must be a mapping")
+        algorithms = _parse_algorithms(raw.get("algorithms"))
+        default_algorithm = raw.get("default_algorithm") or None
+        if default_algorithm is not None and default_algorithm not in algorithms:
+            raise ValueError(f"tracking.default_algorithm '{default_algorithm}' "
+                             f"is not one of {list(algorithms)}")
+        return cls(shm_name=raw.get("shm_name") or None,
+                   stop_timeout_s=_timeout(raw, "stop_timeout_s", DEFAULT_STOP_TIMEOUT_S),
+                   halt_timeout_s=_timeout(raw, "halt_timeout_s", DEFAULT_HALT_TIMEOUT_S),
+                   algorithms=algorithms,
+                   default_algorithm=default_algorithm)
+
+
+# pylint: disable=unused-argument
+class TrackingLoop:
+    """Launch and stop the tracking loop process for one algorithm.
+
+    Not implemented yet. halt and stop_tracking stop the loop through this
+    class, so whatever starts the loop has to start it through here too.
+    """
+
+    NOT_IMPLEMENTED = "tracking loop process control is not implemented yet"
+
+    def start(self, algorithm: Algorithm) -> None:
+        """Launch algorithm.argv as a child process of the daemon."""
+        raise NotImplementedError(self.NOT_IMPLEMENTED)
+
+    def stop(self, timeout_s: float) -> None:
+        """Stop the loop: SIGTERM, then SIGKILL after timeout_s, and reap it."""
+        raise NotImplementedError(self.NOT_IMPLEMENTED)
+
+    def is_running(self) -> bool:
+        """Return whether the loop process is alive."""
+        raise NotImplementedError(self.NOT_IMPLEMENTED)
+# pylint: enable=unused-argument
+
+
+class TrackingShm:  # pylint: disable=too-few-public-methods
+    """Read the tracking loop's ImageStreamIO status stream. Not implemented yet."""
+
+    NOT_IMPLEMENTED = "reading the tracking loop shared memory is not implemented yet"
+
+    def __init__(self, stream_name: Optional[str]) -> None:
+        self.stream_name = stream_name
+
+    def is_tracking(self) -> bool:
+        """Return whether the loop reports itself as tracking."""
+        raise NotImplementedError(self.NOT_IMPLEMENTED)
+
+
+class _Stage:
+    """One E-727 axis and the pi-daemon keywords it exposes."""
+
+    def __init__(self, daemon: "FsmDaemon", spec: Mapping[str, Any]) -> None:
+        self.daemon = daemon
+        self.name = str(spec.get("name") or "")
+        self.axis = str(spec.get("axis", "1"))
+        self.units: Optional[str] = spec.get("units")
+        where = f"stages.{self.name}"
+        self.named_positions: dict[str, float] = {
+            str(name): float(_optional_float(value, f"{where}.named_positions.{name}") or 0.0)
+            for name, value in (spec.get("named_positions") or {}).items()
+        }
+        self._softmin = _optional_float(spec.get("softmin"), f"{where}.softmin")
+        self._softmax = _optional_float(spec.get("softmax"), f"{where}.softmax")
+        if None not in (self._softmin, self._softmax) and self._softmin >= self._softmax:
+            raise ValueError(f"{where}: softmin {self._softmin} must be below "
+                             f"softmax {self._softmax}")
+
+    @property
+    def controller(self) -> PIControllerBase:
+        """Return the daemon's shared E-727 driver."""
+        return self.daemon.controller
+
+    @property
+    def label(self) -> str:
+        """Return the axis name used in messages."""
+        return f"axis {self.name}"
+
+    def register_keywords(self, registry: KeywordRegistry) -> None:
+        """Add this axis's keywords to the registry, suffixed with its name."""
+        s = self.name
+        registry.bool(f"isloopclosed{s}",
+                      getter=self.is_loop_closed,
+                      setter=self.set_loop_closed,
+                      description=f"Servo control loop of {self.label} is closed.")
+        registry.bool(f"isreferenced{s}",
+                      getter=self.is_referenced,
+                      setter=self.set_referenced,
+                      description=f"{self.label} has been referenced; write true to reference.")
+        registry.bool(f"ismoving{s}",
+                      getter=self.is_moving,
+                      description=f"{self.label} is currently moving.")
+        registry.float(f"positionvalue{s}",
+                       getter=self.get_position,
+                       setter=self.set_position,
+                       validator=self.check_soft_limits,
+                       units=self.units,
+                       description=f"{self.label} position.")
+        registry.string(f"positionnamed{s}",
+                        getter=self.current_named,
+                        setter=self.goto_named,
+                        validator=self.check_named,
+                        description=f"Named preset {self.label} is at, '{CUSTOM_POSITION}' "
+                                    "when it matches none; write a name to move there.")
+        registry.float(f"softmin{s}",
+                       getter=lambda: self._softmin,
+                       setter=self.set_softmin,
+                       validator=self.check_softmin,
+                       units=self.units,
+                       nullable=True,
+                       description=f"Software lower limit of {self.label}; null to clear.")
+        registry.float(f"softmax{s}",
+                       getter=lambda: self._softmax,
+                       setter=self.set_softmax,
+                       validator=self.check_softmax,
+                       units=self.units,
+                       nullable=True,
+                       description=f"Software upper limit of {self.label}; null to clear.")
+        registry.float(f"hardmin{s}",
+                       getter=lambda: self.hard_limits()[0],
+                       units=self.units,
+                       description=f"Travel minimum of {self.label}, from the controller.")
+        registry.float(f"hardmax{s}",
+                       getter=lambda: self.hard_limits()[1],
+                       units=self.units,
+                       description=f"Travel maximum of {self.label}, from the controller.")
+
+    def _run(self, operation: Callable[[], T]) -> T:
+        return self.daemon.run_on_stage(operation)
+
+    def _require_still(self, action: str) -> None:
+        if self.controller.is_moving(self.daemon.device_key, self.axis):
+            raise RuntimeError(f"{self.label} is moving; halt or wait before you {action}")
+
+    def get_position(self) -> float:
+        """Return the axis position in its configured units."""
+        position = self._run(lambda: self.controller.get_pos(self.daemon.device_key, self.axis))
+        if position is None:
+            raise RuntimeError(f"failed to read {self.label} position")
+        return float(position)
+
+    def set_position(self, target: float) -> None:
+        """Start a move to target; reject it outside the soft limits or mid-move."""
+        def move() -> None:
+            # Re-check here: goto_named reaches this without the keyword validator
+            error = self.check_soft_limits(target)
+            if error:
+                raise RuntimeError(error)
+            self._require_still("move it")
+            if not self.controller.set_pos(target, self.daemon.device_key, self.axis,
+                                           blocking=False):
+                raise RuntimeError(f"controller rejected MOV on {self.label}")
+        self._run(move)
+
+    def is_moving(self) -> bool:
+        """Return whether the axis is moving."""
+        return bool(self._run(lambda: self.controller.is_moving(self.daemon.device_key,
+                                                                self.axis)))
+
+    def is_loop_closed(self) -> bool:
+        """Return whether the axis servo loop is closed."""
+        return bool(self._run(lambda: self.controller.is_loop_closed(self.daemon.device_key,
+                                                                     self.axis)))
+
+    def set_loop_closed(self, closed: bool) -> None:
+        """Close the axis servo loop, or open it."""
+        def switch() -> None:
+            self._require_still("change its servo loop")
+            if not self.controller.close_loop(self.daemon.device_key, self.axis,
+                                              enable=bool(closed)):
+                raise RuntimeError(f"controller rejected SVO on {self.label}")
+        self._run(switch)
+
+    def ensure_loop_closed(self) -> None:
+        """Close the servo loop after connecting, logging rather than raising."""
+        try:
+            if not self.controller.is_loop_closed(self.daemon.device_key, self.axis):
+                self.controller.close_loop(self.daemon.device_key, self.axis, enable=True)
+        except (GCSError, RuntimeError) as error:
+            self.daemon.logger.error("Closing the servo loop on %s failed: %s",
+                                     self.label, error)
+
+    def is_referenced(self) -> bool:
+        """Return whether the axis has been referenced."""
+        return bool(self._run(lambda: self.controller.is_homed(self.daemon.device_key,
+                                                               self.axis)))
+
+    def set_referenced(self, value: bool) -> None:
+        """Start a reference move; reject false, GCS has no un-reference command."""
+        if not value:
+            raise RuntimeError("cannot clear referenced state; write true to reference")
+
+        def reference() -> None:
+            self._require_still("reference it")
+            if not self.controller.home(self.daemon.device_key, self.axis, blocking=False):
+                raise RuntimeError(f"controller rejected reference move on {self.label}")
+        self._run(reference)
+
+    def hard_limits(self) -> tuple[float, float]:
+        """Return the controller travel range of the axis."""
+        limits = self._run(lambda: self.controller.get_limits(self.daemon.device_key,
+                                                              self.axis))
+        if limits is None:
+            raise RuntimeError(f"failed to read {self.label} hardware limits")
+        return limits[self.axis]
+
+    def current_named(self) -> str:
+        """Return the named position the axis is at, or 'custom'."""
+        position = self.get_position()
+        for name, target in self.named_positions.items():
+            if abs(position - target) <= self.daemon.position_tolerance:
+                return name
+        return CUSTOM_POSITION
+
+    def goto_named(self, name: str) -> None:
+        """Move to a configured named position."""
+        self.set_position(self.named_positions[name])
+
+    def check_named(self, name: str) -> Optional[str]:
+        """Validate a named position against the configured set."""
+        if name not in self.named_positions:
+            return (f"unknown named position '{name}' for {self.label}; "
+                    f"available: {list(self.named_positions)}")
+        return None
+
+    def check_soft_limits(self, target: float) -> Optional[str]:
+        """Validate a target position against the soft limits."""
+        if self._softmin is not None and target < self._softmin:
+            return f"target {target} below softmin {self._softmin}"
+        if self._softmax is not None and target > self._softmax:
+            return f"target {target} above softmax {self._softmax}"
+        return None
+
+    def check_softmin(self, value: float) -> Optional[str]:
+        """Keep a new softmin below softmax."""
+        if self._softmax is not None and value >= self._softmax:
+            return f"softmin {value} must be below softmax {self._softmax}"
+        return None
+
+    def check_softmax(self, value: float) -> Optional[str]:
+        """Keep a new softmax above softmin."""
+        if self._softmin is not None and value <= self._softmin:
+            return f"softmax {value} must be above softmin {self._softmin}"
+        return None
+
+    def set_softmin(self, value: Optional[float]) -> None:
+        """Set the software lower limit; None clears it."""
+        self._softmin = value
+
+    def set_softmax(self, value: Optional[float]) -> None:
+        """Set the software upper limit; None clears it."""
+        self._softmax = value
+
+
+class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
+    """Daemon for the PI E-727 fast steering mirror and its tracking hand-over."""
+
+    # One attribute per piece of hardware and tracking state; splitting them
+    # into holder objects would only add indirection
+    # pylint: disable=too-many-instance-attributes
+
+    def __init__(self) -> None:
+        super().__init__(controller=PIControllerBase(log=True))
+
+        self.ip_address: Optional[str] = None
+        self.tcp_port = DEFAULT_TCP_PORT
+        self.position_tolerance = DEFAULT_POSITION_TOLERANCE
+        self.stages: list[_Stage] = []
+        self.tracking = TrackingConfig()
+        # Why tracking is disabled, when its config section was rejected
+        self._tracking_disabled: Optional[str] = None
+        self._selected_algorithm: Optional[Algorithm] = None
+        # Set while the loop owns the mirror; the interlocks key off this, not
+        # the shared memory, so they hold even when the loop cannot be read
+        self._tracking_algorithm: Optional[Algorithm] = None
+        self._loop = TrackingLoop()
+        self._shm = TrackingShm(None)
+        # Both axes share one GCSDevice, and the driver is not thread-safe
+        self._lock = threading.RLock()
+
+    @property
+    def device_key(self) -> tuple[Optional[str], int, int]:
+        """Return the driver's key for the E-727."""
+        return (self.ip_address, self.tcp_port, DEVICE_ID)
+
+    def on_start(self) -> None:
+        """Load config, register keywords, then try to connect to the E-727."""
+        # from_config populates _config after __init__, so read it here
+        self.ip_address = self.get_config("hardware.ip_address") or None
+        self.tcp_port = int(self.get_config("hardware.tcp_port") or DEFAULT_TCP_PORT)
+        self.position_tolerance = _optional_float(
+            self.get_config("hardware.position_tolerance"),
+            "hardware.position_tolerance") or DEFAULT_POSITION_TOLERANCE
+        self.stages = self._build_stages()
+        self.tracking = self._load_tracking_config()
+        if self.tracking.default_algorithm is not None:
+            self._selected_algorithm = self.tracking.algorithms[self.tracking.default_algorithm]
+        self._shm = TrackingShm(self.tracking.shm_name)
+
+        self.logger.info("Starting %s daemon with axes %s and algorithms %s", self.peer_id,
+                         [stage.name for stage in self.stages], list(self.tracking.algorithms))
+
+        for stage in self.stages:
+            stage.register_keywords(self.keyword_registry)
+        self._register_consolidated_keywords()
+        self._register_daemon_keywords()
+        self._register_tracking_keywords()
+
+        if not self.ip_address:
+            self.logger.error("No hardware.ip_address configured; starting disconnected")
+            return
+
+        try:
+            self._connect_hardware()
+            self.logger.info("Daemon started and connected to the E-727")
+        except (GCSError, OSError, RuntimeError) as error:
+            self.logger.error("Failed to connect to the E-727: %s", error)
+            self.logger.warning("Daemon will start but hardware is not available")
+
+    def on_stop(self) -> None:
+        """Stop any tracking loop, then disconnect from the E-727."""
+        self.logger.info("Shutting down %s daemon", self.peer_id)
+        with self._lock:
+            if self._tracking_algorithm is not None:
+                try:
+                    self._loop.stop(self.tracking.halt_timeout_s)
+                except (NotImplementedError, OSError, RuntimeError) as error:
+                    self.logger.error("Could not stop the tracking loop: %s", error)
+            try:
+                self.controller.disconnect_all()
+                self.logger.info("Disconnected from the E-727")
+            except GCSError as error:
+                self.logger.error("Error disconnecting: %s", error)
+
+    def _load_tracking_config(self) -> TrackingConfig:
+        """Parse the tracking section; a bad one disables tracking, not the mirror."""
+        try:
+            return TrackingConfig.from_config(self.get_config("tracking") or {})
+        except ValueError as error:
+            self._tracking_disabled = str(error)
+            self.logger.error("Tracking disabled by its config: %s", error)
+            return TrackingConfig()
+
+    def _build_stages(self) -> list[_Stage]:
+        specs = self.get_config("stages") or []
+        if len(specs) != NUM_AXES:
+            raise ValueError(f"stages must list exactly {NUM_AXES} axes, got {len(specs)}")
+        stages = [_Stage(self, spec) for spec in specs]
+        names = [stage.name for stage in stages]
+        if "" in names or len(set(names)) != len(names):
+            raise ValueError(f"stages need distinct, non-empty names, got {names}")
+        return stages
+
+    def _register_consolidated_keywords(self) -> None:
+        self.keyword_registry.bool(
+            "isreferenced",
+            getter=lambda: all(stage.is_referenced() for stage in self.stages),
+            setter=self._set_all_referenced,
+            description="Both axes are referenced; write true to reference both.")
+        self.keyword_registry.bool(
+            "isloopclosed",
+            getter=lambda: all(stage.is_loop_closed() for stage in self.stages),
+            setter=self._set_all_loops_closed,
+            description="Both axes have their servo loop closed; write to set both.")
+        self.keyword_registry.bool(
+            "ismoving",
+            getter=lambda: any(stage.is_moving() for stage in self.stages),
+            description="Either axis is moving.")
+
+    def _register_daemon_keywords(self) -> None:
+        self.keyword_registry.bool(
+            "isconnected",
+            getter=self._controller_responsive,
+            setter=self._set_connected,
+            description="Daemon's connection to the E-727; write true to connect, "
+                        "false to disconnect.")
+        self.keyword_registry.int(
+            "error",
+            getter=self._error_code,
+            description="Latest E-727 error code (0 = no error, -1 = lookup failed). "
+                        "Reading clears the register.")
+        self.keyword_registry.string(
+            "status",
+            getter=self._status,
+            description="Status of the E-727 driver as a (code, message) string.")
+        self.keyword_registry.trigger(
+            "halt",
+            action=self._halt,
+            timeout_s=(self.tracking.halt_timeout_s + RECONNECT_ALLOWANCE_S
+                       + HALT_SETTLE_TIMEOUT_S),
+            description="Stop the mirror whatever the daemon is doing: stop the "
+                        "tracking loop, take the mirror back and halt both axes.")
+        self.keyword_registry.trigger(
+            "shutdown",
+            action=self._shutdown,
+            description="Gracefully stop this daemon; refused while moving or tracking.")
+
+    def _register_tracking_keywords(self) -> None:
+        stop_timeout_s = self.tracking.stop_timeout_s + RECONNECT_ALLOWANCE_S
+        self.keyword_registry.bool(
+            "istracking",
+            getter=self._is_tracking,
+            setter=self._set_tracking,
+            timeout_s=max(START_TRACKING_TIMEOUT_S, stop_timeout_s),
+            description="Tracking loop has the mirror; write true to start tracking, "
+                        "false to stop.")
+        self.keyword_registry.trigger(
+            "start_tracking",
+            action=self._start_tracking,
+            timeout_s=START_TRACKING_TIMEOUT_S,
+            description="Hand the mirror to the tracking loop running the selected "
+                        "algorithm.")
+        self.keyword_registry.trigger(
+            "stop_tracking",
+            action=self._stop_tracking,
+            timeout_s=stop_timeout_s,
+            description="Stop the tracking loop and take the mirror back.")
+        self.keyword_registry.string(
+            "algorithm",
+            getter=lambda: self._selected_algorithm.name if self._selected_algorithm else None,
+            setter=self._set_algorithm,
+            validator=self._check_algorithm,
+            nullable=True,
+            description="Tracking algorithm start_tracking will run; refused while "
+                        "tracking.")
+        self.keyword_registry.string(
+            "algorithms",
+            getter=lambda: ",".join(self.tracking.algorithms),
+            description="Configured tracking algorithms, comma separated.")
+        self.keyword_registry.string(
+            "trackingstatus",
+            getter=self._tracking_status,
+            description=f"'{TRACKING_STOPPED}', 'tracking with <algorithm>' while the "
+                        "loop has the mirror, or 'disabled: <reason>' when the tracking "
+                        "config was rejected.")
+
+    def run_on_stage(self, operation: Callable[[], T]) -> T:
+        """Run a controller call under the lock, unless the loop has the mirror."""
+        with self._lock:
+            self._require_not_tracking()
+            return operation()
+
+    def _require_not_tracking(self) -> None:
+        if self._tracking_algorithm is not None:
+            raise RuntimeError(UNDER_LOOP_CONTROL)
+
+    def _require_all_still(self, action: str) -> None:
+        moving = [stage.label for stage in self.stages if stage.is_moving()]
+        if moving:
+            raise RuntimeError(f"{', '.join(moving)} moving; halt or wait before you {action}")
+
+    def _controller_responsive(self) -> bool:
+        """Return True if the E-727 answers IsControllerReady."""
+        with self._lock:
+            if not self._connected():
+                return False
+            try:
+                return bool(self.controller.is_controller_ready(self.device_key))
+            except (GCSError, RuntimeError, KeyError):
+                return False
+
+    def _connect_hardware(self) -> None:
+        if not self.ip_address:
+            raise RuntimeError("no hardware.ip_address configured")
+        self.logger.info("Connecting to the E-727 at %s:%s", self.ip_address, self.tcp_port)
+        with self._lock:
+            # Drop any stale session first; connect_tcp would otherwise leak it
+            self.controller.disconnect_all()
+            self.controller.connect_tcp(self.ip_address, self.tcp_port)
+            if not self._controller_responsive():
+                raise RuntimeError(f"E-727 at {self.ip_address}:{self.tcp_port} is not ready")
+            self.logger.info("Connected: %s", self.controller.get_idn(self.device_key))
+            for stage in self.stages:
+                stage.ensure_loop_closed()
+
+    def _set_connected(self, value: bool) -> None:
+        with self._lock:
+            self._require_not_tracking()
+            if value:
+                if not self._controller_responsive():
+                    self._connect_hardware()
+                return
+            if self._connected():
+                self._require_all_still("disconnect")
+                self.controller.disconnect_all()
+
+    def _error_code(self) -> int:
+        with self._lock:
+            self._require_not_tracking()
+            try:
+                code = self.controller.get_error_code(self.device_key)
+            except (GCSError, RuntimeError, KeyError):
+                return -1
+        return int(code) if code is not None else -1
+
+    def _set_all_referenced(self, value: bool) -> None:
+        for stage in self.stages:
+            stage.set_referenced(value)
+
+    def _set_all_loops_closed(self, value: bool) -> None:
+        for stage in self.stages:
+            stage.set_loop_closed(value)
+
+    def _halt(self) -> None:
+        """Stop the mirror whatever state the daemon is in.
+
+        Every step runs even when an earlier one fails, then all failures are
+        raised together, so a loop that will not stop cannot keep HLT from
+        reaching the controller.
+        """
+        steps = (("stop the tracking loop", self._halt_loop),
+                 ("reconnect to the E-727", self._halt_reconnect),
+                 ("halt both axes", self._halt_motion))
+        failures: list[str] = []
+        with self._lock:
+            for description, step in steps:
+                try:
+                    step()
+                except Exception as error:  # pylint: disable=broad-exception-caught
+                    # Halt has to reach HLT whatever an earlier step raised
+                    failures.append(f"could not {description}: {error}")
+        if failures:
+            message = "halt incomplete: " + "; ".join(failures)
+            self.logger.error(message)
+            raise RuntimeError(message)
+        self.logger.info("Halted")
+
+    def _halt_loop(self) -> None:
+        if self._tracking_algorithm is None:
+            return
+        self._loop.stop(self.tracking.halt_timeout_s)
+        self.logger.warning("Halt stopped tracking with %s", self._tracking_algorithm.name)
+        self._tracking_algorithm = None
+
+    def _halt_reconnect(self) -> None:
+        if not self._controller_responsive():
+            self._connect_hardware()
+
+    def _halt_motion(self) -> None:
+        # Talk to the controller directly: run_on_stage refuses while the loop
+        # still owns the mirror, and halt must not
+        self.controller.halt_motion(self.device_key)
+        # halt_motion swallows GCSError, so confirm by reading motion back
+        deadline = time.monotonic() + HALT_SETTLE_TIMEOUT_S
+        while True:
+            moving = [stage.label for stage in self.stages
+                      if self.controller.is_moving(self.device_key, stage.axis)]
+            if not moving:
+                return
+            if time.monotonic() >= deadline:
+                raise RuntimeError(f"{', '.join(moving)} still moving after HLT")
+            time.sleep(HALT_POLL_INTERVAL_S)
+
+    def _shutdown(self) -> None:
+        """Stop the daemon, refusing while tracking or while an axis is moving."""
+        with self._lock:
+            if self._tracking_algorithm is not None:
+                raise RuntimeError(f"tracking with {self._tracking_algorithm.name}; "
+                                   "stop_tracking or halt before shutting down")
+            try:
+                moving = self._connected() and any(stage.is_moving() for stage in self.stages)
+            except (GCSError, RuntimeError, KeyError):
+                # An unreachable controller must not leave the daemon unstoppable
+                moving = False
+        if moving:
+            raise RuntimeError("an axis is moving; halt before shutting down")
+        self.logger.info("Shutting down on keyword request")
+        self.request_stop()
+
+    def _check_algorithm(self, name: str) -> Optional[str]:
+        if name not in self.tracking.algorithms:
+            return (f"unknown algorithm '{name}'; "
+                    f"available: {list(self.tracking.algorithms)}")
+        return None
+
+    def _set_algorithm(self, name: Optional[str]) -> None:
+        with self._lock:
+            if self._tracking_algorithm is not None:
+                raise RuntimeError(f"tracking with {self._tracking_algorithm.name}; "
+                                   "stop_tracking before changing the algorithm")
+            self._selected_algorithm = None if name is None else self.tracking.algorithms[name]
+        self.logger.info("Selected tracking algorithm: %s", name)
+
+    def _is_tracking(self) -> bool:
+        """Return the loop's own report, or the daemon's record without one."""
+        try:
+            return self._shm.is_tracking()
+        except NotImplementedError:
+            # Fall back until the shared memory reader exists, so the mirror
+            # stays fully usable without tracking
+            return self._tracking_algorithm is not None
+
+    def _set_tracking(self, value: bool) -> None:
+        if value:
+            self._start_tracking()
+        else:
+            self._stop_tracking()
+
+    def _start_tracking(self) -> None:
+        with self._lock:
+            if self._tracking_disabled is not None:
+                raise RuntimeError(f"tracking disabled by its config: {self._tracking_disabled}")
+            if self._tracking_algorithm is not None:
+                raise RuntimeError(f"already tracking with {self._tracking_algorithm.name}")
+            algorithm = self._selected_algorithm
+            if algorithm is None:
+                raise RuntimeError("no tracking algorithm selected; write algorithm first")
+            algorithm.require_executable()
+            if self._connected():
+                self._require_all_still("start tracking")
+            self._hand_over_to_loop(algorithm)
+            self._tracking_algorithm = algorithm
+        self.logger.info("Tracking with %s", algorithm.name)
+
+    def _hand_over_to_loop(self, algorithm: Algorithm) -> None:  # pylint: disable=unused-argument
+        """Release the mirror and start the tracking loop running algorithm.
+
+        Not implemented yet. Runs under the lock with the mirror still. On
+        return the loop must own the mirror; on failure it must raise and
+        leave the daemon holding the mirror again. Launch the loop through
+        self._loop so halt and stop_tracking can stop it.
+        """
+        raise NotImplementedError("hand-over to the tracking loop is not implemented yet")
+
+    def _stop_tracking(self) -> None:
+        with self._lock:
+            algorithm = self._tracking_algorithm
+            if algorithm is None:
+                return
+            self._loop.stop(self.tracking.stop_timeout_s)
+            self._tracking_algorithm = None
+            self.logger.info("Stopped tracking with %s", algorithm.name)
+            try:
+                self._connect_hardware()
+            except (GCSError, OSError, RuntimeError) as error:
+                raise RuntimeError(f"tracking stopped, but reconnecting to the E-727 "
+                                   f"failed: {error}") from error
+
+    def _tracking_status(self) -> str:
+        if self._tracking_disabled is not None:
+            return f"disabled: {self._tracking_disabled}"
+        algorithm = self._tracking_algorithm
+        if algorithm is None:
+            return TRACKING_STOPPED
+        return f"tracking with {algorithm.name}"
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(description='HSFEI Fast Steering Mirror Daemon')
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        daemon = FsmDaemon.from_config_file(args.config)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as error:  # pylint: disable=W0718
+        print(f"Error running daemon: {error}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
