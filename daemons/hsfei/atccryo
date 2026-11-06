@@ -228,7 +228,7 @@ class AtcCryoDaemon(HispecDriverDaemon):  # pylint: disable=W0223
 
     def _get_cryo_status(self) -> str:
         """Read the full status report from the Sunpower Cryocooler"""
-        return self._read_string("status", self.controller.get_cryo_status())
+        return self._read_string("status", self.controller.get_cryo_status)
 
     def _get_cooler_error(self) -> int | None:
         """Read the error state reported by the Sunpower Cryocooler"""
