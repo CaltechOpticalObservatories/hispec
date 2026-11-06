@@ -6,10 +6,12 @@
 #   sudo ./systemd/install.sh alice bob          # ... and enrol two operators
 #   sudo HISPEC_OPS_USERS="alice bob" ./systemd/install.sh   # same thing
 #   sudo ./systemd/install.sh --extra scripts    # ... with an optional extra
+#   sudo ./systemd/install.sh --checkout main    # fetch and check out a branch or tag first
 #
-# It installs /opt/hispec/app as it is, edits included, and never changes it:
-# pulling is up to whoever runs it. The venv is synced from the checkout's
-# uv.lock, so every git dependency is the exact commit the lock records.
+# By default it installs /opt/hispec/app as it is, edits included, and runs no
+# git command that changes it. --checkout fetches and checks out the ref, with
+# its submodules, refusing a checkout with edits. The venv is synced from the
+# checkout's uv.lock, so every git dependency is the exact commit it records.
 #
 # Extras are recorded in /etc/hispec/extras, and every later run syncs them
 # again. Some follow the host role: feiserver always gets atcam, the tracking
@@ -33,6 +35,7 @@
 # instrumentctl and is shared with other instruments.
 
 set -euo pipefail
+ORIGINAL_ARGS=("$@")
 
 REPO_DIR="${HISPEC_REPO_DIR:-/opt/hispec/app}"
 VENV_DIR="${HISPEC_VENV_DIR:-/opt/hispec/venv}"
@@ -80,9 +83,12 @@ if [[ -f "$EXTRAS_FILE" ]]; then
     mapfile -t EXTRAS <"$EXTRAS_FILE"
 fi
 ROLE_ARG=""
+CHECKOUT_REF=""
 while (($#)); do
     case $1 in
         --extra) EXTRAS+=("$2"); shift 2 ;;
+        --checkout) CHECKOUT_REF=$2; shift 2 ;;
+        --checkout=*) CHECKOUT_REF=${1#*=}; shift ;;
         --host-role) ROLE_ARG=$2; INSTALL_ARGS+=("$1" "$2"); shift 2 ;;
         --host-role=*) ROLE_ARG=${1#*=}; INSTALL_ARGS+=("$1"); shift ;;
         *) INSTALL_ARGS+=("$1"); shift ;;
@@ -131,9 +137,30 @@ for extra in "${EXTRAS[@]}"; do
     EXTRA_FLAGS+=(--extra "$extra")
 done
 
-# Syncing the lock reaches the private camera repo
+# Fetching with --checkout and syncing the lock reach the private camera repo
 if [[ -f "$DEPLOY_KEY" ]]; then
     export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+fi
+
+if [[ -n $CHECKOUT_REF && -z ${HISPEC_INSTALL_CHECKED_OUT:-} ]]; then
+    # Checking out over edits would carry them along or stop halfway
+    if [[ -n $(git -C "$REPO_DIR" status --porcelain --untracked-files=no) ]]; then
+        echo "error: $REPO_DIR has uncommitted edits, so --checkout will not move it:" >&2
+        git -C "$REPO_DIR" status --short --untracked-files=no >&2
+        echo 'Save them with: hispec hotfix "what you fixed"   (or discard: hispec hotfix --undo)' >&2
+        exit 1
+    fi
+    git -C "$REPO_DIR" fetch --quiet --tags --force origin
+    if git -C "$REPO_DIR" show-ref --verify --quiet "refs/remotes/origin/$CHECKOUT_REF"; then
+        # A branch: follow its tip on origin, refusing rather than dropping local commits
+        git -C "$REPO_DIR" checkout --quiet "$CHECKOUT_REF"
+        git -C "$REPO_DIR" merge --quiet --ff-only "origin/$CHECKOUT_REF"
+    else
+        git -C "$REPO_DIR" checkout --quiet --detach "$CHECKOUT_REF"
+    fi
+    git -C "$REPO_DIR" submodule update --quiet --init --recursive
+    # The checkout may have replaced this very script; carry on in its copy
+    HISPEC_INSTALL_CHECKED_OUT=1 exec "$REPO_DIR/systemd/install.sh" "${ORIGINAL_ARGS[@]}"
 fi
 
 CHECKOUT_DESC=$(git -C "$REPO_DIR" symbolic-ref --short -q HEAD ||
@@ -141,7 +168,7 @@ CHECKOUT_DESC=$(git -C "$REPO_DIR" symbolic-ref --short -q HEAD ||
 if [[ -n $(git -C "$REPO_DIR" status --porcelain --untracked-files=no) ]]; then
     CHECKOUT_DESC+=", modified"
 fi
-echo "installing $REPO_DIR ($CHECKOUT_DESC) as it is; pulling is up to you"
+echo "installing $REPO_DIR ($CHECKOUT_DESC)"
 
 # Pinned, so re-running the installer cannot resolve with a different uv
 if [[ "$("$UV_BIN" --version 2>/dev/null)" != "uv $UV_VERSION"* ]]; then

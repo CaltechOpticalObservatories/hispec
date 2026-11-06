@@ -99,8 +99,8 @@ activating anything.
 
 ## What install.sh does
 
-It installs `/opt/hispec/app` as it is, edits included, and runs no git command
-that changes it. It bootstraps a pinned `uv`, runs
+By default it installs `/opt/hispec/app` as it is, edits included, and runs no
+git command that changes it. It bootstraps a pinned `uv`, runs
 `uv sync --locked --all-packages` into `/opt/hispec/venv` from the checkout's
 `uv.lock`, then hands over to `hispec install`. That command comes from
 [instrumentctl](https://github.com/CaltechOpticalObservatories/instrumentctl#host-setup),
@@ -120,6 +120,13 @@ git -C /opt/hispec/app submodule update --init --recursive
 on its branch. hispec and every driver are installed editable, so the pulled
 code takes effect at the next `hispec restart <instance>`. Re-run `install.sh`
 only after `pyproject.toml` or `uv.lock` changes.
+
+`install.sh --checkout <ref>` fetches and checks out a branch or tag, with its
+submodules, before installing, and refuses a checkout with uncommitted edits:
+
+```bash
+sudo /opt/hispec/app/systemd/install.sh --checkout main
+```
 
 An edit made on the host, in hispec or in a driver, is installed as it is.
 Keep it with `hispec hotfix "what you fixed"`, which sends a driver edit to
