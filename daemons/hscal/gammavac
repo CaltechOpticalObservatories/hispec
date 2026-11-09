@@ -59,11 +59,10 @@ class GammaVacDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         self.keyword_registry.string("version",
                                      getter=self.controller.read_version,
                                      description="Version of the Gamma Vacuum Vac-Ion")
-        self.keyword_registry.int("pump_status",
+        self.keyword_registry.string("pump_status",
                                   getter=self.controller.get_pump_status,
-                                  description="Status of the pump as a number: "
-                                              "0 = standby, 1 = starting, 2 = running, "
-                                              "3 = cooldown, 4 = error")
+                                  description="Status of the pump: Standby, Starting, Running, "
+                                              "Cooldown, Error")
         self.keyword_registry.int("pump_size",
                                   getter=self.controller.get_pump_size,
                                   description="Size of the pump in L/s")
