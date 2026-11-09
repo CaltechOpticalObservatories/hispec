@@ -59,7 +59,7 @@ class OZDaemon(HispecDriverDaemon):  # pylint: disable=W0223
                                     units=self.units,
                                     description="OZOptics stage position in steps.")
         self.keyword_registry.float(f"attenuation",
-                                    getter=self.controller.get_attenuation(),
+                                    getter=self.controller.get_attenuation,
                                     setter=self.controller.set_attenuation,
                                     units=self.atten_units,
                                     description="OZOptics attenuation in dB.")
