@@ -1,4 +1,4 @@
-# HISPEC RED CAL Etalon Attenuator — Standa SMC8 contoller instance
+# HISPEC RED CAL Etalon Attenuator — Standa SMC8 controller instance
 #
 # Usage:
 #   daemons/hscal/smc8_attenuator -c config/hscal/hscal_hketatten.yaml

@@ -1,0 +1,15 @@
+# HISPEC BLUE CAL Etalon Attenuator — OZOptics DD100MC controller instance
+#
+# Usage:
+#   daemons/hscal/ozopt_attenuator -c config/hscal/hscal_yjetatten.yaml
+ 
+peer_id: yjetatten
+group_id: hscal
+ 
+hardware:
+  ip_address: 192.168.29.153
+  tcp_port: 10003
+
+logging:
+  level: INFO
+  file: /tmp/hscal_hketatten.log
