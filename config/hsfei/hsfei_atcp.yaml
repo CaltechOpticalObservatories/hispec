@@ -13,7 +13,8 @@ hardware:
   units: mm
   timeout_s: 30.0
   retry_count: 3
-
+  softmin: 0
+  softmax: 98.05
 
 named_positions:
   J+H: 0.2
