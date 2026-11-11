@@ -61,14 +61,15 @@ activating anything.
    ```
 
    `--host-role` is the name instance files use in `HISPEC_HOST`
-   (`hispecserver`, `feiserver`, ...). Leave it out to use the short hostname.
-   It is written once, to `/etc/hispec/host`; edit that file to change it.
+   (`hispecserver`, `feiserver`, ...). Leave it out and `install.sh` asks for
+   it. It is written once, to `/etc/hispec/host`; edit that file to change it.
 
    Some extras come with the role. On `feiserver` the installer builds the
    tracking camera module into the venv (the `atcam` extra), which any other
-   role is refused. On `feiserver` and `hispecserver` it installs atlas, the
-   shared-memory and FITS viewer (the `atlas` extra), which needs a graphical
-   session such as `ssh -Y`. Other extras are added with `--extra <name>` and
+   role is refused, along with ImageStreamIO and the `scripts` extra; see
+   [the tracking camera page](build_notes/FEI_build/tracking_camera.rst). On
+   `feiserver` and `hispecserver` it installs atlas, the shared-memory and FITS
+   viewer (the `atlas` extra), which needs a graphical session such as `ssh -Y`. Other extras are added with `--extra <name>` and
    recorded in `/etc/hispec/extras`, so later runs keep them; `hispec doctor`
    reports one that has gone missing.
 
@@ -153,7 +154,8 @@ Adding a daemon that the checkout already contains does not need it:
 
 Extras install from GitHub, so a host has no source for them to edit. To change
 one on the host that runs it, clone it into `/opt/hispec/extra/`; `install.sh`
-then builds that extra from the clone instead:
+then builds that extra from the clone instead. On `feiserver` it clones the
+camera module and atlas there itself when they are missing:
 
 | Clone | Replaces | After an edit |
 |---|---|---|

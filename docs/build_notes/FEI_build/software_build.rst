@@ -88,44 +88,17 @@ Prefer running Qt GUIs on an operator workstation.
 2. Python Environment
 =====================
 
-ImageStreamIO
--------------
-
-The tracking camera publishes frames to shared memory through
-`ImageStreamIO <https://github.com/milk-org/ImageStreamIO>`_, which no distro
-packages:
-
-.. code-block:: bash
-
-   git clone https://github.com/milk-org/ImageStreamIO.git
-   cmake -S ImageStreamIO -B ImageStreamIO/build
-   cmake --build ImageStreamIO/build -j
-   sudo cmake --install ImageStreamIO/build
-   sudo ldconfig
-
-Upstream installs its CMake config straight into ``/usr/local/lib/cmake``,
-where ``find_package`` does not look. Point every build on this host at it,
-including the ones ``install.sh`` runs under ``sudo``:
-
-.. code-block:: bash
-
-   echo 'ImageStreamIO_ROOT=/usr/local/lib/cmake' | sudo tee -a /etc/environment
-
-Log out and back in for it to take effect.
-
 HISPEC Software
 ---------------
 
-Install the HISPEC software as described in :doc:`../../install`, with the
-tracking camera module:
+Install the HISPEC software as described in :doc:`../../install`:
 
 .. code-block:: bash
 
-   sudo /opt/hispec/app/systemd/install.sh hsfei --host-role feiserver --extra atcam --extra scripts
+   sudo /opt/hispec/app/systemd/install.sh hsfei --host-role feiserver
 
-``--extra scripts`` adds what the tracking camera analysis scripts plot with.
-Both are recorded in ``/etc/hispec/extras``, so later runs keep them without
-repeating the flags.
+The ``feiserver`` role brings the tracking camera module, ImageStreamIO, atlas
+and the analysis script extras; :doc:`tracking_camera` covers them.
 
 .. warning::
    ``PyQt5`` comes from ``apt``, not the venv.
@@ -272,33 +245,11 @@ FT4222 udev Rules
       lsusb | grep 0403:601c                  # board detected
       ls -l /dev/bus/usb/*/* | grep -i 0403   # hsfei dialout 0660
 
-CameraD (camera-interface)
---------------------------
+Tracking Camera
+---------------
 
-.. code-block:: bash
-
-   cd ~
-   git clone https://github.com/CaltechOpticalObservatories/camera-interface.git
-   cd camera-interface
-   git submodule update --init camerad/Instruments/hispec_tracking_camera
-
-   cd build
-   rm -rf ./*
-   cmake .. -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera
-   make -j"$(nproc)"
-
-   # Record both commits in the as-built log
-   git -C ~/camera-interface rev-parse --short HEAD
-   git -C ~/camera-interface/camerad/Instruments/hispec_tracking_camera rev-parse --short HEAD
-
-``-DINSTRUMENT`` loads ``camerad/Instruments/hispec_tracking_camera``, so the
-submodule must be checked out first. ``make`` builds ``camerad``,
-``emulator``, ``listener`` and ``socksend`` into ``~/camera-interface/bin``.
-The isolated cores are already excluded from normal scheduling
-(:ref:`section-grub`), so the build stays on housekeeping cores without
-``taskset``.
-
-See ``archongui.rst`` for Archon-side configuration.
+The camera software comes with the ``feiserver`` role; see
+:doc:`tracking_camera`. See ``archongui.rst`` for Archon-side configuration.
 
 ----
 
