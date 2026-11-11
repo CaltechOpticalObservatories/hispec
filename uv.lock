@@ -1288,11 +1288,11 @@ otel = [
 
 [[package]]
 name = "libximc"
-version = "3.1.2"
+version = "3.1.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/79/ea/b2ecc334d5b900d192f8d477771dca6dff1428ee51e72e4328dffbc0f0c5/libximc-3.1.2.tar.gz", hash = "sha256:2b92308d2d7e1fdb558cbba1b04c916aad47760c3755807e9a1ecc0650399f61", size = 5527792, upload-time = "2026-10-26T11:46:40.863Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/fa/dc9897b533f1604181b9a62ad47e42aa536f2759c2b517c57229ff70802b/libximc-3.1.4.tar.gz", hash = "sha256:f3723c1a802fbb75c88221e46a844c19b953ded450fa1d27b2ef9dbefd167e3f", size = 5527797, upload-time = "2026-11-10T08:35:42.417Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a1/3c/472dd66cc160ff4b21a76593dfda5469c438a1d58b95c9d4c2bbfc09d271/libximc-3.1.2-py3-none-any.whl", hash = "sha256:af5039c182cae03861373d77fecda069f5b7faf15b42c437d8751aab39ed80fe", size = 5587139, upload-time = "2026-10-26T11:46:38.327Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/44/e8ed5b2c996a7ea9b723c1334433845c7c7aacfc2bfb5c2225edff04c0d2/libximc-3.1.4-py3-none-any.whl", hash = "sha256:5ffab6d83ad8dd5f8ca85baff8a9b9c04fd32d89ac7b0ab505e0e7abde314ac7", size = 5587145, upload-time = "2026-11-10T08:35:31.919Z" },
 ]
 
 [[package]]
