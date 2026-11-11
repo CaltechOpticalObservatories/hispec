@@ -24,7 +24,7 @@ dependencies = [
     "keyring",
     "pipython",
     "pyserial",
-    "libximc",
+    "libximc>=3.1.4",
     "scipy",
     "pyyaml",
     # SSH transport for the DLI DC3 PDU; the pdu driver imports it
