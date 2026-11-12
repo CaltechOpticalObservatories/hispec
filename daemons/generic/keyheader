@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""
+Answers ``keyheader.segment`` requests with FITS card entries.
+
+    A request names a configured segment and a moment. Every card in the
+    segment is looked up in the source at that moment, and the reply is a list
+    of ``{keyword, value, comment}`` entries the requesting daemon adds to its
+    image header.
+
+Needs libby's optional extra: ``pip install 'libby[influxdb]'``.
+"""
+
+from libby.keyheader.main import main
+
+if __name__ == '__main__':
+    raise SystemExit(main())

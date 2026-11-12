@@ -1,0 +1,66 @@
+# HISPEC keyheader config.
+#
+# Usage:
+#   daemons/generic/keyheader -c config/hispec/hispec_keyheader.yaml
+#
+# An ordinary LibbyDaemon config (peer_id, group_id, transport, ...) plus the
+# three keyheader sections: source, defaults and segments. See
+# docs/source/keyheader.md for every field and the validation rules.
+
+peer_id: keyheader
+group_id: hispec
+transport: rabbitmq
+rabbitmq_url: amqp://localhost
+
+# The InfluxDB the keygrabber writes to. The token is never written here:
+# token_env names the environment variable that holds it, and a `token` key
+# is rejected. A read-only token is enough.
+source:
+  type: influxdb
+  url: http://localhost:8086
+  org: hispec
+  bucket: HISPEC_keyhistory
+  token_env: HISPEC_INFLUX_TOKEN
+  timeout_ms: 10000
+
+# Threads reading a segment's cards in parallel
+workers: 4
+
+# Applied to every card unless its segment or the card itself overrides them.
+# window_s must exceed the keygrabber's interval for a keyword (including its
+# failure backoff), or a quiet keyword comes back blank.
+defaults:
+  mode: nearest
+  window_s: 300
+
+# A list, not a mapping: YAML silently keeps only the last of two identical
+# keys, which would hide a duplicate. Segment names are what a requesting
+# daemon asks for, and FITS keywords must be unique across ALL segments,
+# because the requesting daemon merges them into one header.
+#
+# Each card is written on one line in YAML flow style. Inside { } the
+# characters [ ] { } , and ": " have meaning, so quote any value that holds
+# them; comments are always quoted here for that reason.
+segments:
+  - name: EXP-BEGIN
+    date_keyword: DATE-BEG
+    date_comment: UTC start of exposure
+    cards:
+      - {fits: YJDETTMP, keyword: hsyj.yjdettherm.tA_detector, type: float, format: ".3f", comment: "YJ detector temperature [K]", mode: interpolate}
+      - {fits: YJPENTMP, keyword: hsyj.yjdettherm.tB_penguin, type: float, format: ".3f", comment: "YJ penguin temperature [K]", mode: interpolate}
+      - {fits: YJTHMCON, keyword: hsyj.yjdettherm.isconnected, type: bool, comment: "YJ detector temp controller connected"}
+      # format ".40" truncates the string, so it stays on one card
+      - {fits: YJTHMSTA, keyword: hsyj.yjdettherm.1_detector_status, type: str, format: ".40", comment: "YJ detector heater loop status"}
+      - {fits: SRSPOWER, keyword: hspower.yjcal2.power_7_SRS, type: float, format: ".1f", comment: "SRS outlet power draw [W]"}
+      - {fits: SRSON, keyword: hspower.yjcal2.state_7_SRS, type: bool, comment: "SRS outlet switched on"}
+
+  # At the end of an exposure the next sample is usually not stored yet, so
+  # take the last value at or before the moment
+  - name: EXP-END
+    date_keyword: DATE-END
+    date_comment: UTC end of exposure
+    defaults:
+      mode: prior
+    cards:
+      - {fits: YJDETTME, keyword: hsyj.yjdettherm.tA_detector, type: float, format: ".3f", comment: "YJ detector temperature at end [K]"}
+      - {fits: YJPENTME, keyword: hsyj.yjdettherm.tB_penguin, type: float, format: ".3f", comment: "YJ penguin temperature at end [K]"}
