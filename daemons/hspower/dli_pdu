@@ -73,11 +73,12 @@ class DliPdu(PduDaemon): #pylint: disable = W0223
 
     def set_outlet_switchable(self, n: int, switchable: bool) -> None:
         switchable = bool(switchable)
-        self._confirm(self.controller.unlock_outlet(n) if switchable else self.controller.lock_outlet(n),
+        self._confirm(self.controller.unlock_outlet(n) if switchable
+                      else self.controller.lock_outlet(n),
                       f"{'unlock' if switchable else 'lock'} outlet {n}")
 
     def cycle_outlet(self, n: int) -> None:
-        """Power cycle outlet ``n``: off, wait its cycle delay, then on."""
+        """Power cycle outlet ``n``: off, wait for its cycle delay, then on."""
         self._confirm(self.controller.outlet_cycle(n), f"cycle outlet {n}")
 
     def get_outlet_cycledelay(self, n: int) -> int:

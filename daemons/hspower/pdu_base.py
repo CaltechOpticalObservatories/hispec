@@ -115,15 +115,15 @@ class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-me
 
     def register_outlet_keywords(self, n: int) -> None:
         """Register the keywords for outlet ``n``."""
-        self.keyword_registry.bool(f"state{self.outlet_key(n)}",
+        self.keyword_registry.bool(f"state{n}",
                       getter=self.when_connected(self.get_outlet_state, n),
                       setter=self.when_connected(self.set_outlet_state, n),
                       description=f"Outlet {n} power state; write true/false to switch on/off.")
-        self.keyword_registry.string(f"name{self.outlet_key(n)}",
+        self.keyword_registry.string(f"name{n}",
                         getter=self.when_connected(self.get_outlet_name, n),
                         setter=self.when_connected(self.set_outlet_name, n),
-                        description=f"Outlet {n} name, as configured on the PDU.")
-        self.keyword_registry.bool(f"switchable{self.outlet_key(n)}",
+                        description=f"Outlet {n} name")
+        self.keyword_registry.bool(f"{n}",
                       getter=self.when_connected(self.get_outlet_switchable, n),
                       setter=self.when_connected(self.set_outlet_switchable, n),
                       description=f"Whether outlet {n} can be switched (True) or is locked "
@@ -316,7 +316,7 @@ class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-me
 
     def _parse_outlet_names(self, raw, outlet_count: int) -> Dict[int, str]:
         """Validate hardware.outlet_names, a map of outlet number to the name
-        used in that outlet's keywords. Characters other than letters, digits
+        used in that outlet's name keyword. Characters other than letters, digits
         and underscores become underscores. Raises ValueError on a bad entry.
         """
         if raw is None:
@@ -339,7 +339,7 @@ class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-me
                 raise ValueError(f"hardware.outlet_names: outlet {n} name is empty")
             if name != raw_name:
                 self.logger.warning("hardware.outlet_names: outlet %d name '%s' is used as "
-                                    "'%s' in keywords", n, raw_name, name)
+                                    "'%s' in name keyword", n, raw_name, name)
             if name.lower() in (other.lower() for other in names.values()):
                 raise ValueError(f"hardware.outlet_names: name '{name}' is used twice")
             names[n] = name
