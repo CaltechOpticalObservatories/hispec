@@ -170,6 +170,7 @@ Every vendor driver is a git submodule from the
 | `ozoptics` | OZ Optics fiber components |
 | `pdu` | Eaton networked power distribution units |
 | `hispec-fiber-switcher` | HISPEC fiber switcher |
+| `lightel` | Lightel DI-2000 fiber inspection camera |
 
 Keeping drivers as separate repositories is deliberate: the same controller
 models appear across COO instruments, and a driver fix benefits all of them

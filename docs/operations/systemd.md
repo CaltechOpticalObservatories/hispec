@@ -460,6 +460,8 @@ Re-run `sudo /opt/hispec/app/systemd/install.sh` when the pull changed
 | `hsfei_piaadeploy` | `hispecserver` | `hsfei/xeryon` | `config/hsfei/hsfei_piaadeploy.yaml` |
 | `hsfei_yjfam` | `hispecserver` | `hsfei/xeryon` | `config/hsfei/hsfei_yjfam.yaml` |
 | `hsfibers_trunkfiberbox` | `hispecserver` | `hsfibers/trunkfiberbox` | `config/hsfibers/hsfibers_trunkfiberbox.yaml` |
+| `hsfibers_fiberswitchred` | `hispecserver` | `hsfibers/fiberswitch` | `config/hsfibers/hsfibers_fiberswitchred.yaml` |
+| `hsfibers_fiberswitchblue` | `hispecserver` | `hsfibers/fiberswitch` | `config/hsfibers/hsfibers_fiberswitchblue.yaml` |
 | `hispec_keygrabber` | `hispecserver` | `generic/keygrabber` | `config/hispec/hispec_keygrabber.yaml` |
 | `hspower_fei1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fei1.yaml` |
 | `hspower_fei2` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fei2.yaml` |

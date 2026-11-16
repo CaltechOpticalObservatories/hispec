@@ -62,7 +62,7 @@ because both client and daemon normalise through the same function.
 libby show    hsfei.ms.positionnamed
 libby modify  hsfei.ms.positionnamed keck_mask
 libby list    hsfei.ms.%
-libby waitfor hsfei.ms.ismoving == false
+libby waitfor '$hsfei.ms.ismoving == false'
 ```
 
 `waitfor` is libby's equivalent of `ktl.waitFor`: it blocks until a keyword
