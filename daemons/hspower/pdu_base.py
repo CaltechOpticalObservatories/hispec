@@ -345,8 +345,9 @@ class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-me
             if name != raw_name:
                 self.logger.warning("hardware.outlet_names: outlet %d name '%s' is used as "
                                     "'%s' in name keyword", n, raw_name, name)
-            if name.lower() in (other.lower() for other in names.values()):
-                raise ValueError(f"hardware.outlet_names: name '{name}' is used twice")
+            if "unused" not in name.lower():
+                if name.lower() in (other.lower() for other in names.values()):
+                    raise ValueError(f"hardware.outlet_names: name '{name}' is used twice")
             names[n] = name
         return names
 
