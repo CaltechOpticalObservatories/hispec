@@ -523,6 +523,11 @@ Then re-run `hispec install`, which also fetches the agent, and restart the
 daemons. `install` prints the `systemctl enable` lines for the units, and
 `hispec doctor` checks each piece. Without `otel.env` nothing is exported.
 
+`grafana/hispec-telemetry-dashboard.json` is the Grafana board for it: request
+rates, failures and latency per daemon and keyword, traces, daemon logs and host
+metrics, from hispec's hosts only. It picks the datasources whose names contain
+`HISPEC`.
+
 ## Host setup (admins)
 
 Installing and re-running `install.sh` is described in {doc}`../install`.
