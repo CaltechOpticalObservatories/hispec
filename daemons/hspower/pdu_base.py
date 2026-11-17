@@ -123,7 +123,7 @@ class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-me
                         getter=self.when_connected(self.get_outlet_name, n),
                         setter=self.when_connected(self.set_outlet_name, n),
                         description=f"Outlet {n} name")
-        self.keyword_registry.bool(f"{n}",
+        self.keyword_registry.bool(f"switchable{n}",
                       getter=self.when_connected(self.get_outlet_switchable, n),
                       setter=self.when_connected(self.set_outlet_switchable, n),
                       description=f"Whether outlet {n} can be switched (True) or is locked "
@@ -267,6 +267,11 @@ class PduDaemon(HispecDriverDaemon):  # pylint: disable=W0223,too-many-public-me
                 self.logger.warning(
                     "Configured hardware.outlet_count (%d) does not match hardware (%d)",
                     self.outlet_count, reported)
+            for key, value in self.outlet_names.items():
+                n = int(key) - 1
+                if self.controller.outlet_names[n] != value:
+                    self.logger.warning("configured outlet %s (%s) does not match controller (%s)",
+                                        key, value, self.controller.outlet_names[n])
         except Exception as e: # pylint: disable=W0718
             return self._fail(str(e))
         return {"ok": True}

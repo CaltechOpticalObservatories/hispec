@@ -19,14 +19,14 @@ hardware:
   # reports.
   outlet_count: 8
   outlet_names:
-    1: 1_FEIPickoff
-    2: 2_LSMHor
-    3: 3_LSMVer
-    4: 4_MSHor
-    5: 5_MSVer
-    6: 6_SMC100PP
-    7: 7_ATCP
-    8: 8_ATCL
+    1: FEIPickoff
+    2: LSMHor
+    3: LSMVer
+    4: MSHor
+    5: MSVer
+    6: SMC100PP
+    7: ATCP
+    8: ATCL
   # Telnet login. The values never appear here: these name environment
   # variables the daemon reads, set root-only in /etc/hispec/secrets.env (see
   # docs/operations/systemd.md). All nine PDUs share one login today; point an instance

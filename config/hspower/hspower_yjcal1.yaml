@@ -19,14 +19,14 @@ hardware:
   # reports.
   outlet_count: 8
   outlet_names:
-    1: 1_Aruba
-    2: 2_Palomar_Comp
-    3: 3_5_EtLamp
-    4: 4_3_IRIS
-    5: 5_Unused
-    6: 6_FW1
-    7: 7_FW2
-    8: 8_Onewire
+    1: Aruba
+    2: Palomar_Comp
+    3: 5_EtLamp
+    4: 3_IRIS
+    5: Unused
+    6: FW1
+    7: FW2
+    8: Onewire
   # Telnet login. The values never appear here: these name environment
   # variables the daemon reads, set root-only in /etc/hispec/secrets.env (see
   # docs/operations/systemd.md). All nine PDUs share one login today; point an instance
