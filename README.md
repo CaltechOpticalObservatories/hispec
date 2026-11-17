@@ -27,6 +27,7 @@ a host][install].
 | `config/` | One YAML file per deployed daemon instance, organised by subsystem. |
 | `src/hispec/` | Installable package: the `HispecDaemon` base class and the `driver/` submodules. |
 | `systemd/` | Template unit, per-instance env files, operator commands and installer. See [Running the daemons with systemd][systemd-ops]. |
+| `grafana/` | Grafana dashboards. |
 | `docs/` | Sphinx documentation sources. |
 | `tests/` | Driver unit tests. |
 | `etc/` | Vendored externals: `camera-interface`, `PIPython`. |
