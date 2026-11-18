@@ -19,14 +19,14 @@ hardware:
   # reports.
   outlet_count: 8
   outlet_names:
-    1: 1_Inficon
-    2: 2_SRS
-    3: 3_2_FW2
-    4: 4_3_IRIS
-    5: 5_1_FW1
-    6: 6_4_IRISETH
-    7: 7_5_EtLamp
-    8: 8_Lantronix
+    1: Inficon
+    2: SRS
+    3: 2_FW2
+    4: 3_IRIS
+    5: 1_FW1
+    6: 4_IRISETH
+    7: 5_EtLamp
+    8: Lantronix
   # Telnet login. The values never appear here: these name environment
   # variables the daemon reads, set root-only in /etc/hispec/secrets.env (see
   # docs/operations/systemd.md). All nine PDUs share one login today; point an instance
