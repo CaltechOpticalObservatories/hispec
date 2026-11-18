@@ -1,5 +1,6 @@
-# fiberswitchred: Red (HK) fiber switcher daemon config: the switcher PLC,
-# its Lightel DI-2000 inspection camera, and the connection policy per port
+# fiberswitchred: Red (HK) fiber switcher daemon config: the switcher PLC
+# and the connection policy per port. Its DI-2000 inspection camera is the
+# fiberswitchredcam daemon (hsfibers_fiberswitchredcam.yaml).
 #
 # Usage:
 #   daemons/hsfibers/fiberswitch -c config/hsfibers/hsfibers_fiberswitchred.yaml
@@ -31,24 +32,13 @@ switch:
   #  noncaminsertpos: [0.0, 50.0]
 
 camera:
-  # The DI-2000 is plugged into another machine (the Pi at 131.215.200.211):
-  # the libby camera peer serving it there, started with
-  #   python camserver.py --device N --peer-id fiberswitchredcam
-  # Remove it to open a camera on this machine; with it set, device_index,
-  # backend, width and height are the camera peer's and those below are unused.
-  remote: hsfibers.fiberswitchredcam
-  # Seconds to wait for a frame or property from the camera peer
-  remote_timeout_s: 10
-  # OpenCV device index. With the V4L2 backend it is the /dev/videoN number,
-  # which the vendor autofocus control needs. TODO: confirm for the red camera.
-  device_index: 0
-  # OpenCV capture backend name (cv2.CAP_<name>); null for OpenCV's default
-  backend: V4L2
-  width: null
-  height: null
-  # Images go under <archive_dir>/<UTC date>/ as PNG, each with a JSON sidecar.
-  # Under /opt/hispec/data, which the service user can write.
-  archive_dir: /opt/hispec/data/fiberswitchred/images
+  # This channel's inspection camera daemon (config/hsfibers/
+  # hsfibers_fiberswitchredcam.yaml), which inspections go through
+  daemon: hsfibers.fiberswitchredcam
+  # Seconds to wait for the camera daemon to answer a keyword read or write
+  timeout_s: 10
+  # Seconds an inspection (focus, exposure, dirt) may take before it is halted
+  inspect_timeout_s: 180
 
 # Policy overrides made at runtime, and each port's inspection history and
 # reference image, persist here.

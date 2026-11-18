@@ -1,0 +1,35 @@
+# fiberswitchbluecam: Blue (YJ) fiber switcher inspection camera daemon
+# config: the Lightel DI-2000 that images fiber ends for fiberswitchblue
+#
+# Usage:
+#   daemons/hsfibers/fiberswitchcam -c config/hsfibers/hsfibers_fiberswitchbluecam.yaml
+
+peer_id: fiberswitchbluecam
+group_id: hsfibers
+
+camera:
+  # The DI-2000 is plugged into another machine (the Pi at 131.215.200.211):
+  # the camserver peer serving it there, started with
+  #   python camserver.py --device N --peer-id fiberswitchbluecamserver
+  # Remove it to open a camera on this machine; with it set, device_index,
+  # backend, width and height are the camserver's and those below are unused.
+  remote: hsfibers.fiberswitchbluecamserver
+  # Seconds to wait for a frame or property from the camserver
+  remote_timeout_s: 10
+  # OpenCV device index. With the V4L2 backend it is the /dev/videoN number,
+  # which the vendor autofocus control needs. TODO: confirm for the blue camera.
+  device_index: 1
+  # OpenCV capture backend name (cv2.CAP_<name>); null for OpenCV's default
+  backend: V4L2
+  width: null
+  height: null
+  # Images go under <archive_dir>/<UTC date>/ as PNG, each with a JSON sidecar.
+  # Under /opt/hispec/data, which the service user can write.
+  archive_dir: /opt/hispec/data/fiberswitchbluecam/images
+  # Inspection pass threshold (dirt fraction of the fiber-end area) when the
+  # inspect request does not give one. The switch daemon always gives its
+  # port's alert_threshold.
+  max_dirt: 0.01
+
+logging:
+  level: INFO

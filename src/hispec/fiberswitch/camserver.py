@@ -3,10 +3,10 @@
 The DI-2000 is a USB camera, so it can only be opened on the machine it is
 plugged into. Run one camera peer per camera there:
 
-    python camserver.py --device 0 --peer-id fiberswitchbluecam
+    python camserver.py --device 0 --peer-id fiberswitchbluecamserver
 
-and point the fiber switch daemon at it with
-``camera.remote: hsfibers.fiberswitchbluecam``. The daemon then uses
+and point the fiber switch camera daemon at it with
+``camera.remote: hsfibers.fiberswitchbluecamserver``. That daemon then uses
 RemoteDi2000, which has the methods of di2000.Di2000 that the daemon and
 lightel's inspection pipeline call, as libby RPCs through the broker:
 
@@ -181,7 +181,7 @@ class RemoteCameraError(RuntimeError):
 class RemoteDi2000:
     """A DI-2000 served by a camera peer on another machine.
 
-    Has the di2000.Di2000 methods the fiber switch daemon and lightel's
+    Has the di2000.Di2000 methods the fiber switch camera daemon and lightel's
     inspection pipeline use. It makes its calls on its own libby connection,
     built by make_libby on first use: the daemon's own connection runs keyword
     handlers on one thread, so a handler waiting there for the camera's reply
@@ -325,7 +325,7 @@ def main(argv=None) -> None:
     """Serve one DI-2000 until interrupted."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     parser.add_argument("--peer-id", required=True,
-                        help="libby peer id, e.g. fiberswitchbluecam")
+                        help="libby peer id, e.g. fiberswitchbluecamserver")
     parser.add_argument("--group", default="hsfibers", help="libby group id")
     parser.add_argument("--device", type=int, default=0, help="camera index (/dev/videoN)")
     parser.add_argument("--backend", default="V4L2",

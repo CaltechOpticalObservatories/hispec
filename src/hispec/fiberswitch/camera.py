@@ -1,4 +1,4 @@
-"""Fiber-end inspection camera (MechanicalSwitchCamera).
+"""Fiber-end inspection camera (MechanicalSwitchCamera), in the camera daemon.
 
 Wraps a connected di2000.Di2000 and the lightel inspection pipeline
 (lightel's inspection module), and archives every capture with its metadata.
@@ -12,6 +12,10 @@ import threading
 from typing import Any, Dict, Mapping, Optional
 
 from hispec.fiberswitch.jobs import JobAborted
+
+# Camera settings by short name: the camera daemon's keywords and the names a
+# connection policy's `camera` field sets
+SETTING_NAMES = ("exposure", "gain", "brightness", "focus", "autoexposure", "autofocus")
 
 
 def summarize(result) -> Dict[str, Any]:
