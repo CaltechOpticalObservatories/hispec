@@ -460,6 +460,8 @@ Re-run `sudo /opt/hispec/app/systemd/install.sh` when the pull changed
 | `hsfei_piaadeploy` | `hispecserver` | `hsfei/xeryon` | `config/hsfei/hsfei_piaadeploy.yaml` |
 | `hsfei_yjfam` | `hispecserver` | `hsfei/xeryon` | `config/hsfei/hsfei_yjfam.yaml` |
 | `hsfibers_trunkfiberbox` | `hispecserver` | `hsfibers/trunkfiberbox` | `config/hsfibers/hsfibers_trunkfiberbox.yaml` |
+| `hsfibers_fiberswitchred` | `hispecserver` | `hsfibers/fiberswitch` | `config/hsfibers/hsfibers_fiberswitchred.yaml` |
+| `hsfibers_fiberswitchblue` | `hispecserver` | `hsfibers/fiberswitch` | `config/hsfibers/hsfibers_fiberswitchblue.yaml` |
 | `hispec_keygrabber` | `hispecserver` | `generic/keygrabber` | `config/hispec/hispec_keygrabber.yaml` |
 | `hspower_fei1` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fei1.yaml` |
 | `hspower_fei2` | `hispecserver` | `hspower/pdu` | `config/hspower/hspower_fei2.yaml` |
@@ -522,6 +524,11 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://hispec.caltech.edu:4318
 Then re-run `hispec install`, which also fetches the agent, and restart the
 daemons. `install` prints the `systemctl enable` lines for the units, and
 `hispec doctor` checks each piece. Without `otel.env` nothing is exported.
+
+`grafana/hispec-telemetry-dashboard.json` is the Grafana board for it: request
+rates, failures and latency per daemon and keyword, traces, daemon logs and host
+metrics, from hispec's hosts only. It picks the datasources whose names contain
+`HISPEC`.
 
 ## Host setup (admins)
 

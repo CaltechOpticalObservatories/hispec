@@ -1,0 +1,101 @@
+# fiberswitchred: Red (HK) fiber switcher daemon config: the switcher PLC,
+# its Lightel DI-2000 inspection camera, and the connection policy per port
+#
+# Usage:
+#   daemons/hsfibers/fiberswitch -c config/hsfibers/hsfibers_fiberswitchred.yaml
+
+peer_id: fiberswitchred
+group_id: hsfibers
+
+switch:
+  # The PLC is the TCP server. TODO: confirm the red unit's address and port.
+  host: 192.168.29.191
+  port: 9001
+  read_timeout_s: 2.0
+  # Refuse motion unless the PLC reports automatic operation (message bit 2)
+  require_auto: true
+  # Seconds to wait for the PLC to report each operation done. start_s is how
+  # long a home or clean is given to start moving before the daemon polls for
+  # completion, since neither has a done flag of its own.
+  timeouts:
+    move_s: 30
+    insert_s: 15
+    clean_s: 180
+    home_s: 60
+    start_s: 2
+  # Writable range, in mm, of each config_<name> axis register. A register
+  # without a range here is read only: a bad value can damage the switcher.
+  axis_limits: {}
+  #  retractdist: [0.0, 10.0]
+  #  caminsertpos: [0.0, 50.0]
+  #  noncaminsertpos: [0.0, 50.0]
+
+camera:
+  # The DI-2000 is plugged into another machine (the Pi at 131.215.200.211):
+  # the libby camera peer serving it there, started with
+  #   python camserver.py --device N --peer-id fiberswitchredcam
+  # Remove it to open a camera on this machine; with it set, device_index,
+  # backend, width and height are the camera peer's and those below are unused.
+  remote: hsfibers.fiberswitchredcam
+  # Seconds to wait for a frame or property from the camera peer
+  remote_timeout_s: 10
+  # OpenCV device index. With the V4L2 backend it is the /dev/videoN number,
+  # which the vendor autofocus control needs. TODO: confirm for the red camera.
+  device_index: 0
+  # OpenCV capture backend name (cv2.CAP_<name>); null for OpenCV's default
+  backend: V4L2
+  width: null
+  height: null
+  # Images go under <archive_dir>/<UTC date>/ as PNG, each with a JSON sidecar.
+  # Under /opt/hispec/data, which the service user can write.
+  archive_dir: /opt/hispec/data/fiberswitchred/images
+
+# Policy overrides made at runtime, and each port's inspection history and
+# reference image, persist here.
+state_file: /opt/hispec/data/fiberswitchred/state.json
+
+# Connection policy applied to every input group unless its own policy
+# overrides a field:
+#   inspect_position    inspection position that images this fiber end
+#   inspect             never | always (every select) | interval
+#   inspect_interval_h  hours between inspections when inspect is interval
+#   clean_interval_h    clean on select after this many hours; null to clean
+#                       only when an inspection finds dirt
+#   clean_mode          inside | outside | both
+#   clean_on_dirty      clean and re-inspect when dirt is above clean_threshold
+#   max_clean_attempts  cleans before giving up and alerting
+#   clean_threshold     dirt (fraction of the fiber-end area) to clean above
+#   alert_threshold     dirt still present after cleaning that alerts
+#   camera              camera settings to apply first, by name: exposure,
+#                       gain, brightness, focus, autoexposure, autofocus
+policy_defaults:
+  inspect: never
+  inspect_interval_h: 24
+  clean_interval_h: null
+  clean_mode: both
+  clean_on_dirty: true
+  max_clean_attempts: 2
+  clean_threshold: 0.005
+  alert_threshold: 0.01
+
+# TODO: replace with the as-built mapping before deploying.
+# Camera ports: inserting here puts a fiber end in front of the camera.
+# The PLC cleans at Port A 10 / Port B 2, so keep that out of both lists.
+inspection_positions:
+  inspect1: {port_a: 13, port_b: 1}
+
+# Where the spectrograph fibers connect for science (Port A 1-13, Port B 1-5),
+# each with its connection policy. Names become keyword suffixes, so keep
+# them lowercase identifiers.
+input_groups:
+  group1:
+    port_a: 1
+    port_b: 1
+    policy: {inspect_position: inspect1}
+  group2:
+    port_a: 2
+    port_b: 1
+    policy: {inspect_position: inspect1}
+
+logging:
+  level: INFO
