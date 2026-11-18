@@ -63,9 +63,6 @@ class OZDaemon(HispecDriverDaemon):  # pylint: disable=W0223
                                     setter=self.controller.set_attenuation,
                                     units=self.atten_units,
                                     description="OZOptics attenuation in dB.")
-        self.keyword_registry.string("configuration",
-                                     getter=self.controller.get_params,
-                                     description="OZOptics attenuator configuration parameters.")
 
         if not (self.ip_address and self.tcp_port):
             self.logger.error("No IP address or port specified")
