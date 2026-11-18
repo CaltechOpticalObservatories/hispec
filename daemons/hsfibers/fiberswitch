@@ -1,0 +1,654 @@
+#!/usr/bin/env python3
+"""
+Fiber Switcher Daemon (fiberswitch)
+
+One instance per channel (red and blue). Each drives that channel's fiber
+switcher PLC (fiber_switcher.FiberSwitcher) and its Lightel DI-2000 fiber
+inspection camera (di2000.Di2000), through three classes:
+
+- MechanicalSwitch: connect input groups, move to inspection positions,
+  clean, air purge and the PLC's axis settings.
+- MechanicalSwitchCamera (keywords prefixed cam): refocus, light, detector
+  settings and capture.
+- MechanicalSwitchController: select inputs per each port's connection
+  policy, inspect and clean fiber ends, reference and inspection images,
+  alerts.
+
+Positions are named in the config: `input_groups` are where the spectrograph
+fibers connect for science, each with its connection policy, and
+`inspection_positions` put a fiber end in front of the camera.
+
+Every command that moves the switcher or uses the camera runs in the
+background, one at a time: the write returns once the command has started,
+`busy` is true until it finishes and `jobstatus` then says how it went.
+`halt` stops the switcher and aborts the command at once. (libby runs a
+daemon's keyword handlers one at a time, so a command that blocked its
+setter would also block `halt` and every status read.)
+"""
+
+import argparse
+import json
+import re
+import sys
+from datetime import datetime, timezone
+from functools import partial
+
+import cv2
+import inspection as lightel_inspection
+from di2000 import Di2000
+from fiber_switcher import DEFAULT_PORT, FiberSwitcher
+from libby import Libby
+
+from hispec import HispecDaemon
+from hispec.fiberswitch.archive import ImageArchive
+from hispec.fiberswitch.camera import InspectionCamera
+from hispec.fiberswitch.camserver import RemoteDi2000
+from hispec.fiberswitch.controller import FiberSwitchController
+from hispec.fiberswitch.jobs import JobRunner, register_job_keywords
+from hispec.fiberswitch.policy import ControllerState
+from hispec.fiberswitch.switch import (AXIS_SETTINGS, CLEAN_MODES, SwitchSequencer, alarm_word,
+                                       message_word, parse_positions, parse_target)
+
+# Input names become keyword suffixes
+_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
+
+# Camera detector settings exposed as cam<name> float keywords
+CAMERA_PROPERTIES = {
+    "exposure": (cv2.CAP_PROP_EXPOSURE, "Exposure, in the camera driver's units."),
+    "gain": (cv2.CAP_PROP_GAIN, "Gain, in the camera driver's units."),
+    "brightness": (cv2.CAP_PROP_BRIGHTNESS, "Brightness, in the camera driver's units."),
+    "focus": (cv2.CAP_PROP_FOCUS, "Focus position, in the camera driver's units."),
+}
+
+# V4L2 values of CAP_PROP_AUTO_EXPOSURE, as lightel's inspection uses them
+AUTO_EXPOSURE_MANUAL = 1.0
+AUTO_EXPOSURE_AUTO = 3.0
+
+
+class MechanicalSwitch:
+    """The switcher PLC and its keywords."""
+
+    def __init__(self, daemon, config):
+        self.daemon = daemon
+        self.host = config.get("host")
+        self.port = int(config.get("port", DEFAULT_PORT))
+        self.axis_limits = config.get("axis_limits") or {}
+        self.driver = FiberSwitcher(log=True,
+                                    read_timeout=float(config.get("read_timeout_s", 2.0)))
+        timeouts = config.get("timeouts") or {}
+        self.sequencer = SwitchSequencer(
+            self.driver,
+            move_timeout_s=float(timeouts.get("move_s", 30.0)),
+            insert_timeout_s=float(timeouts.get("insert_s", 15.0)),
+            clean_timeout_s=float(timeouts.get("clean_s", 180.0)),
+            home_timeout_s=float(timeouts.get("home_s", 60.0)),
+            start_s=float(timeouts.get("start_s", 2.0)),
+            require_auto=bool(config.get("require_auto", True)))
+
+    def connected(self):
+        """True when the PLC connection is open."""
+        return bool(self.driver.is_connected())
+
+    def connect(self):
+        """Open the PLC connection."""
+        if not self.host:
+            raise RuntimeError("no switch.host in the config")
+        self.driver.connect(self.host, self.port)
+
+    def problem(self):
+        """What is wrong with the switcher, or None."""
+        if not self.connected():
+            return "switch disconnected"
+        try:
+            status = self.sequencer.status()
+        except Exception as e:  # pylint: disable=W0718
+            return f"switch not answering: {e}"
+        if alarm_word(status):
+            return f"switch alarm 0x{alarm_word(status):08X}"
+        if not self.sequencer.auto_ready():
+            return "switch not in automatic operation"
+        return None
+
+    def register_keywords(self, registry):
+        """Add the switch keywords."""
+        d, seq, hw = self.daemon, self.sequencer, self._hw
+        inputs = ", ".join(d.input_groups) or "none"
+        positions = ", ".join(d.inspection_positions) or "none"
+        registry.bool("isconnected", getter=self.connected, setter=self._set_connected,
+                      description="Connected to the switcher PLC; write to connect or "
+                                  "disconnect.")
+        registry.bool("ishomed", getter=lambda: seq.homed, setter=self._set_homed,
+                      description="This daemon has seen a return to origin complete; write "
+                                  "true to home. Reads false after a daemon restart.")
+        registry.bool("autoready", getter=hw(seq.auto_ready),
+                      description="PLC is in automatic operation, so it accepts motion.")
+        registry.int("porta", getter=hw(lambda: seq.ports()[0]),
+                     description="Port A target position, 1-13.")
+        registry.int("portb", getter=hw(lambda: seq.ports()[1]),
+                     description="Port B target position, 1-5.")
+        registry.string("target", getter=hw(lambda: ",".join(map(str, seq.ports()))),
+                        setter=self._set_target, validator=_check_target,
+                        description="Port A,Port B the switcher is set to, like '5,2'; write "
+                                    "a pair to retract, move there and insert, for manual "
+                                    "switching to any ports. Port A 1-13, Port B 1-5.")
+        registry.bool("inposition", getter=hw(lambda: seq.status().in_position),
+                      description="Ports are at their target positions.")
+        registry.string("insertion", getter=hw(seq.insertion),
+                        description="Connector insertion axis: removed, inserted or moving.")
+        registry.string("alarms", getter=hw(lambda: f"0x{alarm_word(seq.status()):08X}"),
+                        description="PLC alarm bits 0-31; 0x00000000 when clear.")
+        registry.string("messages", getter=hw(lambda: f"0x{message_word(seq.status()):08X}"),
+                        description="PLC message bits 0-31.")
+        registry.string("inputgroup", getter=hw(lambda: self._match(d.input_groups)),
+                        setter=self._set_input, validator=d.check_input,
+                        description="Input group connected to the spectrograph fibers, empty "
+                                    "when none; write a name to connect it directly, without "
+                                    f"its policy (see select). Inputs: {inputs}.")
+        registry.string("inspectpos", getter=hw(lambda: self._match(d.inspection_positions)),
+                        setter=self._set_inspection, validator=self._check_inspection,
+                        description="Inspection position the fiber is inserted at, empty "
+                                    "when none; write a name to put that fiber end in front "
+                                    f"of the camera. Positions: {positions}.")
+        registry.bool("inserted", getter=hw(lambda: seq.insertion() == "inserted"),
+                      setter=self._set_inserted,
+                      description="Connector is inserted; write to insert or retract at the "
+                                  "current position.")
+        registry.string("clean", getter=lambda: seq.last_clean_mode or "",
+                        setter=self._set_clean,
+                        validator=lambda v: None if v in CLEAN_MODES
+                        else f"expected one of {CLEAN_MODES}",
+                        description="Write inside, outside or both to run a cleaning cycle; "
+                                    "reads the last mode run.")
+        registry.bool("airpurge", getter=lambda: seq.air_purge,
+                      setter=d.quick(self._require_connected, seq.set_air_purge),
+                      nullable=True,
+                      description="Air purge valve as last commanded (the PLC does not "
+                                  "report it); null until set. Placeholder for the "
+                                  "positive-pressure air system.")
+        for suffix, (getter, setter, description) in AXIS_SETTINGS.items():
+            self._register_axis_setting(registry, suffix, getter, setter, description)
+
+    def _register_axis_setting(self, registry, suffix, getter, setter, description):
+        limits = self.axis_limits.get(suffix)
+        writable = limits is not None
+        note = (f" Writable within {limits[0]}-{limits[1]} mm." if writable
+                else f" Read only: set switch.axis_limits.{suffix} in the config to allow "
+                     "writes.")
+        # Look the driver method up per call rather than binding it now
+        # pylint: disable=unnecessary-lambda
+        registry.float(
+            f"config_{suffix}",
+            getter=self._hw(lambda: getattr(self.driver, getter)()),
+            setter=(self.daemon.quick(self._require_connected,
+                                      lambda v: getattr(self.driver, setter)(v))
+                    if writable else None),
+            validator=partial(_check_range, limits) if writable else None,
+            units="mm", description=description + note)
+
+    def _hw(self, fn):
+        def getter():
+            self._require_connected()
+            return fn()
+        return getter
+
+    def _require_connected(self):
+        if not self.connected():
+            raise RuntimeError("not connected to the switcher")
+
+    def _match(self, positions):
+        for name, position in positions.items():
+            if self.sequencer.at(position, inserted=True):
+                return name
+        return ""
+
+    def _check_inspection(self, name):
+        if name not in self.daemon.inspection_positions:
+            return (f"unknown inspection position {name!r}; "
+                    f"positions: {list(self.daemon.inspection_positions)}")
+        return None
+
+    def _start(self, label, fn):
+        self._require_connected()
+        self.daemon.jobs.start(label, fn)
+
+    def _set_input(self, name):
+        position = self.daemon.input_groups[name]
+        self._start(f"connect {name}", lambda cancel: self.sequencer.connect(position, cancel))
+
+    def _set_target(self, value):
+        position = parse_target(value)
+        self._start(f"connect {position.name}",
+                    lambda cancel: self.sequencer.connect(position, cancel))
+
+    def _set_inspection(self, name):
+        # Inserting at a camera port puts the fiber end at the PLC's camera
+        # insertion position, in the inspection camera's field
+        position = self.daemon.inspection_positions[name]
+        self._start(f"inspection position {name}",
+                    lambda cancel: self.sequencer.connect(position, cancel))
+
+    def _set_inserted(self, value):
+        self._start("insert" if value else "retract",
+                    self.sequencer.insert if value else self.sequencer.retract)
+
+    def _set_clean(self, mode):
+        self._start(f"clean {mode}", lambda cancel: self.sequencer.clean(mode, cancel))
+
+    def _set_homed(self, value):
+        if not value:
+            raise RuntimeError("write true to home; homing cannot be undone")
+        self._start("home", self.sequencer.home)
+
+    def _set_connected(self, value):
+        if value:
+            if not self.connected():
+                self.connect()
+        else:
+            self.daemon.require_idle()
+            self.driver.disconnect()
+
+
+class MechanicalSwitchCamera:  # pylint: disable=too-many-instance-attributes
+    """The Lightel DI-2000 inspection camera and its cam* keywords."""
+
+    def __init__(self, daemon, config):
+        self.daemon = daemon
+        self.remote = config.get("remote")
+        self.device_index = int(config.get("device_index", 0))
+        self.backend = _backend(config.get("backend"))
+        self.width = config.get("width")
+        self.height = config.get("height")
+        archive_dir = config.get("archive_dir")
+        if not archive_dir:
+            raise ValueError("config must set camera.archive_dir")
+        # A camera plugged into another machine is reached through the
+        # camera peer serving it there; device_index, backend, width and
+        # height are then the peer's
+        self.driver = (RemoteDi2000(str(self.remote), self._camera_client,
+                                    timeout_s=float(config.get("remote_timeout_s", 10.0)))
+                       if self.remote else Di2000(log=True))
+        self._client_bind = config.get("remote_client_bind")
+        properties = {name: prop for name, (prop, _) in CAMERA_PROPERTIES.items()}
+        properties["autoexposure"] = cv2.CAP_PROP_AUTO_EXPOSURE
+        properties["autofocus"] = cv2.CAP_PROP_AUTOFOCUS
+        self.camera = InspectionCamera(self.driver, ImageArchive(archive_dir),
+                                       lightel_inspection, properties)
+
+    def connected(self):
+        """True when the camera is open."""
+        return bool(self.driver.is_connected())
+
+    def connect(self):
+        """Open the camera."""
+        self.driver.connect(self.device_index, backend=self.backend,
+                            width=self.width, height=self.height)
+
+    def describe(self):
+        """Where the camera is, for the log."""
+        return f"camera peer {self.remote}" if self.remote else f"camera {self.device_index}"
+
+    def _camera_client(self):
+        """A libby connection of its own for the remote camera's RPCs.
+
+        Not the daemon's: it runs keyword handlers on one thread, so a getter
+        waiting on it for the camera's reply would never see it.
+        """
+        d = self.daemon
+        self_id = f"{d.peer_id}-camclient"
+        if str(d.transport).lower() == "zmq":
+            if not self._client_bind:
+                raise ValueError("camera.remote_client_bind is needed over zmq")
+            return Libby.zmq(self_id=self_id, bind=self._client_bind,
+                             address_book=d.config_address_book(), group_id=d.group_id)
+        return Libby.rabbitmq(self_id=self_id, rabbitmq_url=d.config_rabbitmq_url(),
+                              group_id=d.group_id)
+
+    def problem(self):
+        """What is wrong with the camera, or None."""
+        if self.connected():
+            return None
+        return f"camera disconnected ({self.describe()})"
+
+    def register_keywords(self, registry):
+        """Add the cam* keywords."""
+        cam = self.camera
+        registry.bool("camconnected", getter=self.connected, setter=self._set_connected,
+                      description="Inspection camera is open; write to open or release it.")
+        registry.trigger("camrefocus",
+                         action=lambda: self._start("refocus", cam.refocus),
+                         description="Bring the fiber end into focus (vendor autofocus on "
+                                     "Linux, else a focus sweep).")
+        registry.float("camfocusscore", getter=lambda: self._focus("score"), nullable=True,
+                       description="Sharpness of the latest refocus; null before one.")
+        registry.string("camlight", getter=lambda: "fixed",
+                        description="Placeholder: the DI-2000 illumination is not software "
+                                    "controllable through its driver.")
+        for name, (_, description) in CAMERA_PROPERTIES.items():
+            registry.float(f"cam{name}",
+                           getter=self._hw(partial(cam.get_setting, name)),
+                           setter=self._setting(name), description=description)
+        registry.bool("camautoexposure",
+                      getter=self._hw(lambda: cam.get_setting("autoexposure")
+                                      != AUTO_EXPOSURE_MANUAL),
+                      setter=self._setting("autoexposure", lambda v: AUTO_EXPOSURE_AUTO
+                                           if v else AUTO_EXPOSURE_MANUAL),
+                      description="Camera's own auto exposure; inspections turn it off.")
+        registry.bool("camautofocus",
+                      getter=self._hw(lambda: bool(cam.get_setting("autofocus"))),
+                      setter=self._setting("autofocus", lambda v: 1.0 if v else 0.0),
+                      description="Camera's standard UVC continuous autofocus.")
+        registry.string("camcapture", getter=lambda: self._last("tag"),
+                        setter=lambda tag: self._start(f"capture {tag}",
+                                                       partial(_capture, cam, tag)),
+                        description="Write a tag to grab and archive one frame as-is; "
+                                    "reads the latest image's tag.")
+        registry.string("camlastimage", getter=lambda: self._last("image"),
+                        description="Path of the latest archived image, empty before one.")
+        registry.string("camlastresult", getter=lambda: json.dumps(cam.last_record or {}),
+                        description="JSON metadata of the latest capture or inspection, as "
+                                    "in its sidecar.")
+
+    def _hw(self, fn):
+        def getter():
+            self._require_connected()
+            return fn()
+        return getter
+
+    def _setting(self, name, convert=float):
+        return self.daemon.quick(self._require_connected,
+                                 lambda v: self.camera.set_setting(name, convert(v)))
+
+    def _focus(self, field):
+        focus = self.camera.last_focus
+        return None if focus is None else focus[field]
+
+    def _last(self, field):
+        record = self.camera.last_record
+        return "" if record is None else record.get(field, "")
+
+    def _require_connected(self):
+        if not self.connected():
+            raise RuntimeError("camera is not connected")
+
+    def _start(self, label, fn):
+        self._require_connected()
+        self.daemon.jobs.start(label, fn)
+
+    def _set_connected(self, value):
+        if value:
+            if not self.connected():
+                self.connect()
+        else:
+            self.daemon.require_idle()
+            self.driver.disconnect()
+
+
+class MechanicalSwitchController:  # pylint: disable=too-few-public-methods
+    """Connection policy, inspect-and-clean and reference images, and their keywords."""
+
+    def __init__(self, daemon, switch, camera):
+        self.daemon = daemon
+        self.switch = switch
+        self.state = ControllerState(
+            daemon.get_config("state_file"), daemon.get_config("policy_defaults") or {},
+            {name: (spec or {}).get("policy") or {}
+             for name, spec in (daemon.get_config("input_groups") or {}).items()})
+        for message in self.state.dropped:
+            daemon.logger.warning("Ignoring saved policy override %s", message)
+        self.ctl = FiberSwitchController(
+            switch.sequencer, camera.camera, self.state,
+            input_groups=daemon.input_groups,
+            inspection_positions=daemon.inspection_positions, logger=daemon.logger)
+        self._camera_settings = set(camera.camera.properties)
+        self._last = {"inspectclean": "", "takereference": ""}
+        for name in self.state.inputs:
+            policy = self.state.policy(name)
+            self._check_position(policy.inspect_position)
+            self._check_camera_settings(policy.camera)
+
+    def register_keywords(self, registry):
+        """Add the controller keywords."""
+        d = self.daemon
+        inputs = ", ".join(self.state.inputs)
+        registry.string("select", getter=lambda: self.state.selected,
+                        setter=lambda name: self._start("select", self.ctl.select_input, name),
+                        validator=d.check_input,
+                        description="Input group last selected; write a name to connect it "
+                                    "per its policy, cleaning and inspecting first if due. "
+                                    f"Inputs: {inputs}.")
+        registry.string("inspectclean", getter=lambda: self._last["inspectclean"],
+                        setter=lambda name: self._start("inspectclean",
+                                                        self.ctl.inspect_and_clean, name),
+                        validator=d.check_input,
+                        description="Write an input name to inspect its fiber end, clean "
+                                    "while dirty, archive the images and alert per its "
+                                    "policy. Leaves the fiber at its inspection position.")
+        registry.string("takereference", getter=lambda: self._last["takereference"],
+                        setter=lambda name: self._start("takereference",
+                                                        self.ctl.take_reference, name),
+                        validator=d.check_input,
+                        description="Write an input name to take a reference image of its "
+                                    "fiber end.")
+        registry.string("alert", getter=lambda: self.state.alert, setter=self._set_alert,
+                        description="Latest unacknowledged alert, empty when none; write an "
+                                    "empty string to clear it.")
+        for name in self.state.inputs:
+            self._register_input_keywords(registry, name)
+
+    def _register_input_keywords(self, registry, name):
+        history = partial(self.state.history, name)
+        registry.string(f"policy_{name}",
+                        getter=lambda: json.dumps(self.state.policy(name).to_dict()),
+                        setter=lambda value: self._set_policy(name, value),
+                        description=f"Connection policy of {name}, as JSON. Write a JSON "
+                                    "object of the fields to change; {} resets to the "
+                                    "config.")
+        registry.string(f"inspectimage_{name}", getter=lambda: history().get("last_image", ""),
+                        description=f"Path of {name}'s latest inspection image.")
+        registry.string(f"refimage_{name}",
+                        getter=lambda: history().get("reference_image", ""),
+                        description=f"Path of {name}'s reference image.")
+        registry.float(f"dirt_{name}", getter=lambda: history().get("last_dirt"),
+                       nullable=True,
+                       description=f"Dirt fraction of {name}'s fiber end at its latest "
+                                   "inspection.")
+        registry.bool(f"passed_{name}", getter=lambda: history().get("last_passed"),
+                      nullable=True,
+                      description=f"{name}'s latest inspection found the fiber end within "
+                                  "the alert threshold.")
+        registry.string(f"lastinspect_{name}",
+                        getter=lambda: _iso(history().get("last_inspect")),
+                        description=f"UTC time of {name}'s latest inspection.")
+        registry.string(f"lastclean_{name}",
+                        getter=lambda: _iso(history().get("last_clean")),
+                        description=f"UTC time {name}'s fiber end was last cleaned.")
+
+    def _start(self, kind, fn, name):
+        # A command that needs the camera and finds it closed fails in the job,
+        # with the camera's own error
+        if not self.switch.connected():
+            raise RuntimeError("not connected to the switcher")
+        self.daemon.jobs.start(f"{kind} {name}", lambda cancel: fn(name, cancel))
+        if kind in self._last:
+            self._last[kind] = name
+
+    def _check_position(self, position):
+        if position is not None and position not in self.daemon.inspection_positions:
+            raise ValueError(f"unknown inspection position {position!r}; "
+                             f"positions: {list(self.daemon.inspection_positions)}")
+
+    def _check_camera_settings(self, camera):
+        unknown = set(camera) - self._camera_settings
+        if unknown:
+            raise ValueError(f"unknown camera settings {sorted(unknown)}; "
+                             f"known: {sorted(self._camera_settings)}")
+
+    def _set_policy(self, name, value):
+        try:
+            changes = json.loads(value) if value else {}
+        except json.JSONDecodeError as e:
+            raise ValueError(f"policy must be a JSON object: {e}") from e
+        if not isinstance(changes, dict):
+            raise ValueError("policy must be a JSON object")
+        self._check_position(changes.get("inspect_position"))
+        self._check_camera_settings(changes.get("camera") or {})
+        policy = self.state.update_policy(name, changes)
+        self.daemon.logger.info("Policy for %s now %s", name, policy.to_dict())
+
+    def _set_alert(self, value):
+        if value:
+            raise ValueError("write an empty string to clear the alert")
+        if self.state.alert:
+            self.daemon.logger.info("Alert cleared: %s", self.state.alert)
+        self.state.set_alert("")
+
+
+# pylint: disable=too-many-instance-attributes
+class FiberSwitchDaemon(HispecDaemon):  # pylint: disable=W0223
+    """One channel's fiber switcher, inspection camera and controller."""
+
+    def __init__(self):
+        super().__init__()
+        self.daemon_description = "Fiber Switcher Daemon"
+        self.jobs = None
+        self.input_groups = {}
+        self.inspection_positions = {}
+        self.switch = None
+        self.camera = None
+        self.controller = None
+
+    def on_start(self):  # pylint: disable=unused-argument
+        """Read the config, register keywords and connect to the hardware."""
+        groups = self.get_config("input_groups") or {}
+        bad = [name for name in groups if not _NAME.match(str(name))]
+        if bad:
+            raise ValueError(f"input group names must be lowercase identifiers: {bad}")
+        self.input_groups = parse_positions(groups, "input group")
+        self.inspection_positions = parse_positions(
+            self.get_config("inspection_positions"), "inspection position")
+        self.jobs = JobRunner(self.logger)
+        self.switch = MechanicalSwitch(self, self.get_config("switch") or {})
+        self.camera = MechanicalSwitchCamera(self, self.get_config("camera") or {})
+        self.controller = MechanicalSwitchController(self, self.switch, self.camera)
+
+        self.logger.info("Starting %s daemon: switcher %s:%s, %s, inputs %s",
+                         self.peer_id, self.switch.host, self.switch.port,
+                         self.camera.describe(), ", ".join(self.input_groups))
+        registry = self.keyword_registry
+        registry.string("status", getter=self._status,
+                        description="ok, or what is wrong with the switcher and camera.")
+        self.switch.register_keywords(registry)
+        self.camera.register_keywords(registry)
+        self.controller.register_keywords(registry)
+        register_job_keywords(registry, self.jobs, abort_action=self._halt, abort_name="halt")
+        registry.trigger("shutdown", action=self._shutdown,
+                         description="Stop this daemon; refused while a command runs.")
+
+        for part in (self.switch, self.camera):
+            try:
+                part.connect()
+            except Exception as e:  # pylint: disable=W0718
+                self.logger.error("Failed to connect %s: %s", type(part).__name__, e)
+        self.logger.info("Daemon started")
+
+    def on_stop(self):  # pylint: disable=unused-argument
+        """Halt any command, then disconnect both devices."""
+        self.logger.info("Shutting down %s daemon", self.peer_id)
+        if self.jobs is not None and self.jobs.busy:
+            self._halt()
+            self.jobs.wait(5.0)
+        for part in (self.switch, self.camera):
+            if part is not None:
+                part.driver.disconnect()
+        if self.camera is not None and hasattr(self.camera.driver, "close"):
+            self.camera.driver.close()
+
+    def check_input(self, name):
+        """Validator for keywords taking an input group name."""
+        if name not in self.input_groups:
+            return f"unknown input group {name!r}; inputs: {list(self.input_groups)}"
+        return None
+
+    def require_idle(self):
+        """Refuse while a command is running."""
+        if self.jobs.busy:
+            raise RuntimeError(f"busy with {self.jobs.state}")
+
+    def quick(self, require_connected, fn):
+        """A setter applied at once: needs the device connected and no command running."""
+        def setter(value):
+            require_connected()
+            self.require_idle()
+            fn(value)
+        return setter
+
+    def _status(self):
+        problems = [p for p in (self.switch.problem(), self.camera.problem()) if p]
+        return "; ".join(problems) or "ok"
+
+    def _halt(self):
+        self.jobs.abort()
+        if self.switch.connected():
+            self.switch.sequencer.stop()
+
+    def _shutdown(self):
+        if self.jobs.busy:
+            raise RuntimeError(f"busy with {self.jobs.state}; halt before shutting down")
+        self.logger.info("Shutting down on keyword request")
+        self.request_stop()
+
+
+def _capture(camera, tag, cancel):
+    camera.capture(tag, cancel)
+
+
+def _check_target(value):
+    try:
+        parse_target(value)
+    except ValueError as e:
+        return str(e)
+    return None
+
+
+def _check_range(limits, value):
+    if not limits[0] <= value <= limits[1]:
+        return f"{value} mm outside {limits[0]}-{limits[1]} mm"
+    return None
+
+
+def _backend(name):
+    """OpenCV capture backend from its name (V4L2, DSHOW, ...); None for the default."""
+    if not name:
+        return None
+    attr = f"CAP_{str(name).upper()}"
+    if not hasattr(cv2, attr):
+        raise ValueError(f"unknown OpenCV backend {name!r}")
+    return getattr(cv2, attr)
+
+
+def _iso(epoch):
+    if epoch is None:
+        return ""
+    return datetime.fromtimestamp(float(epoch), timezone.utc).isoformat(timespec="seconds")
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(description="Fiber Switcher Daemon")
+    parser.add_argument("-c", "--config", type=str, help="Path to config file (YAML or JSON)")
+    args = parser.parse_args()
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+    try:
+        FiberSwitchDaemon.from_config_file(args.config).serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e:  # pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
