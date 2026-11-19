@@ -30,7 +30,9 @@ their shared `pdu_base.py` base class.
 | `hscal/smc8_attenuator` | `standa.smc8` | Standa SMC8 (libximc) attenuator | `hscal_hketatten` |
 | `hspower/eaton_pdu` | `pdu.src.emat08_10` | Eaton EMAT08-10 networked PDU | `hspower_fei3/4`, `hspower_cal1`–`4`, `hspower_fib1`, `hspower_bspec1`, `hspower_rspec1` |
 | `hsfibers/trunkfiberbox` | `fib.TrunkInterfaceBox` | FIB trunk interface box, over MQTT 5 | `hsfibers_trunkfiberbox` |
-| `hsfibers/fiberswitch` | `fiber_switcher.FiberSwitcher`, `di2000.Di2000` | Fiber switcher PLC (MELSEC MC over TCP) and its Lightel DI-2000 inspection camera (USB) | `hsfibers_fiberswitchred`, `hsfibers_fiberswitchblue` |
+| `hsfibers/fiberswitch` | `fiber_switcher.FiberSwitcher` | Fiber switcher PLC (MELSEC MC over TCP) and its connection policy | `hsfibers_fiberswitchred`, `hsfibers_fiberswitchblue` |
+| `hsfibers/fiberswitchcam` | `di2000.Di2000` | Lightel DI-2000 fiber inspection camera (USB) | `hsfibers_fiberswitchredcam`, `hsfibers_fiberswitchbluecam` |
+| `hsfibers/fiberswitchcamserver` | `di2000.Di2000` | Serves a DI-2000 over libby from the machine it is plugged into, for `fiberswitchcam` | none: run by hand or cron on that machine (peers `fiberswitchredcamserver`, `fiberswitchbluecamserver`) |
 
 Thirty-five instances are currently defined under `systemd/instances/`,
 running twelve distinct daemon scripts — the config-driven design paying off
@@ -85,29 +87,38 @@ switch.
 | Instance | Mechanism |
 |---|---|
 | `hsfibers_trunkfiberbox` | trunk interface box: MEMS switches, routes, lasers, attenuators, photodiodes, all read only |
-| `hsfibers_fiberswitchred`, `hsfibers_fiberswitchblue` | fiber switcher per channel: connects input groups, cleans, air purge; inspection camera (`cam*`); per-port connection policy, inspect and clean, reference images, alerts |
+| `hsfibers_fiberswitchred`, `hsfibers_fiberswitchblue` | fiber switcher per channel: connects input groups, cleans, air purge; per-port connection policy, inspect and clean, reference images, alerts |
+| `hsfibers_fiberswitchredcam`, `hsfibers_fiberswitchbluecam` | fiber inspection camera per channel: refocus, detector settings, capture, inspect |
 
-Each fiber switcher instance holds the three classes of its design:
-MechanicalSwitch (the PLC), MechanicalSwitchCamera (the DI-2000, keywords
-prefixed `cam`) and MechanicalSwitchController (connection policy and
-inspect-and-clean, which drives the other two directly). Commands that move
-the switcher or use the camera run one at a time as a background job: a write
-returns once the command starts, `busy` is true until it ends and `jobstatus`
-then reads `ok`, `aborted` or `error: ...`. This keeps `halt` and every status
-keyword answering mid-move, since libby runs a daemon's keyword handlers one
-at a time on a single thread. Inspection images are archived as PNG with a
-JSON sidecar under `camera.archive_dir`; policy changes and each port's
-inspection history persist in `state_file`.
+Each channel's fiber switcher is two daemons, which hold the three classes of
+its design between them. The switch daemon (`fiberswitchred`) holds
+MechanicalSwitch (the PLC) and MechanicalSwitchController (connection policy
+and inspect-and-clean). The camera daemon (`fiberswitchredcam`) holds
+MechanicalSwitchCamera (the DI-2000). The controller drives the switch
+directly and the camera through the camera daemon's keywords (`settings`,
+then `inspect`, waiting on its `busy` and reading `lastresult`), named by
+`camera.daemon` in the switch config, on a libby client of its own. Commands
+that move the switcher or use the camera run one at a time per daemon as a
+background job: a write returns once the command starts, `busy` is true until
+it ends and `jobstatus` then reads `ok`, `aborted` or `error: ...`. This keeps
+`halt` and every status keyword answering mid-move, since libby runs a
+daemon's keyword handlers one at a time on a single thread. Halting the switch
+daemon during an inspection halts the camera daemon too. Inspection images are
+archived by the camera daemon as PNG with a JSON sidecar under its
+`camera.archive_dir`; policy changes and each port's inspection history
+persist in the switch daemon's `state_file`.
 
 The DI-2000 is a USB camera, so it opens only on the machine it is plugged
-into. When that is not the daemon's host, run a libby camera peer there, one
-per camera (`python camserver.py --device N --peer-id fiberswitchbluecam`;
-`src/hispec/fiberswitch/camserver.py` needs only libby, numpy and lightel, so
-it can be copied there alone), and set `camera.remote:
-hsfibers.fiberswitchbluecam`. The daemon then reads frames and camera
-settings through the broker, with its broker login, on a libby connection of
-its own. A frame is larger than libby's 512 KB message limit, so it travels
-compressed in chunks. The device index and backend are the camera peer's.
+into. Run the camera daemon there, or, when that is not the daemon's host,
+run a camera server there, one per camera (`python
+daemons/hsfibers/fiberswitchcamserver --device N --peer-id
+fiberswitchbluecamserver`; it needs only libby, numpy, OpenCV and lightel, not
+the hispec package, so it can be copied there alone), and set `camera.remote:
+hsfibers.fiberswitchbluecamserver` in the camera daemon's config. The camera
+daemon then reads frames and camera settings through the broker, with its
+broker login, on a libby connection of its own. A frame is larger than
+libby's 512 KB message limit, so it travels compressed in chunks. The device
+index and backend are the camera server's.
 To switch to any ports by hand, write `target` (for example
 `libby modify hsfibers.fiberswitchred.target 5,2`); it retracts, moves and
 inserts like `inputgroup` does.
