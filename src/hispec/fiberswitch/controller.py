@@ -3,11 +3,6 @@
 Connects input groups to the spectrograph per each port's ConnectionPolicy:
 inspecting the fiber end with the camera, cleaning it when it is dirty,
 archiving every image and raising an alert when cleaning does not help.
-
-It drives the switch (SwitchSequencer) of its own daemon directly, and the
-camera through anything with InspectionCamera's inspect and set_setting: in
-the daemon, a camclient.CameraDaemonClient for the channel's camera daemon.
-Every method runs on the daemon's job thread and takes the job's cancel event.
 """
 
 from __future__ import annotations

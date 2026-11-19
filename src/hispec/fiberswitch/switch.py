@@ -33,18 +33,6 @@ PORT_B_RANGE = (1, 5)
 
 CLEAN_MODES = ("inside", "outside", "both")
 
-# The mm registers the daemon exposes, keyed by keyword suffix
-AXIS_SETTINGS = {
-    "retractdist": ("get_retract_distance_mm", "set_retract_distance_mm",
-                    "Insertion axis retract-back distance."),
-    "caminsertpos": ("get_camera_insertion_position_mm",
-                     "set_camera_insertion_position_mm",
-                     "Insertion position used at camera (inspection) ports."),
-    "noncaminsertpos": ("get_noncamera_insertion_position_mm",
-                        "set_noncamera_insertion_position_mm",
-                        "Insertion position used at non-camera ports."),
-}
-
 
 class SwitchError(RuntimeError):
     """The switcher refused a command, raised an alarm or timed out."""

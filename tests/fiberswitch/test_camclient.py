@@ -5,8 +5,10 @@ import threading
 
 import pytest
 
-from hispec.fiberswitch.camclient import CameraDaemonClient, CameraDaemonError
 from hispec.fiberswitch.jobs import ABORTED, ERROR_PREFIX, OK, JobAborted
+
+# daemons/hsfibers, put on the path by conftest
+from camclient import CameraDaemonClient, CameraDaemonError  # pylint: disable=import-error,wrong-import-order
 
 
 class FakeCameraDaemon:  # pylint: disable=too-many-instance-attributes

@@ -33,7 +33,8 @@ switch:
 
 camera:
   # This channel's inspection camera daemon (config/hsfibers/
-  # hsfibers_fiberswitchbluecam.yaml), which inspections go through
+  # hsfibers_fiberswitchbluecam.yaml), which inspections go through. Defaults to
+  # <group_id>.<peer_id>cam when not set.
   daemon: hsfibers.fiberswitchbluecam
   # Seconds to wait for the camera daemon to answer a keyword read or write
   timeout_s: 10

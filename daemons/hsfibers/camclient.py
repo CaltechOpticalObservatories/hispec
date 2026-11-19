@@ -1,5 +1,8 @@
 """The fiber switch daemon's handle on its channel's camera daemon.
 
+Used by daemons/hsfibers/fiberswitch; it lives beside the daemons rather than
+in hispec.fiberswitch because it talks libby.
+
 The switcher PLC and the DI-2000 inspection camera run as separate daemons
 (fiberswitch<channel> and fiberswitch<channel>cam). The switch daemon's
 controller still inspects fiber ends, through CameraDaemonClient, which has

@@ -9,12 +9,14 @@ the design between them:
   - MechanicalSwitchController: per-port connection policy, inspect-and-clean
     and reference images, in controller.FiberSwitchController, which drives
     the switch directly and the camera daemon through
-    camclient.CameraDaemonClient.
+    CameraDaemonClient (daemons/hsfibers/camclient.py).
 - daemons/hsfibers/fiberswitchcam (fiberswitchredcam, fiberswitchbluecam):
   - MechanicalSwitchCamera: the Lightel DI-2000, through di2000.Di2000 (or
-    camserver.RemoteDi2000) and lightel's inspection pipeline, wrapped by
-    camera.InspectionCamera.
+    RemoteDi2000 in daemons/hsfibers/remotecam.py) and lightel's inspection
+    pipeline, wrapped by camera.InspectionCamera.
 
-Nothing here imports libby, cv2 or the drivers at module level, so the logic
-can be tested with fakes.
+This package is the API only, agnostic of libby and the daemons: their
+keywords and libby clients live with the daemons in daemons/hsfibers. Nothing
+here imports libby, cv2 or the drivers at module level, so the logic can be
+tested with fakes.
 """

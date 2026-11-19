@@ -12,8 +12,8 @@ switcher PLC and the connection policy. It puts a fiber end in front of this
 camera, then inspects it through `settings` and `inspect` here.
 
 The DI-2000 is a USB camera. Run this daemon on the machine it is plugged
-into, or set camera.remote to reach it through a camserver peer
-(src/hispec/fiberswitch/camserver.py) running there.
+into, or set camera.remote to reach it through a fiberswitchcamserver
+(daemons/hsfibers/fiberswitchcamserver) running there.
 
 Refocus, capture and inspect run in the background, one at a time: the write
 returns once the command has started, `busy` is true until it finishes and
@@ -34,8 +34,11 @@ from libby import Libby
 from hispec import HispecDaemon
 from hispec.fiberswitch.archive import ImageArchive
 from hispec.fiberswitch.camera import SETTING_NAMES, InspectionCamera
-from hispec.fiberswitch.camserver import RemoteDi2000
-from hispec.fiberswitch.jobs import JobRunner, register_job_keywords
+from hispec.fiberswitch.jobs import JobRunner
+
+# Beside this script in daemons/hsfibers
+from jobkeywords import register_job_keywords
+from remotecam import RemoteDi2000
 
 # Camera detector settings exposed as float keywords
 CAMERA_PROPERTIES = {

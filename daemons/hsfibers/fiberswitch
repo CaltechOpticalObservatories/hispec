@@ -14,8 +14,9 @@ classes:
 
 The channel's Lightel DI-2000 inspection camera is a daemon of its own
 (fiberswitchredcam, fiberswitchbluecam; daemons/hsfibers/fiberswitchcam),
-named by camera.daemon in the config. The controller inspects through its
-`settings` and `inspect` keywords, on a libby connection of its own.
+named by camera.daemon in the config, by default <group>.<peer_id>cam. The
+controller inspects through its `settings` and `inspect` keywords, on a libby
+connection of its own.
 
 Positions are named in the config: `input_groups` are where the spectrograph
 fibers connect for science, each with its connection policy, and
@@ -41,16 +42,38 @@ from fiber_switcher import DEFAULT_PORT, FiberSwitcher
 from libby import Client
 
 from hispec import HispecDaemon
-from hispec.fiberswitch.camclient import CameraDaemonClient
 from hispec.fiberswitch.camera import SETTING_NAMES
 from hispec.fiberswitch.controller import FiberSwitchController
-from hispec.fiberswitch.jobs import JobRunner, register_job_keywords
+from hispec.fiberswitch.jobs import JobRunner
 from hispec.fiberswitch.policy import ControllerState
-from hispec.fiberswitch.switch import (AXIS_SETTINGS, CLEAN_MODES, SwitchSequencer, alarm_word,
-                                       message_word, parse_positions, parse_target)
+from hispec.fiberswitch.switch import (CLEAN_MODES, SwitchSequencer, alarm_word, message_word,
+                                       parse_positions, parse_target)
+
+# Beside this script in daemons/hsfibers
+from camclient import CameraDaemonClient
+from jobkeywords import register_job_keywords
 
 # Input names become keyword suffixes
 _NAME = re.compile(r"^[a-z][a-z0-9_]*$")
+
+# The PLC's mm registers, exposed as config_<suffix> keywords: suffix ->
+# (FiberSwitcher getter, setter, description)
+AXIS_SETTINGS = {
+    "retractdist": ("get_retract_distance_mm", "set_retract_distance_mm",
+                    "Insertion axis retract-back distance."),
+    "caminsertpos": ("get_camera_insertion_position_mm",
+                     "set_camera_insertion_position_mm",
+                     "Insertion position used at camera (inspection) ports."),
+    "noncaminsertpos": ("get_noncamera_insertion_position_mm",
+                        "set_noncamera_insertion_position_mm",
+                        "Insertion position used at non-camera ports."),
+}
+
+# Keys of this daemon's camera: section. Configs from before the camera had a
+# daemon of its own also hold that camera's settings (remote, device_index,
+# archive_dir, ...); those are ignored, with a warning.
+CAMERA_CONFIG_KEYS = frozenset({"daemon", "timeout_s", "inspect_timeout_s", "client_bind"})
+
 
 class MechanicalSwitch:
     """The switcher PLC and its keywords."""
@@ -241,9 +264,14 @@ class MechanicalSwitchController:  # pylint: disable=too-few-public-methods
     def __init__(self, daemon, switch, config):
         self.daemon = daemon
         self.switch = switch
-        camera_daemon = config.get("daemon")
-        if not camera_daemon:
-            raise ValueError("config must set camera.daemon, e.g. hsfibers.fiberswitchredcam")
+        # The camera daemon is named for this one: fiberswitchred's is
+        # fiberswitchredcam
+        camera_daemon = config.get("daemon") or f"{daemon.group_id}.{daemon.peer_id}cam"
+        stale = sorted(set(config) - CAMERA_CONFIG_KEYS)
+        if stale:
+            daemon.logger.warning(
+                "Ignoring camera.%s: the inspection camera is its own daemon now (%s), "
+                "configured in its own config", ", camera.".join(stale), camera_daemon)
         self._client_bind = config.get("client_bind")
         self.camera = CameraDaemonClient(
             str(camera_daemon), self._camera_client,

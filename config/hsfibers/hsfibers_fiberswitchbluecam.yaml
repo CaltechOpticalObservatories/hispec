@@ -9,8 +9,8 @@ group_id: hsfibers
 
 camera:
   # The DI-2000 is plugged into another machine (the Pi at 131.215.200.211):
-  # the camserver peer serving it there, started with
-  #   python camserver.py --device N --peer-id fiberswitchbluecamserver
+  # the fiberswitchcamserver serving it there, started with
+  #   python fiberswitchcamserver --device N --peer-id fiberswitchbluecamserver
   # Remove it to open a camera on this machine; with it set, device_index,
   # backend, width and height are the camserver's and those below are unused.
   remote: hsfibers.fiberswitchbluecamserver

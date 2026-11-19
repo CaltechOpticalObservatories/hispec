@@ -32,6 +32,7 @@ their shared `pdu_base.py` base class.
 | `hsfibers/trunkfiberbox` | `fib.TrunkInterfaceBox` | FIB trunk interface box, over MQTT 5 | `hsfibers_trunkfiberbox` |
 | `hsfibers/fiberswitch` | `fiber_switcher.FiberSwitcher` | Fiber switcher PLC (MELSEC MC over TCP) and its connection policy | `hsfibers_fiberswitchred`, `hsfibers_fiberswitchblue` |
 | `hsfibers/fiberswitchcam` | `di2000.Di2000` | Lightel DI-2000 fiber inspection camera (USB) | `hsfibers_fiberswitchredcam`, `hsfibers_fiberswitchbluecam` |
+| `hsfibers/fiberswitchcamserver` | `di2000.Di2000` | Serves a DI-2000 over libby from the machine it is plugged into, for `fiberswitchcam` | none: run by hand or cron on that machine (peers `fiberswitchredcamserver`, `fiberswitchbluecamserver`) |
 
 Thirty-five instances are currently defined under `systemd/instances/`,
 running twelve distinct daemon scripts — the config-driven design paying off
@@ -109,15 +110,15 @@ persist in the switch daemon's `state_file`.
 
 The DI-2000 is a USB camera, so it opens only on the machine it is plugged
 into. Run the camera daemon there, or, when that is not the daemon's host,
-run a libby camserver peer there, one per camera (`python camserver.py
---device N --peer-id fiberswitchbluecamserver`;
-`src/hispec/fiberswitch/camserver.py` needs only libby, numpy and lightel, so
-it can be copied there alone), and set `camera.remote:
+run a camera server there, one per camera (`python
+daemons/hsfibers/fiberswitchcamserver --device N --peer-id
+fiberswitchbluecamserver`; it needs only libby, numpy, OpenCV and lightel, not
+the hispec package, so it can be copied there alone), and set `camera.remote:
 hsfibers.fiberswitchbluecamserver` in the camera daemon's config. The camera
 daemon then reads frames and camera settings through the broker, with its
 broker login, on a libby connection of its own. A frame is larger than
 libby's 512 KB message limit, so it travels compressed in chunks. The device
-index and backend are the camserver's.
+index and backend are the camera server's.
 To switch to any ports by hand, write `target` (for example
 `libby modify hsfibers.fiberswitchred.target 5,2`); it retracts, moves and
 inserts like `inputgroup` does.
