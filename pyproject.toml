@@ -71,6 +71,7 @@ ignored-modules = [
     # Third-party dependencies, not installed in the lint environment
     "astropy",
     "camera_daemon",
+    "cv2",
     "hardware_device_base",
     "instrumentctl",
     "libby",
@@ -90,6 +91,11 @@ ignored-modules = [
     "SerialStream",
     # Device drivers vendored as git submodules
     "hispec.driver",
+    # Flat-module drivers (hispec-fiber-switcher, lightel), installed as
+    # workspace members under their own top-level names
+    "di2000",
+    "fiber_switcher",
+    "inspection",
     "PPC102_lib",
 ]
 

@@ -73,11 +73,12 @@ class DliPdu(PduDaemon): #pylint: disable = W0223
 
     def set_outlet_switchable(self, n: int, switchable: bool) -> None:
         switchable = bool(switchable)
-        self._confirm(self.controller.unlock_outlet(n) if switchable else self.controller.lock_outlet(n),
+        self._confirm(self.controller.unlock_outlet(n) if switchable
+                      else self.controller.lock_outlet(n),
                       f"{'unlock' if switchable else 'lock'} outlet {n}")
 
     def cycle_outlet(self, n: int) -> None:
-        """Power cycle outlet ``n``: off, wait its cycle delay, then on."""
+        """Power cycle outlet ``n``: off, wait for its cycle delay, then on."""
         self._confirm(self.controller.outlet_cycle(n), f"cycle outlet {n}")
 
     def get_outlet_cycledelay(self, n: int) -> int:
@@ -87,11 +88,11 @@ class DliPdu(PduDaemon): #pylint: disable = W0223
 
     def register_outlet_keywords(self, n: int) -> None:
         super().register_outlet_keywords(n)
-        self.keyword_registry.trigger(f"cycle{self.outlet_key(n)}",
+        self.keyword_registry.trigger(f"cycle{n}",
                          action=self.when_connected(self.cycle_outlet, n),
                          description=f"Power cycle outlet {n}: off, wait its cycle delay, "
                                      "then on.")
-        self.keyword_registry.int(f"cycledelay{self.outlet_key(n)}",
+        self.keyword_registry.int(f"cycledelay{n}",
                      getter=self.when_connected(self.get_outlet_cycledelay, n),
                      units="seconds",
                      description=f"Outlet {n} off time during a power cycle.")

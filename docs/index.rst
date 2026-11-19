@@ -17,6 +17,9 @@ about.
 If you are running the instrument, :doc:`running the daemons with systemd
 <operations/systemd>` covers starting, stopping, watching and debugging them.
 
+If you are writing a test script, :doc:`writing test scripts
+<operations/test_scripts>` covers the template and the keywords to use.
+
 If you are setting up a machine, :doc:`install` is the one way to put the
 software on it. The build notes cover the OS, packages and hardware for each
 host.
@@ -33,6 +36,7 @@ host.
 
    install
    operations/systemd
+   operations/test_scripts
 
 .. toctree::
    :caption: Build Notes

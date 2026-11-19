@@ -56,3 +56,7 @@
 [submodule "src/hispec/driver/hispec-fiber-switcher"]
 	path = src/hispec/driver/hispec-fiber-switcher
 	url = https://github.com/COO-Utilities/hispec-fiber-switcher
+[submodule "src/hispec/driver/lightel"]
+	path = src/hispec/driver/lightel
+	url = https://github.com/COO-Utilities/lightel
+	branch = main

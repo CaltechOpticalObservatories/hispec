@@ -19,14 +19,14 @@ hardware:
   # reports.
   outlet_count: 8
   outlet_names:
-    1: 1_ATCFW
-    2: 2_ATCArch
-    3: 3_Unused
-    4: 4_Unused
-    5: 5_Unused
-    6: 6_Unused
-    7: 7_FEIShut
-    8: 8_VIBLake
+    1: ATCFW
+    2: ATCArch
+    3: Unused
+    4: Unused
+    5: Unused
+    6: Unused
+    7: FEIShut
+    8: VIBLake
   # Telnet login. The values never appear here: these name environment
   # variables the daemon reads, set root-only in /etc/hispec/secrets.env (see
   # docs/operations/systemd.md). All nine PDUs share one login today; point an instance
