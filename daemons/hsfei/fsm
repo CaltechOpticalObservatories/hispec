@@ -1,0 +1,928 @@
+#!/usr/bin/env python3
+"""
+HSFEI Fast Steering Mirror Daemon
+
+Exposes the two axes of the PI E-727 fast steering mirror as libby keywords:
+the pi-daemon keyword set plus two-axis moves, presets, split moves and a
+safe park. Queries always reach the mirror; commands only when the access
+shared memory says this daemon may command it.
+"""
+
+import argparse
+import math
+import sys
+import threading
+import time
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Any, Optional, TypeVar
+
+from pipython import GCSError
+
+from hispec import HispecDriverDaemon
+from hispec.driver.pi import PIControllerBase
+
+T = TypeVar("T")
+K = TypeVar("K")
+
+DEFAULT_TCP_PORT = 50000
+# The E-727 is a single controller on its own port, not a daisy chain
+DEVICE_ID = 1
+NUM_AXES = 2
+DEFAULT_POSITION_TOLERANCE = 1.0
+DEFAULT_STEP_TIMEOUT_S = 2.0
+# GCS error for a move commanded while the servo loop is open
+SERVO_OFF_ERROR = 5
+# Allowance for reconnecting to the E-727 during a halt
+RECONNECT_ALLOWANCE_S = 5.0
+HALT_SETTLE_TIMEOUT_S = 0.5
+SEQUENCE_JOIN_TIMEOUT_S = 1.0
+POLL_INTERVAL_S = 0.01
+
+CUSTOM_POSITION = "custom"
+REFERENCED_DESCRIPTION = ("Always true: this stage needs no referencing. Writing true is "
+                          "accepted and does nothing.")
+MOVE_IDLE = "idle"
+PAIR_SEPARATOR = ","
+PRESET_SEPARATOR = ";"
+
+
+def _number(value: Any, where: str) -> float:
+    """Return value as a float, or raise naming the config key."""
+    try:
+        return float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{where} must be a number, got {value!r}") from error
+
+
+def _optional_float(value: Any, where: str) -> Optional[float]:
+    """Return value as a float, or None when unset."""
+    return None if value is None else _number(value, where)
+
+
+def _positive(value: Any, where: str) -> Optional[float]:
+    """Return value as a positive float, or None when unset."""
+    parsed = _optional_float(value, where)
+    if parsed is not None and parsed <= 0.0:
+        raise ValueError(f"{where} must be positive, got {parsed}")
+    return parsed
+
+
+def _parse_presets(raw: Any) -> dict[str, tuple[float, ...]]:
+    """Build the 2-D presets from the config's presets section."""
+    if not raw:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError("presets must map names to [x, y]")
+    presets: dict[str, tuple[float, ...]] = {}
+    for name, value in raw.items():
+        if not isinstance(value, Sequence) or len(value) != NUM_AXES:
+            raise ValueError(f"presets.{name} must be [x, y], got {value!r}")
+        presets[str(name)] = tuple(_number(item, f"presets.{name}") for item in value)
+    return presets
+
+
+def _parse_pair(text: str) -> tuple[float, ...]:
+    """Parse an 'x,y' keyword value into two numbers."""
+    parts = text.split(PAIR_SEPARATOR)
+    if len(parts) != NUM_AXES:
+        raise ValueError(f"expected 'x,y', got {text!r}")
+    try:
+        return tuple(float(part) for part in parts)
+    except ValueError as error:
+        raise ValueError(f"expected two numbers as 'x,y', got {text!r}") from error
+
+
+def _format_pair(values: Iterable[float]) -> str:
+    """Format positions as an 'x,y' keyword value."""
+    return PAIR_SEPARATOR.join(str(float(value)) for value in values)
+
+
+def _match_preset(position: Sequence[float], presets: Mapping[str, Sequence[float]],
+                  tolerance: float) -> str:
+    """Return the preset position is within tolerance of on every axis, or 'custom'."""
+    for name, preset in presets.items():
+        if all(abs(actual - wanted) <= tolerance for actual, wanted in zip(position, preset)):
+            return name
+    return CUSTOM_POSITION
+
+
+def _clamp(value: float, limit: float) -> float:
+    return max(-limit, min(limit, value))
+
+
+def split_move(start: Mapping[K, float], target: Mapping[K, float],
+               max_step: Optional[float]) -> list[dict[K, float]]:
+    """Break a move into steps that move no axis more than max_step.
+
+    Large piezo moves overshoot, so each axis travels max_step per step until
+    it is within max_step of its target, and the last step lands exactly on
+    the target.
+    """
+    if max_step is None:
+        return [dict(target)]
+    largest = max(abs(target[key] - start[key]) for key in target)
+    count = max(1, math.ceil(largest / max_step))
+    steps = [{key: start[key] + _clamp(target[key] - start[key], max_step * number)
+              for key in target}
+             for number in range(1, count)]
+    return [*steps, dict(target)]
+
+
+def _poll(condition: Callable[[], bool], timeout_s: float,
+          sleep: Callable[[float], Any] = time.sleep) -> bool:
+    """Poll condition until it is true or timeout_s passes; return whether it came true."""
+    deadline = time.monotonic() + timeout_s
+    while not condition():
+        if time.monotonic() >= deadline:
+            return False
+        sleep(POLL_INTERVAL_S)
+    return True
+
+
+@dataclass(frozen=True)
+class _MirrorConfig:
+    """Settings from the config's hardware and presets sections."""
+
+    ip_address: Optional[str] = None
+    tcp_port: int = DEFAULT_TCP_PORT
+    position_tolerance: float = DEFAULT_POSITION_TOLERANCE
+    max_step: Optional[float] = None
+    step_timeout_s: float = DEFAULT_STEP_TIMEOUT_S
+    presets: Mapping[str, tuple[float, ...]] = field(default_factory=dict)
+
+    @classmethod
+    def from_config(cls, get: Callable[[str], Any]) -> "_MirrorConfig":
+        """Parse and validate, reading keys through the daemon's get_config."""
+        return cls(
+            ip_address=get("hardware.ip_address") or None,
+            tcp_port=int(get("hardware.tcp_port") or DEFAULT_TCP_PORT),
+            position_tolerance=(_positive(get("hardware.position_tolerance"),
+                                          "hardware.position_tolerance")
+                                or DEFAULT_POSITION_TOLERANCE),
+            max_step=_positive(get("hardware.max_step"), "hardware.max_step"),
+            step_timeout_s=(_positive(get("hardware.step_timeout_s"), "hardware.step_timeout_s")
+                            or DEFAULT_STEP_TIMEOUT_S),
+            presets=_parse_presets(get("presets")))
+
+
+@dataclass(eq=False)
+class _Axis:  # pylint: disable=too-many-instance-attributes
+    """One E-727 axis: its config and the limits every move is checked against.
+
+    eq=False keeps axes hashable by identity, so they can key move targets.
+    """
+
+    name: str
+    axis_id: str
+    units: Optional[str] = None
+    named_positions: dict[str, float] = field(default_factory=dict)
+    softmin: Optional[float] = None
+    softmax: Optional[float] = None
+    # Read from the E-727 at connect
+    hardmin: Optional[float] = None
+    hardmax: Optional[float] = None
+
+    @classmethod
+    def from_config(cls, spec: Mapping[str, Any]) -> "_Axis":
+        """Build an axis from one entry of the config's stages list."""
+        name = str(spec.get("name") or "")
+        where = f"stages.{name}"
+        axis = cls(name=name,
+                   axis_id=str(spec.get("axis", "1")),
+                   units=spec.get("units"),
+                   named_positions={
+                       str(preset): _number(value, f"{where}.named_positions.{preset}")
+                       for preset, value in (spec.get("named_positions") or {}).items()},
+                   softmin=_optional_float(spec.get("softmin"), f"{where}.softmin"),
+                   softmax=_optional_float(spec.get("softmax"), f"{where}.softmax"))
+        if None not in (axis.softmin, axis.softmax) and axis.softmin >= axis.softmax:
+            raise ValueError(f"{where}: softmin {axis.softmin} must be below "
+                             f"softmax {axis.softmax}")
+        return axis
+
+    def check(self, target: float) -> Optional[str]:
+        """Return why target is outside the soft or hardware limits, or None."""
+        for bound_name, bound in (("softmin", self.softmin), ("hardmin", self.hardmin)):
+            if bound is not None and target < bound:
+                return f"axis {self.name} target {target} below {bound_name} {bound}"
+        for bound_name, bound in (("softmax", self.softmax), ("hardmax", self.hardmax)):
+            if bound is not None and target > bound:
+                return f"axis {self.name} target {target} above {bound_name} {bound}"
+        return None
+
+    def check_named(self, name: str) -> Optional[str]:
+        """Return why name is not one of this axis's named positions, or None."""
+        if name not in self.named_positions:
+            return (f"unknown named position '{name}' for axis {self.name}; "
+                    f"available: {list(self.named_positions)}")
+        return None
+
+    def check_softmin(self, value: float) -> Optional[str]:
+        """Keep a new softmin below softmax."""
+        if self.softmax is not None and value >= self.softmax:
+            return f"softmin {value} must be below softmax {self.softmax}"
+        return None
+
+    def check_softmax(self, value: float) -> Optional[str]:
+        """Keep a new softmax above softmin."""
+        if self.softmin is not None and value <= self.softmin:
+            return f"softmax {value} must be above softmin {self.softmin}"
+        return None
+
+    def travel(self) -> tuple[float, float]:
+        """Return the controller travel range read at connect."""
+        if self.hardmin is None or self.hardmax is None:
+            raise RuntimeError(f"travel range of axis {self.name} is read from the "
+                               "E-727 at connect; not connected yet")
+        return (self.hardmin, self.hardmax)
+
+
+def _target_problems(targets: Mapping[_Axis, float]) -> Optional[str]:
+    """Return why any target is outside its axis limits, or None."""
+    problems = [problem for axis, target in targets.items() if (problem := axis.check(target))]
+    return "; ".join(problems) or None
+
+
+def _flags(reply: Mapping[str, Any]) -> dict[str, bool]:
+    """Return a per-axis GCS reply as real bools, whatever type the controller used."""
+    return {axis: bool(flag) for axis, flag in reply.items()}
+
+
+def _ids(axes: Iterable[_Axis]) -> list[str]:
+    return [axis.axis_id for axis in axes]
+
+
+def _describe(targets: Mapping[_Axis, float]) -> str:
+    return ", ".join(f"{axis.name}={value:g}" for axis, value in targets.items())
+
+
+class E727Error(RuntimeError):
+    """A command the E-727 refused, with its GCS error code when it gave one."""
+
+    def __init__(self, message: str, code: Optional[int] = None) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class _E727:
+    """GCS commands on the E-727 that PIControllerBase does not wrap.
+
+    Goes through the connection PIControllerBase holds, so connecting and
+    disconnecting stay with the driver. Every GCSError becomes an E727Error
+    carrying the controller's error code instead of the driver's silent None.
+    """
+
+    def __init__(self, controller: PIControllerBase, device_key: tuple) -> None:
+        self._controller = controller
+        self._device_key = device_key
+
+    def _call(self, command: Callable[[Any], T]) -> T:
+        device = self._controller.devices.get(self._device_key)
+        if device is None:
+            raise E727Error("not connected to the E-727")
+        try:
+            return command(device)
+        except GCSError as error:
+            raise E727Error(str(error), code=error.val) from error
+
+    def positions(self, axes: list[str]) -> dict[str, float]:
+        """Return the position of each axis, read in one qPOS."""
+        return {axis: float(value) for axis, value in self._call(lambda d: d.qPOS(axes)).items()}
+
+    def move(self, targets: Mapping[str, float]) -> None:
+        """Move every axis in targets with one MOV."""
+        try:
+            self._call(lambda d: d.MOV(dict(targets)))
+        except E727Error as error:
+            if error.code == SERVO_OFF_ERROR:
+                raise E727Error("servo loop open; write isloopclosed true first",
+                                code=error.code) from error
+            raise
+
+    def moving(self, axes: list[str]) -> dict[str, bool]:
+        """Return whether each axis is moving."""
+        return _flags(self._call(lambda d: d.IsMoving(axes)))
+
+    def on_target(self, axes: list[str]) -> dict[str, bool]:
+        """Return whether each axis has settled on its target."""
+        return _flags(self._call(lambda d: d.qONT(axes)))
+
+    def servo(self, axes: list[str]) -> dict[str, bool]:
+        """Return whether each axis has its servo loop closed."""
+        return _flags(self._call(lambda d: d.qSVO(axes)))
+
+    def set_servo(self, states: Mapping[str, bool]) -> None:
+        """Close or open the servo loop of each axis in states."""
+        self._call(lambda d: d.SVO(dict(states)))
+
+    def stop_all(self) -> None:
+        """Stop every axis abruptly."""
+        # STP sets controller error 10 by design, so do not raise on it
+        self._call(lambda d: d.STP(noraise=True))
+
+    def set_open_loop(self, values: Mapping[str, float]) -> None:
+        """Set the open-loop piezo value of each axis in values."""
+        self._call(lambda d: d.SVA(dict(values)))
+
+    def travel(self, axes: list[str]) -> dict[str, tuple[float, float]]:
+        """Return the travel range of each axis."""
+        minimums = self._call(lambda d: d.qTMN(axes))
+        maximums = self._call(lambda d: d.qTMX(axes))
+        return {axis: (float(minimums[axis]), float(maximums[axis])) for axis in axes}
+
+    def units(self, axes: list[str]) -> dict[str, str]:
+        """Return the position units each axis reports."""
+        reported = self._call(lambda d: d.qPUN(axes))
+        return {axis: str(unit).strip() for axis, unit in reported.items()}
+
+    def error_code(self) -> int:
+        """Return and clear the controller error code."""
+        return int(self._call(lambda d: d.qERR()))
+
+
+class Access(StrEnum):
+    """Who may command the mirror, as the access shared memory reports it."""
+
+    FREE = "free"
+    TRACKING = "tracking"
+    IN_USE = "in use"
+    UNKNOWN = "unknown"
+
+
+class AccessShm:  # pylint: disable=too-few-public-methods
+    """Read who may command the mirror from the access shared memory.
+
+    Stub: the shared memory does not exist yet, so the mirror always reads as
+    free. Other software writes it; this daemon only reads it.
+    """
+
+    def read(self) -> Access:
+        """Return who may command the mirror now."""
+        return Access.FREE
+
+
+class HaltShm:
+    """Write the halt shared memory that stops anyone from commanding the mirror.
+
+    Stub: the shared memory does not exist yet, so a halt stops only this
+    daemon's own motion. Anyone may raise or clear the halt, not only this
+    daemon.
+    """
+
+    def raise_halt(self) -> None:
+        """Tell everything that commands the mirror to stop."""
+
+    def clear_halt(self) -> None:
+        """Let everything command the mirror again."""
+
+
+class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
+    """Daemon for the PI E-727 fast steering mirror.
+
+    libby runs keyword handlers one at a time on a single thread, so no
+    handler may block for longer than a GCS call. Moves split into steps run
+    on a worker thread instead, and halt aborts them between steps.
+    """
+
+    # One attribute per piece of hardware and motion state; splitting them
+    # into holder objects would only add indirection
+    # pylint: disable=too-many-instance-attributes
+
+    def __init__(self) -> None:
+        super().__init__(controller=PIControllerBase(log=True))
+
+        self.mirror = _MirrorConfig()
+        self.axes: list[_Axis] = []
+        self._e727 = _E727(self.controller, self.device_key)
+        self._access_shm = AccessShm()
+        self._halt_shm = HaltShm()
+        # Both axes share one GCSDevice and the driver is not thread-safe;
+        # the worker running split moves takes this for every GCS call
+        self._lock = threading.RLock()
+        self._abort = threading.Event()
+        self._sequence: Optional[threading.Thread] = None
+        self._move_status = MOVE_IDLE
+
+    @property
+    def device_key(self) -> tuple[Optional[str], int, int]:
+        """Return the driver's key for the E-727."""
+        return (self.mirror.ip_address, self.mirror.tcp_port, DEVICE_ID)
+
+    def on_start(self) -> None:
+        """Load config, register keywords, then try to connect to the E-727."""
+        # from_config populates _config after __init__, so read it here
+        self.mirror = _MirrorConfig.from_config(self.get_config)
+        self.axes = self._build_axes()
+        self._e727 = _E727(self.controller, self.device_key)
+
+        self.logger.info("Starting %s daemon with axes %s and presets %s", self.peer_id,
+                         [axis.name for axis in self.axes], list(self.mirror.presets))
+
+        for axis in self.axes:
+            self._register_axis_keywords(axis)
+        self._register_mirror_keywords()
+        self._register_daemon_keywords()
+
+        if not self.mirror.ip_address:
+            self.logger.error("No hardware.ip_address configured; starting disconnected")
+            return
+
+        try:
+            self._connect_hardware()
+            self.logger.info("Daemon started and connected to the E-727")
+        except (GCSError, OSError, RuntimeError) as error:
+            self.logger.error("Failed to connect to the E-727: %s", error)
+            self.logger.warning("Daemon will start but hardware is not available")
+
+    def on_stop(self) -> None:
+        """Park the mirror if this daemon may command it, then disconnect."""
+        self.logger.info("Shutting down %s daemon", self.peer_id)
+        # Failures are already logged and nobody is left to report them to
+        self._park()
+
+    def _build_axes(self) -> list[_Axis]:
+        specs = self.get_config("stages") or []
+        if len(specs) != NUM_AXES:
+            raise ValueError(f"stages must list exactly {NUM_AXES} axes, got {len(specs)}")
+        axes = [_Axis.from_config(spec) for spec in specs]
+        names = [axis.name for axis in axes]
+        if "" in names or len(set(names)) != len(names):
+            raise ValueError(f"stages need distinct, non-empty names, got {names}")
+        for name, preset in self.mirror.presets.items():
+            problem = _target_problems(dict(zip(axes, preset)))
+            if problem:
+                raise ValueError(f"presets.{name}: {problem}")
+        return axes
+
+    def _register_axis_keywords(self, axis: _Axis) -> None:
+        """Register the pi-daemon keywords for one axis, suffixed with its name."""
+        registry, suffix, units = self.keyword_registry, axis.name, axis.units
+        registry.bool(f"isloopclosed{suffix}",
+                      getter=lambda: self._loops_closed([axis]),
+                      setter=lambda closed: self._set_loops([axis], closed),
+                      description=f"Servo control loop of axis {axis.name} is closed.")
+        registry.bool(f"isreferenced{suffix}",
+                      getter=lambda: True,
+                      setter=self._set_referenced,
+                      description=REFERENCED_DESCRIPTION)
+        registry.bool(f"ismoving{suffix}",
+                      getter=lambda: self._is_moving([axis]),
+                      description=f"Axis {axis.name} is moving, or a split move is running.")
+        registry.float(f"positionvalue{suffix}",
+                       getter=lambda: self._read_positions([axis])[axis],
+                       setter=lambda target: self._move({axis: target}),
+                       validator=axis.check,
+                       units=units,
+                       description=f"Axis {axis.name} position; moves larger than "
+                                   "hardware.max_step are split into steps.")
+        registry.string(f"positionnamed{suffix}",
+                        getter=lambda: self._current_named(axis),
+                        setter=lambda name: self._move({axis: axis.named_positions[name]}),
+                        validator=axis.check_named,
+                        description=f"Named position axis {axis.name} is at, "
+                                    f"'{CUSTOM_POSITION}' when it matches none; write a name "
+                                    "to move there.")
+        registry.float(f"softmin{suffix}",
+                       getter=lambda: axis.softmin,
+                       setter=lambda value: setattr(axis, "softmin", value),
+                       validator=axis.check_softmin,
+                       units=units,
+                       nullable=True,
+                       description=f"Software lower limit of axis {axis.name}; null to clear.")
+        registry.float(f"softmax{suffix}",
+                       getter=lambda: axis.softmax,
+                       setter=lambda value: setattr(axis, "softmax", value),
+                       validator=axis.check_softmax,
+                       units=units,
+                       nullable=True,
+                       description=f"Software upper limit of axis {axis.name}; null to clear.")
+        registry.float(f"hardmin{suffix}",
+                       getter=lambda: axis.travel()[0],
+                       units=units,
+                       description=f"Travel minimum of axis {axis.name}, read at connect.")
+        registry.float(f"hardmax{suffix}",
+                       getter=lambda: axis.travel()[1],
+                       units=units,
+                       description=f"Travel maximum of axis {axis.name}, read at connect.")
+
+    def _register_mirror_keywords(self) -> None:
+        """Register the whole-mirror keywords."""
+        registry = self.keyword_registry
+        registry.bool("isreferenced",
+                      getter=lambda: True,
+                      setter=self._set_referenced,
+                      description=REFERENCED_DESCRIPTION)
+        registry.bool("isloopclosed",
+                      getter=lambda: self._loops_closed(self.axes),
+                      setter=lambda closed: self._set_loops(self.axes, closed),
+                      description="Both servo loops are closed; write to set both.")
+        registry.bool("ismoving",
+                      getter=lambda: self._is_moving(self.axes),
+                      description="Either axis is moving, or a split move is running.")
+        registry.string("positionvalue",
+                        getter=lambda: _format_pair(self._read_positions(self.axes).values()),
+                        setter=lambda text: self._move(self._pair_targets(text)),
+                        validator=self._check_pair,
+                        description="Both axes as 'x,y'; write 'x,y' to move both at once, "
+                                    "split into steps beyond hardware.max_step.")
+        registry.string("positionnamed",
+                        getter=self._current_preset,
+                        setter=lambda name: self._move(
+                            dict(zip(self.axes, self.mirror.presets[name]))),
+                        validator=self._check_preset,
+                        description=f"Preset both axes are at, '{CUSTOM_POSITION}' when it "
+                                    "matches none; write a preset name to move there.")
+        registry.string("presets",
+                        getter=lambda: PRESET_SEPARATOR.join(
+                            f"{name}={_format_pair(values)}"
+                            for name, values in self.mirror.presets.items()),
+                        description="Configured presets as 'name=x,y', separated by ';'.")
+        registry.string("positionfast",
+                        setter=lambda text: self._move(self._pair_targets(text), fast=True),
+                        validator=self._check_pair,
+                        description="Write 'x,y' to move both axes in one MOV with no step "
+                                    "splitting and no busy check, for scripted scans; keep "
+                                    "steps below hardware.max_step.")
+        registry.string("movestatus",
+                        getter=lambda: self._move_status,
+                        description="Progress or outcome of the last move.")
+        registry.string("access",
+                        getter=lambda: self._access().value,
+                        description="Who may command the mirror: free (this daemon), "
+                                    "tracking, in use, or unknown.")
+        registry.bool("hasaccess",
+                      getter=lambda: self._access() is Access.FREE,
+                      description="This daemon may command the mirror now; queries are "
+                                  "always allowed.")
+
+    def _register_daemon_keywords(self) -> None:
+        self.keyword_registry.bool(
+            "isconnected",
+            getter=self._controller_responsive,
+            setter=self._set_connected,
+            description="Daemon's connection to the E-727; write true to connect, false "
+                        "to disconnect, parking the mirror (loops open, zero volts) when "
+                        "this daemon has access.")
+        self.keyword_registry.int(
+            "error",
+            getter=self._error_code,
+            description="Latest E-727 error code (0 = no error, -1 = lookup failed). "
+                        "Reading clears the register.")
+        self.keyword_registry.string(
+            "status",
+            getter=self._status,
+            description="Status of the E-727 driver as a (code, message) string.")
+        self.keyword_registry.trigger(
+            "halt",
+            action=self._halt,
+            timeout_s=RECONNECT_ALLOWANCE_S + HALT_SETTLE_TIMEOUT_S + SEQUENCE_JOIN_TIMEOUT_S,
+            description="Stop the mirror whatever the access state: abort any split "
+                        "move, stop both axes and open their servo loops.")
+        self.keyword_registry.trigger(
+            "clearhalt",
+            action=self._clear_halt,
+            description="Clear the halt so the mirror can be commanded again; allowed "
+                        "whatever the access state.")
+        self.keyword_registry.trigger(
+            "shutdown",
+            action=self._shutdown,
+            description="Gracefully stop this daemon, parking the mirror when this daemon "
+                        "has access; refused while moving.")
+
+    def _access(self) -> Access:
+        """Read who may command the mirror, failing safe to unknown."""
+        try:
+            return self._access_shm.read()
+        except (OSError, RuntimeError) as error:
+            self.logger.warning("Could not read mirror access: %s", error)
+            return Access.UNKNOWN
+
+    def _require_access(self) -> None:
+        """Refuse a command unless this daemon may command the mirror.
+
+        Check then act: access can change between this check and the command
+        that follows it. Accepted for now; closing the gap needs the access
+        shared memory to work as a lock this daemon takes.
+        """
+        access = self._access()
+        if access is not Access.FREE:
+            raise RuntimeError(f"mirror not available for commands: {access.value}")
+
+    def _query(self, operation: Callable[[], T]) -> T:
+        """Run a controller query under the lock; queries are always allowed."""
+        with self._lock:
+            return operation()
+
+    def _require_all_still(self, action: str) -> None:
+        if self._is_moving(self.axes):
+            raise RuntimeError(f"the mirror is moving; halt or wait before you {action}")
+
+    def _read_positions(self, axes: Sequence[_Axis]) -> dict[_Axis, float]:
+        values = self._query(lambda: self._e727.positions(_ids(axes)))
+        return {axis: values[axis.axis_id] for axis in axes}
+
+    def _is_moving(self, axes: Sequence[_Axis]) -> bool:
+        if self._sequence_running():
+            return True
+        return self._query(lambda: any(self._e727.moving(_ids(axes)).values()))
+
+    def _loops_closed(self, axes: Sequence[_Axis]) -> bool:
+        return self._query(lambda: all(self._e727.servo(_ids(axes)).values()))
+
+    def _set_loops(self, axes: Sequence[_Axis], closed: bool) -> None:
+        with self._lock:
+            self._require_access()
+            self._require_all_still("change the servo loops")
+            self._apply_servo(axes, closed)
+
+    def _apply_servo(self, axes: Sequence[_Axis], closed: bool) -> None:
+        """Set the servo loops in one SVO, skipping axes already there."""
+        changes = {axis_id: closed for axis_id, state in self._e727.servo(_ids(axes)).items()
+                   if state != closed}
+        if changes:
+            self._e727.set_servo(changes)
+
+    @staticmethod
+    def _set_referenced(value: bool) -> None:
+        if not value:
+            raise RuntimeError("cannot clear referenced state; this stage needs no referencing")
+
+    def _pair_targets(self, text: str) -> dict[_Axis, float]:
+        return dict(zip(self.axes, _parse_pair(text)))
+
+    def _check_pair(self, text: str) -> Optional[str]:
+        try:
+            return _target_problems(self._pair_targets(text))
+        except ValueError as error:
+            return str(error)
+
+    def _check_preset(self, name: str) -> Optional[str]:
+        if name not in self.mirror.presets:
+            return f"unknown preset '{name}'; available: {list(self.mirror.presets)}"
+        return None
+
+    def _current_preset(self) -> str:
+        positions = self._read_positions(self.axes)
+        return _match_preset(list(positions.values()), self.mirror.presets,
+                             self.mirror.position_tolerance)
+
+    def _current_named(self, axis: _Axis) -> str:
+        position = self._read_positions([axis])[axis]
+        presets = {name: [value] for name, value in axis.named_positions.items()}
+        return _match_preset([position], presets, self.mirror.position_tolerance)
+
+    def _move(self, targets: Mapping[_Axis, float], *, fast: bool = False) -> None:
+        """Move to targets, the one path every move keyword takes.
+
+        A move larger than hardware.max_step on any axis is split into steps
+        that run on a worker thread. fast skips the splitting and the busy
+        check, for scripted scans of small steps.
+        """
+        problem = _target_problems(targets)
+        if problem:
+            raise RuntimeError(problem)
+        with self._lock:
+            self._require_access()
+            if self._sequence_running():
+                raise RuntimeError("a split move is in progress; halt or wait for it")
+            if fast:
+                steps = [dict(targets)]
+            else:
+                self._require_all_still("move it")
+                steps = split_move(self._read_positions(list(targets)), targets,
+                                   self.mirror.max_step)
+            if len(steps) > 1:
+                self._start_sequence(steps)
+                return
+            self._send_move(targets)
+            self._move_status = f"commanded {_describe(targets)}"
+
+    def _send_move(self, targets: Mapping[_Axis, float]) -> None:
+        self._e727.move({axis.axis_id: target for axis, target in targets.items()})
+
+    def _sequence_running(self) -> bool:
+        return self._sequence is not None and self._sequence.is_alive()
+
+    def _start_sequence(self, steps: list[dict[_Axis, float]]) -> None:
+        self._abort.clear()
+        self._move_status = f"moving to {_describe(steps[-1])}: step 1 of {len(steps)}"
+        self._sequence = threading.Thread(target=self._run_sequence, args=(steps,),
+                                          name="fsm-split-move", daemon=True)
+        self._sequence.start()
+
+    def _run_sequence(self, steps: list[dict[_Axis, float]]) -> None:
+        """Send each step and wait for it to settle; halt aborts between steps."""
+        target = _describe(steps[-1])
+        for number, step in enumerate(steps, start=1):
+            progress = f"step {number} of {len(steps)}"
+            self._move_status = f"moving to {target}: {progress}"
+            try:
+                with self._lock:
+                    # Access can be taken away mid-sequence, so check every step
+                    self._require_access()
+                    self._send_move(step)
+                self._wait_on_target(step)
+            except RuntimeError as error:
+                self._move_status = f"failed at {progress} to {target}: {error}"
+                self.logger.error("Split move %s", self._move_status)
+                return
+            if self._abort.is_set():
+                self._move_status = f"stopped by halt at {progress} to {target}"
+                return
+        self._move_status = f"reached {target} in {len(steps)} steps"
+
+    def _wait_on_target(self, step: Mapping[_Axis, float]) -> None:
+        def settled() -> bool:
+            with self._lock:
+                return all(self._e727.on_target(_ids(step)).values())
+
+        # Waiting on the abort event lets halt cut the wait short
+        if not _poll(lambda: self._abort.is_set() or settled(),
+                     self.mirror.step_timeout_s, self._abort.wait):
+            raise RuntimeError(f"not on target within {self.mirror.step_timeout_s} s")
+
+    def _abort_sequence(self) -> None:
+        """Stop a split move between steps and wait for its thread to finish.
+
+        Call without holding the lock: the worker needs it to finish its step.
+        """
+        self._abort.set()
+        if self._sequence is not None:
+            self._sequence.join(SEQUENCE_JOIN_TIMEOUT_S)
+
+    def _controller_responsive(self) -> bool:
+        """Return True if the E-727 answers IsControllerReady."""
+        with self._lock:
+            if not self._connected():
+                return False
+            try:
+                return bool(self.controller.is_controller_ready(self.device_key))
+            except (GCSError, RuntimeError, KeyError):
+                return False
+
+    def _connect_hardware(self) -> None:
+        if not self.mirror.ip_address:
+            raise RuntimeError("no hardware.ip_address configured")
+        self.logger.info("Connecting to the E-727 at %s:%s",
+                         self.mirror.ip_address, self.mirror.tcp_port)
+        with self._lock:
+            # Drop any stale session first; connect_tcp would otherwise leak it
+            self.controller.disconnect_all()
+            self.controller.connect_tcp(self.mirror.ip_address, self.mirror.tcp_port)
+            if not self._controller_responsive():
+                raise RuntimeError(f"E-727 at {self.mirror.ip_address}:"
+                                   f"{self.mirror.tcp_port} is not ready")
+            self.logger.info("Connected: %s", self.controller.get_idn(self.device_key))
+            travel = self._e727.travel(_ids(self.axes))
+            for axis in self.axes:
+                axis.hardmin, axis.hardmax = travel[axis.axis_id]
+            self._warn_on_unit_mismatch()
+            self._close_loops_if_free()
+
+    def _close_loops_if_free(self) -> None:
+        """Close the servo loops after connecting, unless something else commands the mirror."""
+        access = self._access()
+        if access is not Access.FREE:
+            self.logger.info("Servo loops left as found: mirror access is %s", access.value)
+            return
+        try:
+            self._apply_servo(self.axes, closed=True)
+        except E727Error as error:
+            self.logger.error("Closing the servo loops failed: %s", error)
+
+    def _warn_on_unit_mismatch(self) -> None:
+        """Warn when the E-727 reports units other than the configured ones."""
+        try:
+            reported = self._e727.units(_ids(self.axes))
+        except E727Error as error:
+            self.logger.warning("Could not read position units from the E-727: %s", error)
+            return
+        for axis in self.axes:
+            unit = reported.get(axis.axis_id, "")
+            if axis.units and unit != axis.units:
+                self.logger.warning("Axis %s: E-727 reports units %r, config says %r",
+                                    axis.name, unit, axis.units)
+
+    def _set_connected(self, value: bool) -> None:
+        if value:
+            with self._lock:
+                if not self._controller_responsive():
+                    self._connect_hardware()
+            return
+        self._raise_if_failed("disconnect", self._park())
+
+    def _park(self) -> list[str]:
+        """Open both loops, zero the piezo voltages and disconnect.
+
+        Without access only the connection closes, so a restart never moves
+        a mirror something else is commanding.
+        """
+        self._abort_sequence()
+        if not self._connected():
+            return []
+        access = self._access()
+        if access is Access.FREE:
+            zero = {axis.axis_id: 0.0 for axis in self.axes}
+            parking = [
+                ("open the servo loops", lambda: self._apply_servo(self.axes, closed=False)),
+                ("zero the piezo voltages", lambda: self._e727.set_open_loop(zero))]
+        else:
+            parking = []
+            self.logger.info("Disconnecting without parking: mirror access is %s",
+                             access.value)
+        return self._attempt_all([*parking, ("disconnect", self.controller.disconnect_all)])
+
+    def _attempt_all(self, steps: Iterable[tuple[str, Callable[[], Any]]]) -> list[str]:
+        """Run every step under the lock, collecting failures rather than stopping at one."""
+        failures: list[str] = []
+        with self._lock:
+            for description, step in steps:
+                try:
+                    step()
+                except Exception as error:  # pylint: disable=broad-exception-caught
+                    # A failed step must not keep the later, safety-critical ones from running
+                    failures.append(f"could not {description}: {error}")
+                    self.logger.error("Could not %s: %s", description, error)
+        return failures
+
+    @staticmethod
+    def _raise_if_failed(action: str, failures: list[str]) -> None:
+        if failures:
+            raise RuntimeError(f"{action} incomplete: " + "; ".join(failures))
+
+    def _error_code(self) -> int:
+        try:
+            return self._query(self._e727.error_code)
+        except E727Error:
+            return -1
+
+    def _halt(self) -> None:
+        """Stop the mirror whatever the access state.
+
+        Every step runs even when an earlier one fails, then all failures are
+        raised together, so a failed signal or reconnect cannot keep STP from
+        reaching the controller.
+        """
+        self._abort_sequence()
+        self._raise_if_failed("halt", self._attempt_all((
+            ("signal the halt", self._halt_shm.raise_halt),
+            ("reconnect to the E-727", self._reconnect_if_needed),
+            ("stop both axes", self._stop_motion))))
+        self.logger.info("Halted: motion stopped and servo loops open")
+
+    def _clear_halt(self) -> None:
+        self._halt_shm.clear_halt()
+        self.logger.info("Halt cleared")
+
+    def _reconnect_if_needed(self) -> None:
+        if not self._controller_responsive():
+            self._connect_hardware()
+
+    def _stop_motion(self) -> None:
+        """Stop both axes, then open their servo loops."""
+        self._e727.stop_all()
+        self._apply_servo(self.axes, closed=False)
+        if not _poll(lambda: not any(self._e727.moving(_ids(self.axes)).values()),
+                     HALT_SETTLE_TIMEOUT_S):
+            raise RuntimeError("the mirror is still moving after STP")
+
+    def _shutdown(self) -> None:
+        """Stop the daemon, refusing while the mirror is moving."""
+        try:
+            moving = self._connected() and self._is_moving(self.axes)
+        except RuntimeError:
+            # An unreachable controller must not leave the daemon unstoppable
+            moving = False
+        if moving:
+            raise RuntimeError("the mirror is moving; halt before shutting down")
+        self.logger.info("Shutting down on keyword request")
+        self.request_stop()
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(description='HSFEI Fast Steering Mirror Daemon')
+    parser.add_argument('-c', '--config', type=str,
+                        help='Path to config file (YAML or JSON)')
+
+    args = parser.parse_args()
+
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        daemon = FsmDaemon.from_config_file(args.config)
+        daemon.serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as error:  # pylint: disable=W0718
+        print(f"Error running daemon: {error}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
