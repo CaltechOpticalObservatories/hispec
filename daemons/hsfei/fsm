@@ -41,6 +41,8 @@ SEQUENCE_JOIN_TIMEOUT_S = 1.0
 POLL_INTERVAL_S = 0.01
 
 CUSTOM_POSITION = "custom"
+REFERENCED_DESCRIPTION = ("Always true: this stage needs no referencing. Writing true is "
+                          "accepted and does nothing.")
 MOVE_IDLE = "idle"
 PAIR_SEPARATOR = ","
 PRESET_SEPARATOR = ";"
@@ -237,6 +239,17 @@ class _Axis:  # pylint: disable=too-many-instance-attributes
         return (self.hardmin, self.hardmax)
 
 
+def _target_problems(targets: Mapping[_Axis, float]) -> Optional[str]:
+    """Return why any target is outside its axis limits, or None."""
+    problems = [problem for axis, target in targets.items() if (problem := axis.check(target))]
+    return "; ".join(problems) or None
+
+
+def _flags(reply: Mapping[str, Any]) -> dict[str, bool]:
+    """Return a per-axis GCS reply as real bools, whatever type the controller used."""
+    return {axis: bool(flag) for axis, flag in reply.items()}
+
+
 def _ids(axes: Iterable[_Axis]) -> list[str]:
     return [axis.axis_id for axis in axes]
 
@@ -290,15 +303,15 @@ class _E727:
 
     def moving(self, axes: list[str]) -> dict[str, bool]:
         """Return whether each axis is moving."""
-        return dict(self._call(lambda d: d.IsMoving(axes)))
+        return _flags(self._call(lambda d: d.IsMoving(axes)))
 
     def on_target(self, axes: list[str]) -> dict[str, bool]:
         """Return whether each axis has settled on its target."""
-        return dict(self._call(lambda d: d.qONT(axes)))
+        return _flags(self._call(lambda d: d.qONT(axes)))
 
     def servo(self, axes: list[str]) -> dict[str, bool]:
         """Return whether each axis has its servo loop closed."""
-        return {axis: bool(state) for axis, state in self._call(lambda d: d.qSVO(axes)).items()}
+        return _flags(self._call(lambda d: d.qSVO(axes)))
 
     def set_servo(self, states: Mapping[str, bool]) -> None:
         """Close or open the servo loop of each axis in states."""
@@ -375,7 +388,7 @@ class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
 
     # One attribute per piece of hardware and motion state; splitting them
     # into holder objects would only add indirection
-    # pylint: disable=too-many-instance-attributes,too-many-public-methods
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(self) -> None:
         super().__init__(controller=PIControllerBase(log=True))
@@ -438,7 +451,7 @@ class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         if "" in names or len(set(names)) != len(names):
             raise ValueError(f"stages need distinct, non-empty names, got {names}")
         for name, preset in self.mirror.presets.items():
-            problem = self._check_targets(dict(zip(axes, preset)))
+            problem = _target_problems(dict(zip(axes, preset)))
             if problem:
                 raise ValueError(f"presets.{name}: {problem}")
         return axes
@@ -453,8 +466,7 @@ class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         registry.bool(f"isreferenced{suffix}",
                       getter=lambda: True,
                       setter=self._set_referenced,
-                      description="Always true: this stage needs no referencing. Writing "
-                                  "true is accepted and does nothing.")
+                      description=REFERENCED_DESCRIPTION)
         registry.bool(f"ismoving{suffix}",
                       getter=lambda: self._is_moving([axis]),
                       description=f"Axis {axis.name} is moving, or a split move is running.")
@@ -501,8 +513,7 @@ class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         registry.bool("isreferenced",
                       getter=lambda: True,
                       setter=self._set_referenced,
-                      description="Always true: this stage needs no referencing. Writing "
-                                  "true is accepted and does nothing.")
+                      description=REFERENCED_DESCRIPTION)
         registry.bool("isloopclosed",
                       getter=lambda: self._loops_closed(self.axes),
                       setter=lambda closed: self._set_loops(self.axes, closed),
@@ -638,17 +649,12 @@ class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         if not value:
             raise RuntimeError("cannot clear referenced state; this stage needs no referencing")
 
-    def _check_targets(self, targets: Mapping[_Axis, float]) -> Optional[str]:
-        problems = [problem for axis, target in targets.items()
-                    if (problem := axis.check(target))]
-        return "; ".join(problems) or None
-
     def _pair_targets(self, text: str) -> dict[_Axis, float]:
         return dict(zip(self.axes, _parse_pair(text)))
 
     def _check_pair(self, text: str) -> Optional[str]:
         try:
-            return self._check_targets(self._pair_targets(text))
+            return _target_problems(self._pair_targets(text))
         except ValueError as error:
             return str(error)
 
@@ -674,7 +680,7 @@ class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         that run on a worker thread. fast skips the splitting and the busy
         check, for scripted scans of small steps.
         """
-        problem = self._check_targets(targets)
+        problem = _target_problems(targets)
         if problem:
             raise RuntimeError(problem)
         with self._lock:
@@ -816,18 +822,17 @@ class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         self._abort_sequence()
         if not self._connected():
             return []
-        steps: list[tuple[str, Callable[[], Any]]] = [
-            ("disconnect", self.controller.disconnect_all)]
         access = self._access()
         if access is Access.FREE:
             zero = {axis.axis_id: 0.0 for axis in self.axes}
-            steps[:0] = [
+            parking = [
                 ("open the servo loops", lambda: self._apply_servo(self.axes, closed=False)),
                 ("zero the piezo voltages", lambda: self._e727.set_open_loop(zero))]
         else:
+            parking = []
             self.logger.info("Disconnecting without parking: mirror access is %s",
                              access.value)
-        return self._attempt_all(steps)
+        return self._attempt_all([*parking, ("disconnect", self.controller.disconnect_all)])
 
     def _attempt_all(self, steps: Iterable[tuple[str, Callable[[], Any]]]) -> list[str]:
         """Run every step under the lock, collecting failures rather than stopping at one."""
@@ -894,6 +899,7 @@ class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
             raise RuntimeError("the mirror is moving; halt before shutting down")
         self.logger.info("Shutting down on keyword request")
         self.request_stop()
+
 
 def main():
     """Main entry point for the daemon."""
