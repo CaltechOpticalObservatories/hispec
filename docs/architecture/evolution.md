@@ -160,9 +160,10 @@ Not yet on `main`, but shaping the next change:
 - **Ansible provisioning** (`pgupta/playbook`) — turning the host build notes
   into a playbook, so instrument hosts are provisioned reproducibly rather than
   by following an RST document by hand.
-- **Fiber switcher daemon** (`pgupta/plc_daemons`) — `hsfibers/fiberswitch`,
-  one instance per channel, drives the `hispec-fiber-switcher` PLC and the
-  `lightel` DI-2000 inspection camera, with per-port inspect-and-clean policy.
+- **Fiber switcher daemons** (`pgupta/plc_daemons`) — per channel,
+  `hsfibers/fiberswitch` drives the `hispec-fiber-switcher` PLC with per-port
+  inspect-and-clean policy, and `hsfibers/fiberswitchcam` the `lightel`
+  DI-2000 inspection camera it inspects through.
 
 ## Era 5 — the direction
 

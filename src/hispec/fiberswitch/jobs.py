@@ -1,10 +1,8 @@
-"""One background job at a time, with keywords to watch it.
+"""One background job at a time, on a worker thread, that can be aborted.
 
-libby runs every keyword handler on the transport's single receive thread, so
-a setter that blocks for a move or an inspection also blocks every other
-keyword on that daemon, including the one that would halt it. The daemons in
-this package therefore validate a command in its setter, start it here and
-return; clients poll `busy` and read `jobstatus` when it clears.
+A caller starts a long operation (a move, an inspection) here and returns at
+once, then watches busy, state, job_id and status, and can abort the job,
+which the job sees through the cancel event it is given.
 """
 
 from __future__ import annotations
@@ -106,19 +104,3 @@ class JobRunner:
     def _log(self, level: str, msg: str, *args) -> None:
         if self.logger is not None:
             getattr(self.logger, level)(msg, *args)
-
-
-def register_job_keywords(registry, runner: JobRunner, *, abort_action=None,
-                          abort_name: str = "abort") -> None:
-    """Register busy, state, jobid, jobstatus and the abort trigger."""
-    registry.bool("busy", getter=lambda: runner.busy,
-                  description="A command is running; poll until false, then read jobstatus.")
-    registry.string("state", getter=lambda: runner.state,
-                    description="Label of the running command, else idle.")
-    registry.int("jobid", getter=lambda: runner.job_id,
-                 description="Number of the latest command started.")
-    registry.string("jobstatus", getter=lambda: runner.status,
-                    description="Outcome of the latest command: running, ok, aborted "
-                                "or 'error: <message>'.")
-    registry.trigger(abort_name, action=abort_action or runner.abort,
-                     description="Stop the running command at its next safe point.")

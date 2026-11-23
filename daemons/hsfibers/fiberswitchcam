@@ -1,0 +1,361 @@
+#!/usr/bin/env python3
+"""
+Fiber Switcher Inspection Camera Daemon (fiberswitchcam)
+
+One instance per channel (fiberswitchredcam and fiberswitchbluecam), driving
+that channel's Lightel DI-2000 fiber inspection camera (di2000.Di2000) as the
+design's MechanicalSwitchCamera: refocus, detector settings, capture and
+inspection, with every image archived as PNG plus a JSON sidecar.
+
+The channel's fiber switch daemon (fiberswitchred, fiberswitchblue) owns the
+switcher PLC and the connection policy. It puts a fiber end in front of this
+camera, then inspects it through `settings` and `inspect` here.
+
+The DI-2000 is a USB camera. Run this daemon on the machine it is plugged
+into, or set camera.remote to reach it through a fiberswitchcamserver
+(daemons/hsfibers/fiberswitchcamserver) running there.
+
+Refocus, capture and inspect run in the background, one at a time: the write
+returns once the command has started, `busy` is true until it finishes and
+`jobstatus` then says how it went. `halt` aborts the command at its next
+safe point.
+"""
+
+import argparse
+import json
+import sys
+from functools import partial
+
+import cv2
+import inspection as lightel_inspection
+from di2000 import Di2000
+from libby import Libby
+
+from hispec import HispecDaemon
+from hispec.fiberswitch.archive import ImageArchive
+from hispec.fiberswitch.camera import SETTING_NAMES, InspectionCamera
+from hispec.fiberswitch.jobs import JobRunner
+
+# Beside this script in daemons/hsfibers
+from jobkeywords import register_job_keywords
+from remotecam import RemoteDi2000
+
+# Camera detector settings exposed as float keywords
+CAMERA_PROPERTIES = {
+    "exposure": (cv2.CAP_PROP_EXPOSURE, "Exposure, in the camera driver's units."),
+    "gain": (cv2.CAP_PROP_GAIN, "Gain, in the camera driver's units."),
+    "brightness": (cv2.CAP_PROP_BRIGHTNESS, "Brightness, in the camera driver's units."),
+    "focus": (cv2.CAP_PROP_FOCUS, "Focus position, in the camera driver's units."),
+}
+
+# V4L2 values of CAP_PROP_AUTO_EXPOSURE, as lightel's inspection uses them
+AUTO_EXPOSURE_MANUAL = 1.0
+AUTO_EXPOSURE_AUTO = 3.0
+
+
+class MechanicalSwitchCamera:  # pylint: disable=too-many-instance-attributes
+    """The Lightel DI-2000 inspection camera and its keywords."""
+
+    def __init__(self, daemon, config):
+        self.daemon = daemon
+        self.remote = config.get("remote")
+        self.device_index = int(config.get("device_index", 0))
+        self.backend = _backend(config.get("backend"))
+        self.width = config.get("width")
+        self.height = config.get("height")
+        archive_dir = config.get("archive_dir")
+        if not archive_dir:
+            raise ValueError("config must set camera.archive_dir")
+        # A camera plugged into another machine is reached through the
+        # camserver peer serving it there; device_index, backend, width and
+        # height are then the peer's
+        self.driver = (RemoteDi2000(str(self.remote), self._camera_client,
+                                    timeout_s=float(config.get("remote_timeout_s", 10.0)))
+                       if self.remote else Di2000(log=True))
+        self._client_bind = config.get("remote_client_bind")
+        properties = {name: prop for name, (prop, _) in CAMERA_PROPERTIES.items()}
+        properties["autoexposure"] = cv2.CAP_PROP_AUTO_EXPOSURE
+        properties["autofocus"] = cv2.CAP_PROP_AUTOFOCUS
+        self.camera = InspectionCamera(
+            self.driver, ImageArchive(archive_dir), lightel_inspection, properties,
+            max_defect_area_fraction=float(config.get("max_dirt", 0.01)))
+        self.last_inspect = ""
+
+    def connected(self):
+        """True when the camera is open."""
+        return bool(self.driver.is_connected())
+
+    def connect(self):
+        """Open the camera."""
+        self.driver.connect(self.device_index, backend=self.backend,
+                            width=self.width, height=self.height)
+
+    def describe(self):
+        """Where the camera is, for the log."""
+        return f"camserver {self.remote}" if self.remote else f"camera {self.device_index}"
+
+    def _camera_client(self):
+        """A libby connection of its own for the camserver's RPCs.
+
+        Not the daemon's: it runs keyword handlers on one thread, so a getter
+        waiting on it for the camserver's reply would never see it.
+        """
+        d = self.daemon
+        self_id = f"{d.peer_id}-camclient"
+        if str(d.transport).lower() == "zmq":
+            if not self._client_bind:
+                raise ValueError("camera.remote_client_bind is needed over zmq")
+            return Libby.zmq(self_id=self_id, bind=self._client_bind,
+                             address_book=d.config_address_book(), group_id=d.group_id)
+        return Libby.rabbitmq(self_id=self_id, rabbitmq_url=d.config_rabbitmq_url(),
+                              group_id=d.group_id)
+
+    def problem(self):
+        """What is wrong with the camera, or None."""
+        if self.connected():
+            return None
+        return f"camera disconnected ({self.describe()})"
+
+    def register_keywords(self, registry):
+        """Add the camera keywords."""
+        cam = self.camera
+        names = ", ".join(SETTING_NAMES)
+        registry.bool("isconnected", getter=self.connected, setter=self._set_connected,
+                      description="Inspection camera is open; write to open or release it.")
+        registry.trigger("refocus",
+                         action=lambda: self._start("refocus", cam.refocus),
+                         description="Bring the fiber end into focus (vendor autofocus on "
+                                     "Linux, else a focus sweep).")
+        registry.float("focusscore", getter=self._focus_score, nullable=True,
+                       description="Sharpness of the latest refocus; null before one.")
+        registry.string("light", getter=lambda: "fixed",
+                        description="Placeholder: the DI-2000 illumination is not software "
+                                    "controllable through its driver.")
+        for name, (_, description) in CAMERA_PROPERTIES.items():
+            registry.float(name, getter=self._hw(partial(cam.get_setting, name)),
+                           setter=self._setting(name), description=description)
+        registry.bool("autoexposure",
+                      getter=self._hw(lambda: cam.get_setting("autoexposure")
+                                      != AUTO_EXPOSURE_MANUAL),
+                      setter=self._setting("autoexposure", lambda v: AUTO_EXPOSURE_AUTO
+                                           if v else AUTO_EXPOSURE_MANUAL),
+                      description="Camera's own auto exposure; inspections turn it off.")
+        registry.bool("autofocus",
+                      getter=self._hw(lambda: bool(cam.get_setting("autofocus"))),
+                      setter=self._setting("autofocus", lambda v: 1.0 if v else 0.0),
+                      description="Camera's standard UVC continuous autofocus.")
+        registry.string("settings", getter=self._hw(lambda: json.dumps(cam.settings())),
+                        setter=self._set_settings, validator=_check_settings,
+                        description="Every camera setting as a JSON object of raw driver "
+                                    "values, null where the camera does not report one; "
+                                    "write an object of some of them to apply them at "
+                                    f"once. Settings: {names}.")
+        registry.string("capture", getter=lambda: self._last("tag"),
+                        setter=lambda tag: self._start(f"capture {tag}",
+                                                       partial(_capture, cam, tag)),
+                        description="Write a tag to grab and archive one frame as-is; "
+                                    "reads the latest image's tag.")
+        registry.string("inspect", getter=lambda: self.last_inspect,
+                        setter=self._set_inspect, validator=_check_inspect,
+                        description="Write a tag, or a JSON object {\"tag\": ..., "
+                                    "\"max_dirt\": ...}, to focus, expose, look for dirt and "
+                                    "archive the frame and its annotation; max_dirt is the "
+                                    "pass threshold (dirt fraction of the fiber-end area). "
+                                    "Reads the latest inspection's tag; see lastresult.")
+        registry.string("lastimage", getter=lambda: self._last("image"),
+                        description="Path of the latest archived image, empty before one.")
+        registry.string("lastresult", getter=lambda: json.dumps(cam.last_record or {}),
+                        description="JSON metadata of the latest capture or inspection, as "
+                                    "in its sidecar.")
+
+    def _hw(self, fn):
+        def getter():
+            self._require_connected()
+            return fn()
+        return getter
+
+    def _setting(self, name, convert=float):
+        return self.daemon.quick(self._require_connected,
+                                 lambda v: self.camera.set_setting(name, convert(v)))
+
+    def _set_settings(self, value):
+        self._require_connected()
+        self.daemon.require_idle()
+        for name, setting in json.loads(value).items():
+            self.camera.set_setting(name, float(setting))
+
+    def _set_inspect(self, value):
+        request = _parse_inspect(value)
+        tag, max_dirt = request["tag"], request.get("max_dirt")
+        self._start(f"inspect {tag}",
+                    lambda cancel: cam_inspect(self.camera, tag, cancel, max_dirt))
+        self.last_inspect = tag
+
+    def _focus_score(self):
+        focus = self.camera.last_focus
+        return None if focus is None else focus["score"]
+
+    def _last(self, field):
+        record = self.camera.last_record
+        return "" if record is None else record.get(field, "")
+
+    def _require_connected(self):
+        if not self.connected():
+            raise RuntimeError("camera is not connected")
+
+    def _start(self, label, fn):
+        self._require_connected()
+        self.daemon.jobs.start(label, fn)
+
+    def _set_connected(self, value):
+        if value:
+            if not self.connected():
+                self.connect()
+        else:
+            self.daemon.require_idle()
+            self.driver.disconnect()
+
+
+class FiberSwitchCameraDaemon(HispecDaemon):  # pylint: disable=W0223
+    """One channel's fiber inspection camera."""
+
+    def __init__(self):
+        super().__init__()
+        self.daemon_description = "Fiber Switcher Inspection Camera Daemon"
+        self.jobs = None
+        self.camera = None
+
+    def on_start(self):  # pylint: disable=unused-argument
+        """Read the config, register keywords and open the camera."""
+        self.jobs = JobRunner(self.logger)
+        self.camera = MechanicalSwitchCamera(self, self.get_config("camera") or {})
+        self.logger.info("Starting %s daemon: %s", self.peer_id, self.camera.describe())
+
+        registry = self.keyword_registry
+        registry.string("status", getter=lambda: self.camera.problem() or "ok",
+                        description="ok, or what is wrong with the camera.")
+        self.camera.register_keywords(registry)
+        register_job_keywords(registry, self.jobs, abort_name="halt")
+        registry.trigger("shutdown", action=self._shutdown,
+                         description="Stop this daemon; refused while a command runs.")
+        try:
+            self.camera.connect()
+        except Exception as e:  # pylint: disable=W0718
+            self.logger.error("Failed to open the camera: %s", e)
+        self.logger.info("Daemon started")
+
+    def on_stop(self):  # pylint: disable=unused-argument
+        """Abort any command, then release the camera."""
+        self.logger.info("Shutting down %s daemon", self.peer_id)
+        if self.jobs is not None and self.jobs.busy:
+            self.jobs.abort()
+            self.jobs.wait(5.0)
+        if self.camera is not None:
+            self.camera.driver.disconnect()
+            if hasattr(self.camera.driver, "close"):
+                self.camera.driver.close()
+
+    def require_idle(self):
+        """Refuse while a command is running."""
+        if self.jobs.busy:
+            raise RuntimeError(f"busy with {self.jobs.state}")
+
+    def quick(self, require_connected, fn):
+        """A setter applied at once: needs the camera open and no command running."""
+        def setter(value):
+            require_connected()
+            self.require_idle()
+            fn(value)
+        return setter
+
+    def _shutdown(self):
+        if self.jobs.busy:
+            raise RuntimeError(f"busy with {self.jobs.state}; halt before shutting down")
+        self.logger.info("Shutting down on keyword request")
+        self.request_stop()
+
+
+def cam_inspect(camera, tag, cancel, max_dirt):
+    """Run one inspection (a job)."""
+    camera.inspect(tag, cancel, max_defect_area_fraction=max_dirt)
+
+
+def _capture(camera, tag, cancel):
+    camera.capture(tag, cancel)
+
+
+def _parse_inspect(value):
+    """{"tag": ..., "max_dirt"?: ...} from a tag or a JSON object; ValueError if bad."""
+    text = str(value).strip()
+    request = json.loads(text) if text.startswith("{") else {"tag": text}
+    if not isinstance(request, dict):
+        raise ValueError("expected a tag or a JSON object")
+    unknown = set(request) - {"tag", "max_dirt"}
+    if unknown:
+        raise ValueError(f"unknown fields {sorted(unknown)}; known: tag, max_dirt")
+    if not isinstance(request.get("tag"), str) or not request["tag"]:
+        raise ValueError("tag must be a non-empty string")
+    max_dirt = request.get("max_dirt")
+    if max_dirt is not None:
+        if isinstance(max_dirt, bool) or not isinstance(max_dirt, (int, float)) \
+                or not 0.0 <= max_dirt <= 1.0:
+            raise ValueError("max_dirt must be a fraction between 0 and 1")
+        request["max_dirt"] = float(max_dirt)
+    return request
+
+
+def _check_inspect(value):
+    try:
+        _parse_inspect(value)
+    except (ValueError, json.JSONDecodeError) as e:
+        return str(e)
+    return None
+
+
+def _check_settings(value):
+    try:
+        settings = json.loads(value)
+    except json.JSONDecodeError as e:
+        return f"settings must be a JSON object: {e}"
+    if not isinstance(settings, dict):
+        return "settings must be a JSON object"
+    unknown = set(settings) - set(SETTING_NAMES)
+    if unknown:
+        return f"unknown camera settings {sorted(unknown)}; known: {list(SETTING_NAMES)}"
+    bad = [name for name, v in settings.items()
+           if isinstance(v, bool) or not isinstance(v, (int, float))]
+    if bad:
+        return f"settings {bad} must be numbers"
+    return None
+
+
+def _backend(name):
+    """OpenCV capture backend from its name (V4L2, DSHOW, ...); None for the default."""
+    if not name:
+        return None
+    attr = f"CAP_{str(name).upper()}"
+    if not hasattr(cv2, attr):
+        raise ValueError(f"unknown OpenCV backend {name!r}")
+    return getattr(cv2, attr)
+
+
+def main():
+    """Main entry point for the daemon."""
+    parser = argparse.ArgumentParser(description="Fiber Switcher Inspection Camera Daemon")
+    parser.add_argument("-c", "--config", type=str, help="Path to config file (YAML or JSON)")
+    args = parser.parse_args()
+    if not args.config:
+        print("--config is required", file=sys.stderr)
+        sys.exit(2)
+    try:
+        FiberSwitchCameraDaemon.from_config_file(args.config).serve()
+    except KeyboardInterrupt:
+        print("\nDaemon interrupted by user")
+        sys.exit(0)
+    except Exception as e:  # pylint: disable=W0718
+        print(f"Error running daemon: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

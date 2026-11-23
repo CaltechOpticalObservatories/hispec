@@ -13,6 +13,10 @@ from typing import Any, Dict, Mapping, Optional
 
 from hispec.fiberswitch.jobs import JobAborted
 
+# Camera settings by short name, as get_setting/set_setting and a connection
+# policy's `camera` field name them
+SETTING_NAMES = ("exposure", "gain", "brightness", "focus", "autoexposure", "autofocus")
+
 
 def summarize(result) -> Dict[str, Any]:
     """The JSON-safe parts of an inspection.InspectionResult."""

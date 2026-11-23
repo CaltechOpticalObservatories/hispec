@@ -2,26 +2,31 @@
 """
 Fiber Switcher Daemon (fiberswitch)
 
-One instance per channel (red and blue). Each drives that channel's fiber
-switcher PLC (fiber_switcher.FiberSwitcher) and its Lightel DI-2000 fiber
-inspection camera (di2000.Di2000), through three classes:
+One instance per channel (fiberswitchred and fiberswitchblue). Each drives
+that channel's fiber switcher PLC (fiber_switcher.FiberSwitcher) through two
+classes:
 
 - MechanicalSwitch: connect input groups, move to inspection positions,
   clean, air purge and the PLC's axis settings.
-- MechanicalSwitchCamera (keywords prefixed cam): refocus, light, detector
-  settings and capture.
 - MechanicalSwitchController: select inputs per each port's connection
   policy, inspect and clean fiber ends, reference and inspection images,
   alerts.
+
+The channel's Lightel DI-2000 inspection camera is a daemon of its own
+(fiberswitchredcam, fiberswitchbluecam; daemons/hsfibers/fiberswitchcam),
+named by camera.daemon in the config, by default <group>.<peer_id>cam. The
+controller inspects through its `settings` and `inspect` keywords, on a libby
+connection of its own.
 
 Positions are named in the config: `input_groups` are where the spectrograph
 fibers connect for science, each with its connection policy, and
 `inspection_positions` put a fiber end in front of the camera.
 
-Every command that moves the switcher or uses the camera runs in the
-background, one at a time: the write returns once the command has started,
-`busy` is true until it finishes and `jobstatus` then says how it went.
-`halt` stops the switcher and aborts the command at once. (libby runs a
+Every command that moves the switcher runs in the background, one at a time:
+the write returns once the command has started, `busy` is true until it
+finishes and `jobstatus` then says how it went.
+`halt` stops the switcher and aborts the command at once, halting the
+camera daemon too if the command is waiting on an inspection. (libby runs a
 daemon's keyword handlers one at a time, so a command that blocked its
 setter would also block `halt` and every status read.)
 """
@@ -33,36 +38,41 @@ import sys
 from datetime import datetime, timezone
 from functools import partial
 
-import cv2
-import inspection as lightel_inspection
-from di2000 import Di2000
 from fiber_switcher import DEFAULT_PORT, FiberSwitcher
-from libby import Libby
+from libby import Client
 
 from hispec import HispecDaemon
-from hispec.fiberswitch.archive import ImageArchive
-from hispec.fiberswitch.camera import InspectionCamera
-from hispec.fiberswitch.camserver import RemoteDi2000
+from hispec.fiberswitch.camera import SETTING_NAMES
 from hispec.fiberswitch.controller import FiberSwitchController
-from hispec.fiberswitch.jobs import JobRunner, register_job_keywords
+from hispec.fiberswitch.jobs import JobRunner
 from hispec.fiberswitch.policy import ControllerState
-from hispec.fiberswitch.switch import (AXIS_SETTINGS, CLEAN_MODES, SwitchSequencer, alarm_word,
-                                       message_word, parse_positions, parse_target)
+from hispec.fiberswitch.switch import (CLEAN_MODES, SwitchSequencer, alarm_word, message_word,
+                                       parse_positions, parse_target)
+
+# Beside this script in daemons/hsfibers
+from camclient import CameraDaemonClient
+from jobkeywords import register_job_keywords
 
 # Input names become keyword suffixes
 _NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 
-# Camera detector settings exposed as cam<name> float keywords
-CAMERA_PROPERTIES = {
-    "exposure": (cv2.CAP_PROP_EXPOSURE, "Exposure, in the camera driver's units."),
-    "gain": (cv2.CAP_PROP_GAIN, "Gain, in the camera driver's units."),
-    "brightness": (cv2.CAP_PROP_BRIGHTNESS, "Brightness, in the camera driver's units."),
-    "focus": (cv2.CAP_PROP_FOCUS, "Focus position, in the camera driver's units."),
+# The PLC's mm registers, exposed as config_<suffix> keywords: suffix ->
+# (FiberSwitcher getter, setter, description)
+AXIS_SETTINGS = {
+    "retractdist": ("get_retract_distance_mm", "set_retract_distance_mm",
+                    "Insertion axis retract-back distance."),
+    "caminsertpos": ("get_camera_insertion_position_mm",
+                     "set_camera_insertion_position_mm",
+                     "Insertion position used at camera (inspection) ports."),
+    "noncaminsertpos": ("get_noncamera_insertion_position_mm",
+                        "set_noncamera_insertion_position_mm",
+                        "Insertion position used at non-camera ports."),
 }
 
-# V4L2 values of CAP_PROP_AUTO_EXPOSURE, as lightel's inspection uses them
-AUTO_EXPOSURE_MANUAL = 1.0
-AUTO_EXPOSURE_AUTO = 3.0
+# Keys of this daemon's camera: section. Configs from before the camera had a
+# daemon of its own also hold that camera's settings (remote, device_index,
+# archive_dir, ...); those are ignored, with a warning.
+CAMERA_CONFIG_KEYS = frozenset({"daemon", "timeout_s", "inspect_timeout_s", "client_bind"})
 
 
 class MechanicalSwitch:
@@ -248,147 +258,25 @@ class MechanicalSwitch:
             self.driver.disconnect()
 
 
-class MechanicalSwitchCamera:  # pylint: disable=too-many-instance-attributes
-    """The Lightel DI-2000 inspection camera and its cam* keywords."""
-
-    def __init__(self, daemon, config):
-        self.daemon = daemon
-        self.remote = config.get("remote")
-        self.device_index = int(config.get("device_index", 0))
-        self.backend = _backend(config.get("backend"))
-        self.width = config.get("width")
-        self.height = config.get("height")
-        archive_dir = config.get("archive_dir")
-        if not archive_dir:
-            raise ValueError("config must set camera.archive_dir")
-        # A camera plugged into another machine is reached through the
-        # camera peer serving it there; device_index, backend, width and
-        # height are then the peer's
-        self.driver = (RemoteDi2000(str(self.remote), self._camera_client,
-                                    timeout_s=float(config.get("remote_timeout_s", 10.0)))
-                       if self.remote else Di2000(log=True))
-        self._client_bind = config.get("remote_client_bind")
-        properties = {name: prop for name, (prop, _) in CAMERA_PROPERTIES.items()}
-        properties["autoexposure"] = cv2.CAP_PROP_AUTO_EXPOSURE
-        properties["autofocus"] = cv2.CAP_PROP_AUTOFOCUS
-        self.camera = InspectionCamera(self.driver, ImageArchive(archive_dir),
-                                       lightel_inspection, properties)
-
-    def connected(self):
-        """True when the camera is open."""
-        return bool(self.driver.is_connected())
-
-    def connect(self):
-        """Open the camera."""
-        self.driver.connect(self.device_index, backend=self.backend,
-                            width=self.width, height=self.height)
-
-    def describe(self):
-        """Where the camera is, for the log."""
-        return f"camera peer {self.remote}" if self.remote else f"camera {self.device_index}"
-
-    def _camera_client(self):
-        """A libby connection of its own for the remote camera's RPCs.
-
-        Not the daemon's: it runs keyword handlers on one thread, so a getter
-        waiting on it for the camera's reply would never see it.
-        """
-        d = self.daemon
-        self_id = f"{d.peer_id}-camclient"
-        if str(d.transport).lower() == "zmq":
-            if not self._client_bind:
-                raise ValueError("camera.remote_client_bind is needed over zmq")
-            return Libby.zmq(self_id=self_id, bind=self._client_bind,
-                             address_book=d.config_address_book(), group_id=d.group_id)
-        return Libby.rabbitmq(self_id=self_id, rabbitmq_url=d.config_rabbitmq_url(),
-                              group_id=d.group_id)
-
-    def problem(self):
-        """What is wrong with the camera, or None."""
-        if self.connected():
-            return None
-        return f"camera disconnected ({self.describe()})"
-
-    def register_keywords(self, registry):
-        """Add the cam* keywords."""
-        cam = self.camera
-        registry.bool("camconnected", getter=self.connected, setter=self._set_connected,
-                      description="Inspection camera is open; write to open or release it.")
-        registry.trigger("camrefocus",
-                         action=lambda: self._start("refocus", cam.refocus),
-                         description="Bring the fiber end into focus (vendor autofocus on "
-                                     "Linux, else a focus sweep).")
-        registry.float("camfocusscore", getter=lambda: self._focus("score"), nullable=True,
-                       description="Sharpness of the latest refocus; null before one.")
-        registry.string("camlight", getter=lambda: "fixed",
-                        description="Placeholder: the DI-2000 illumination is not software "
-                                    "controllable through its driver.")
-        for name, (_, description) in CAMERA_PROPERTIES.items():
-            registry.float(f"cam{name}",
-                           getter=self._hw(partial(cam.get_setting, name)),
-                           setter=self._setting(name), description=description)
-        registry.bool("camautoexposure",
-                      getter=self._hw(lambda: cam.get_setting("autoexposure")
-                                      != AUTO_EXPOSURE_MANUAL),
-                      setter=self._setting("autoexposure", lambda v: AUTO_EXPOSURE_AUTO
-                                           if v else AUTO_EXPOSURE_MANUAL),
-                      description="Camera's own auto exposure; inspections turn it off.")
-        registry.bool("camautofocus",
-                      getter=self._hw(lambda: bool(cam.get_setting("autofocus"))),
-                      setter=self._setting("autofocus", lambda v: 1.0 if v else 0.0),
-                      description="Camera's standard UVC continuous autofocus.")
-        registry.string("camcapture", getter=lambda: self._last("tag"),
-                        setter=lambda tag: self._start(f"capture {tag}",
-                                                       partial(_capture, cam, tag)),
-                        description="Write a tag to grab and archive one frame as-is; "
-                                    "reads the latest image's tag.")
-        registry.string("camlastimage", getter=lambda: self._last("image"),
-                        description="Path of the latest archived image, empty before one.")
-        registry.string("camlastresult", getter=lambda: json.dumps(cam.last_record or {}),
-                        description="JSON metadata of the latest capture or inspection, as "
-                                    "in its sidecar.")
-
-    def _hw(self, fn):
-        def getter():
-            self._require_connected()
-            return fn()
-        return getter
-
-    def _setting(self, name, convert=float):
-        return self.daemon.quick(self._require_connected,
-                                 lambda v: self.camera.set_setting(name, convert(v)))
-
-    def _focus(self, field):
-        focus = self.camera.last_focus
-        return None if focus is None else focus[field]
-
-    def _last(self, field):
-        record = self.camera.last_record
-        return "" if record is None else record.get(field, "")
-
-    def _require_connected(self):
-        if not self.connected():
-            raise RuntimeError("camera is not connected")
-
-    def _start(self, label, fn):
-        self._require_connected()
-        self.daemon.jobs.start(label, fn)
-
-    def _set_connected(self, value):
-        if value:
-            if not self.connected():
-                self.connect()
-        else:
-            self.daemon.require_idle()
-            self.driver.disconnect()
-
-
 class MechanicalSwitchController:  # pylint: disable=too-few-public-methods
     """Connection policy, inspect-and-clean and reference images, and their keywords."""
 
-    def __init__(self, daemon, switch, camera):
+    def __init__(self, daemon, switch, config):
         self.daemon = daemon
         self.switch = switch
+        # The camera daemon is named for this one: fiberswitchred's is
+        # fiberswitchredcam
+        camera_daemon = config.get("daemon") or f"{daemon.group_id}.{daemon.peer_id}cam"
+        stale = sorted(set(config) - CAMERA_CONFIG_KEYS)
+        if stale:
+            daemon.logger.warning(
+                "Ignoring camera.%s: the inspection camera is its own daemon now (%s), "
+                "configured in its own config", ", camera.".join(stale), camera_daemon)
+        self._client_bind = config.get("client_bind")
+        self.camera = CameraDaemonClient(
+            str(camera_daemon), self._camera_client,
+            timeout_s=float(config.get("timeout_s", 10.0)),
+            inspect_timeout_s=float(config.get("inspect_timeout_s", 180.0)))
         self.state = ControllerState(
             daemon.get_config("state_file"), daemon.get_config("policy_defaults") or {},
             {name: (spec or {}).get("policy") or {}
@@ -396,20 +284,36 @@ class MechanicalSwitchController:  # pylint: disable=too-few-public-methods
         for message in self.state.dropped:
             daemon.logger.warning("Ignoring saved policy override %s", message)
         self.ctl = FiberSwitchController(
-            switch.sequencer, camera.camera, self.state,
+            switch.sequencer, self.camera, self.state,
             input_groups=daemon.input_groups,
             inspection_positions=daemon.inspection_positions, logger=daemon.logger)
-        self._camera_settings = set(camera.camera.properties)
         self._last = {"inspectclean": "", "takereference": ""}
         for name in self.state.inputs:
             policy = self.state.policy(name)
             self._check_position(policy.inspect_position)
             self._check_camera_settings(policy.camera)
 
+    def _camera_client(self):
+        """A libby client of its own for the camera daemon's keywords.
+
+        Not the daemon's connection: it runs keyword handlers on one thread,
+        and the controller's jobs wait on the camera daemon's replies.
+        """
+        d = self.daemon
+        self_id = f"{d.peer_id}-camclient"
+        if str(d.transport).lower() == "zmq":
+            if not self._client_bind:
+                raise ValueError("camera.client_bind is needed over zmq")
+            return Client.zmq(self_id=self_id, bind=self._client_bind,
+                              address_book=d.config_address_book())
+        return Client.rabbitmq(self_id=self_id, rabbitmq_url=d.config_rabbitmq_url())
+
     def register_keywords(self, registry):
         """Add the controller keywords."""
         d = self.daemon
         inputs = ", ".join(self.state.inputs)
+        registry.string("camera", getter=lambda: self.camera.daemon,
+                        description="Camera daemon the controller inspects with.")
         registry.string("select", getter=lambda: self.state.selected,
                         setter=lambda name: self._start("select", self.ctl.select_input, name),
                         validator=d.check_input,
@@ -464,8 +368,8 @@ class MechanicalSwitchController:  # pylint: disable=too-few-public-methods
                         description=f"UTC time {name}'s fiber end was last cleaned.")
 
     def _start(self, kind, fn, name):
-        # A command that needs the camera and finds it closed fails in the job,
-        # with the camera's own error
+        # A command that needs the camera and finds its daemon down or its
+        # camera closed fails in the job, with the camera daemon's error
         if not self.switch.connected():
             raise RuntimeError("not connected to the switcher")
         self.daemon.jobs.start(f"{kind} {name}", lambda cancel: fn(name, cancel))
@@ -478,10 +382,10 @@ class MechanicalSwitchController:  # pylint: disable=too-few-public-methods
                              f"positions: {list(self.daemon.inspection_positions)}")
 
     def _check_camera_settings(self, camera):
-        unknown = set(camera) - self._camera_settings
+        unknown = set(camera) - set(SETTING_NAMES)
         if unknown:
             raise ValueError(f"unknown camera settings {sorted(unknown)}; "
-                             f"known: {sorted(self._camera_settings)}")
+                             f"known: {list(SETTING_NAMES)}")
 
     def _set_policy(self, name, value):
         try:
@@ -505,7 +409,7 @@ class MechanicalSwitchController:  # pylint: disable=too-few-public-methods
 
 # pylint: disable=too-many-instance-attributes
 class FiberSwitchDaemon(HispecDaemon):  # pylint: disable=W0223
-    """One channel's fiber switcher, inspection camera and controller."""
+    """One channel's fiber switcher and its controller."""
 
     def __init__(self):
         super().__init__()
@@ -514,7 +418,6 @@ class FiberSwitchDaemon(HispecDaemon):  # pylint: disable=W0223
         self.input_groups = {}
         self.inspection_positions = {}
         self.switch = None
-        self.camera = None
         self.controller = None
 
     def on_start(self):  # pylint: disable=unused-argument
@@ -528,40 +431,37 @@ class FiberSwitchDaemon(HispecDaemon):  # pylint: disable=W0223
             self.get_config("inspection_positions"), "inspection position")
         self.jobs = JobRunner(self.logger)
         self.switch = MechanicalSwitch(self, self.get_config("switch") or {})
-        self.camera = MechanicalSwitchCamera(self, self.get_config("camera") or {})
-        self.controller = MechanicalSwitchController(self, self.switch, self.camera)
+        self.controller = MechanicalSwitchController(self, self.switch,
+                                                     self.get_config("camera") or {})
 
-        self.logger.info("Starting %s daemon: switcher %s:%s, %s, inputs %s",
+        self.logger.info("Starting %s daemon: switcher %s:%s, camera daemon %s, inputs %s",
                          self.peer_id, self.switch.host, self.switch.port,
-                         self.camera.describe(), ", ".join(self.input_groups))
+                         self.controller.camera.daemon, ", ".join(self.input_groups))
         registry = self.keyword_registry
         registry.string("status", getter=self._status,
-                        description="ok, or what is wrong with the switcher and camera.")
+                        description="ok, or what is wrong with the switcher.")
         self.switch.register_keywords(registry)
-        self.camera.register_keywords(registry)
         self.controller.register_keywords(registry)
         register_job_keywords(registry, self.jobs, abort_action=self._halt, abort_name="halt")
         registry.trigger("shutdown", action=self._shutdown,
                          description="Stop this daemon; refused while a command runs.")
 
-        for part in (self.switch, self.camera):
-            try:
-                part.connect()
-            except Exception as e:  # pylint: disable=W0718
-                self.logger.error("Failed to connect %s: %s", type(part).__name__, e)
+        try:
+            self.switch.connect()
+        except Exception as e:  # pylint: disable=W0718
+            self.logger.error("Failed to connect to the switcher: %s", e)
         self.logger.info("Daemon started")
 
     def on_stop(self):  # pylint: disable=unused-argument
-        """Halt any command, then disconnect both devices."""
+        """Halt any command, then disconnect from the switcher."""
         self.logger.info("Shutting down %s daemon", self.peer_id)
         if self.jobs is not None and self.jobs.busy:
             self._halt()
             self.jobs.wait(5.0)
-        for part in (self.switch, self.camera):
-            if part is not None:
-                part.driver.disconnect()
-        if self.camera is not None and hasattr(self.camera.driver, "close"):
-            self.camera.driver.close()
+        if self.switch is not None:
+            self.switch.driver.disconnect()
+        if self.controller is not None:
+            self.controller.camera.close()
 
     def check_input(self, name):
         """Validator for keywords taking an input group name."""
@@ -583,8 +483,7 @@ class FiberSwitchDaemon(HispecDaemon):  # pylint: disable=W0223
         return setter
 
     def _status(self):
-        problems = [p for p in (self.switch.problem(), self.camera.problem()) if p]
-        return "; ".join(problems) or "ok"
+        return self.switch.problem() or "ok"
 
     def _halt(self):
         self.jobs.abort()
@@ -596,10 +495,6 @@ class FiberSwitchDaemon(HispecDaemon):  # pylint: disable=W0223
             raise RuntimeError(f"busy with {self.jobs.state}; halt before shutting down")
         self.logger.info("Shutting down on keyword request")
         self.request_stop()
-
-
-def _capture(camera, tag, cancel):
-    camera.capture(tag, cancel)
 
 
 def _check_target(value):
@@ -614,16 +509,6 @@ def _check_range(limits, value):
     if not limits[0] <= value <= limits[1]:
         return f"{value} mm outside {limits[0]}-{limits[1]} mm"
     return None
-
-
-def _backend(name):
-    """OpenCV capture backend from its name (V4L2, DSHOW, ...); None for the default."""
-    if not name:
-        return None
-    attr = f"CAP_{str(name).upper()}"
-    if not hasattr(cv2, attr):
-        raise ValueError(f"unknown OpenCV backend {name!r}")
-    return getattr(cv2, attr)
 
 
 def _iso(epoch):
