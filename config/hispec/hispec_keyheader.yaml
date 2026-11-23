@@ -57,9 +57,11 @@ segments:
       - {fits: YJTHMCON, keyword: hsyj.yjdettherm.isconnected, type: bool, comment: "YJ detector temp controller connected"}
       # format ".40" truncates the string, so it stays on one card
       - {fits: YJTHMSTA, keyword: hsyj.yjdettherm.1_detector_status, type: str, format: ".40", comment: "YJ detector heater loop status"}
-      - {fits: SRSPOWER, keyword: hspower.yjcal2.power7, type: float, format: ".1f", comment: "SRS outlet power draw [W]"}
-      - {fits: SRSON, keyword: hspower.yjcal2.state7, type: bool, comment: "SRS outlet switched on"}
-
+      - {fits: BSRSPOW, keyword: hspower.yjcal2.power7, type: float, format: ".1f", comment: "YJ Et SRS outlet power [W]"}
+      - {fits: BSRSON, keyword: hspower.yjcal2.state7, type: bool, comment: "YJ Et SRS outlet switched on"}
+      - {fits: RSRSPOW, keyword: hspower.hkcal1.power2, type: float, format: ".1f", comment: "HK Et SRS outlet power [W]"}
+      - {fits: RSRSON, keyword: hspower.hkcal1.state2, type: bool, comment: "HK Et SRS outlet switched on"}
+      -
   # At the end of an exposure the next sample is usually not stored yet, so
   # take the last value at or before the moment
   - name: SPEC-EXP-END
