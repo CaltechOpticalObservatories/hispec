@@ -61,7 +61,7 @@ segments:
       - {fits: BSRSON, keyword: hspower.yjcal2.state7, type: bool, comment: "YJ Et SRS outlet switched on"}
       - {fits: RSRSPOW, keyword: hspower.hkcal1.power2, type: float, format: ".1f", comment: "HK Et SRS outlet power [W]"}
       - {fits: RSRSON, keyword: hspower.hkcal1.state2, type: bool, comment: "HK Et SRS outlet switched on"}
-      -
+
   # At the end of an exposure the next sample is usually not stored yet, so
   # take the last value at or before the moment
   - name: SPEC-EXP-END
