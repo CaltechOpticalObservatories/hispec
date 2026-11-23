@@ -724,9 +724,10 @@ class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
                     self._require_access()
                     self._send_move(step)
                 self._wait_on_target(step)
-            except RuntimeError as error:
-                self._move_status = f"failed at {progress} to {target}: {error}"
-                self.logger.error("Split move %s", self._move_status)
+            except Exception as error: #pylint: disable=broad-exception-caught
+                self._move_status = (f"failed at {progress} to {target}: "
+                                     f"{type(error).__name__}: {error}")
+                self.logger.exception("Split move %s", self._move_status)
                 return
             if self._abort.is_set():
                 self._move_status = f"stopped by halt at {progress} to {target}"
@@ -766,20 +767,32 @@ class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         if not self.mirror.ip_address:
             raise RuntimeError("no hardware.ip_address configured")
         self.logger.info("Connecting to the E-727 at %s:%s",
-                         self.mirror.ip_address, self.mirror.tcp_port)
+                        self.mirror.ip_address, self.mirror.tcp_port)
         with self._lock:
             # Drop any stale session first; connect_tcp would otherwise leak it
             self.controller.disconnect_all()
-            self.controller.connect_tcp(self.mirror.ip_address, self.mirror.tcp_port)
-            if not self._controller_responsive():
-                raise RuntimeError(f"E-727 at {self.mirror.ip_address}:"
-                                   f"{self.mirror.tcp_port} is not ready")
-            self.logger.info("Connected: %s", self.controller.get_idn(self.device_key))
-            travel = self._e727.travel(_ids(self.axes))
-            for axis in self.axes:
-                axis.hardmin, axis.hardmax = travel[axis.axis_id]
-            self._warn_on_unit_mismatch()
-            self._close_loops_if_free()
+            try:
+                self.controller.connect_tcp(self.mirror.ip_address, self.mirror.tcp_port)
+                if not self._controller_responsive():
+                    raise RuntimeError(f"E-727 at {self.mirror.ip_address}:"
+                                    f"{self.mirror.tcp_port} is not ready")
+                self.logger.info("Connected: %s", self.controller.get_idn(self.device_key))
+                travel = self._e727.travel(_ids(self.axes))
+                for axis in self.axes:
+                    axis.hardmin, axis.hardmax = travel[axis.axis_id]
+                self._warn_on_unit_mismatch()
+                self._close_loops_if_free()
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                self.logger.exception(f"Failed to connect to the E-727; cleaning up: {error}")
+                self._safe_disconnect()
+                raise
+
+    def _safe_disconnect(self) -> None:
+        """Best-effort disconnect; never raises, so it can't mask the original error."""
+        try:
+            self.controller.disconnect_all()
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            self.logger.warning(f"Cleanup disconnect failed: {error}", exc_info=True)
 
     def _close_loops_if_free(self) -> None:
         """Close the servo loops after connecting, unless something else commands the mirror."""
@@ -787,6 +800,10 @@ class FsmDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         if access is not Access.FREE:
             self.logger.info("Servo loops left as found: mirror access is %s", access.value)
             return
+        #Halt is not impelemented yet because it will be executed through a shared memory
+        #if self._halted:
+        #    self.logger.info("Servo loops left open: halt is active")
+        #    return
         try:
             self._apply_servo(self.axes, closed=True)
         except E727Error as error:

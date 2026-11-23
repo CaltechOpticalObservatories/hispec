@@ -11,7 +11,7 @@ group_id: hsfei
 hardware:
   ip_address:              # TODO: E-727 address; without it the daemon starts disconnected
   tcp_port: 50000          # TODO: confirm (GCS default)
-  position_tolerance: 0.1  # urad, how close counts as being at a named position; TODO tune
+  position_tolerance: 0.1  # mrad, how close counts as being at a named position; TODO tune
   # Largest single move per axis; bigger moves are split into steps to avoid
   # piezo overshoot. Empty never splits. TODO: set once the units are confirmed
   max_step:
@@ -21,7 +21,7 @@ stages:
   - name: x
     axis: "1"              # TODO: confirm E-727 axis id
     units: mrad
-    # Closed-loop range is 0 to 35 urad; MOV needs a closed servo loop, so
+    # Closed-loop range is 0 to 35 mrad; MOV needs a closed servo loop, so
     # these only ever apply in closed loop. Open-loop range not yet known
     softmin: 0.0
     softmax: 35.0
@@ -30,7 +30,7 @@ stages:
   - name: y
     axis: "2"              # TODO: confirm E-727 axis id
     units: mrad
-    # Closed-loop range is 0 to 35 urad; MOV needs a closed servo loop, so
+    # Closed-loop range is 0 to 35 mrad; MOV needs a closed servo loop, so
     # these only ever apply in closed loop. Open-loop range not yet known
     softmin: 0.0
     softmax: 35.0
