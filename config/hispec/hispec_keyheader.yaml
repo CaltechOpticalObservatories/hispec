@@ -42,10 +42,16 @@ defaults:
 # characters [ ] { } , and ": " have meaning, so quote any value that holds
 # them; comments are always quoted here for that reason.
 segments:
-  - name: EXP-BEGIN
+  - name: SPEC-EXP-BEGIN
     date_keyword: DATE-BEG
     date_comment: UTC start of exposure
     cards:
+      - {fits: N2OSTPNT, keyword: hscal.gcellheater1.1_gc1_N2O, type: float, format: ".1f", comment: "N2O gas cell setpoint (K)"}
+      - {fits: N2OOUTPT, keyword: hscal.gcellheater1.1_gc1_N2O_output, type: float, format: ".1f", comment: "N2O gas cell output (%)"}
+      - {fits: N2OTEMP, keyword: hscal.gcellheater1.tA_gc1_N2O, type: float, format: ".1f", comment: "N2O gas cell temperature (K)"}
+      - {fits: CH4STPNT, keyword: hscal.gcellheater1.2_gc2_CH4_H2O, type: float, format: ".1f", comment: "CH4-H2O gas cell setpoint (K)"}
+      - {fits: CH4OUTPT, keyword: hscal.gcellheater1.2_gc2_CH4_H2O_output, type: float, format: ".1f", comment: "CH4-H2O gas cell output (%)"}
+      - {fits: CH4TEMP, keyword: hscal.gcellheater1.tD_gc2_CH4_H2O, type: float, format: ".1f", comment: "CH4-H2O gas cell temperature (K)"}
       - {fits: YJDETTMP, keyword: hsyj.yjdettherm.tA_detector, type: float, format: ".3f", comment: "YJ detector temperature [K]", mode: interpolate}
       - {fits: YJPENTMP, keyword: hsyj.yjdettherm.tB_penguin, type: float, format: ".3f", comment: "YJ penguin temperature [K]", mode: interpolate}
       - {fits: YJTHMCON, keyword: hsyj.yjdettherm.isconnected, type: bool, comment: "YJ detector temp controller connected"}
@@ -56,7 +62,7 @@ segments:
 
   # At the end of an exposure the next sample is usually not stored yet, so
   # take the last value at or before the moment
-  - name: EXP-END
+  - name: SPEC-EXP-END
     date_keyword: DATE-END
     date_comment: UTC end of exposure
     defaults:
