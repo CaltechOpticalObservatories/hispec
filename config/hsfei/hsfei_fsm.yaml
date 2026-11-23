@@ -1,0 +1,45 @@
+# FSM: PI 2-axis fast steering mirror on an E-727 controller, driven over
+# GCS TCP/IP. Queries are always allowed; commands only when the access
+# shared memory says this daemon may command the mirror
+#
+# Usage:
+#   daemons/hsfei/fsm -c config/hsfei/hsfei_fsm.yaml
+
+peer_id: fsm
+group_id: hsfei
+
+hardware:
+  ip_address:              # TODO: E-727 address; without it the daemon starts disconnected
+  tcp_port: 50000          # TODO: confirm (GCS default)
+  position_tolerance: 0.1  # mrad, how close counts as being at a named position; TODO tune
+  # Largest single move per axis; bigger moves are split into steps to avoid
+  # piezo overshoot. Empty never splits. TODO: set once the units are confirmed
+  max_step:
+  step_timeout_s: 2.0      # wait for each split step to settle on target
+
+stages:
+  - name: x
+    axis: "1"              # TODO: confirm E-727 axis id
+    units: mrad
+    # Closed-loop range is 0 to 35 mrad; MOV needs a closed servo loop, so
+    # these only ever apply in closed loop. Open-loop range not yet known
+    softmin: 0.0
+    softmax: 35.0
+    named_positions:
+      center: 17.5         # midpoint of the closed-loop range; TODO confirm
+  - name: y
+    axis: "2"              # TODO: confirm E-727 axis id
+    units: mrad
+    # Closed-loop range is 0 to 35 mrad; MOV needs a closed servo loop, so
+    # these only ever apply in closed loop. Open-loop range not yet known
+    softmin: 0.0
+    softmax: 35.0
+    named_positions:
+      center: 17.5         # midpoint of the closed-loop range; TODO confirm
+
+presets:                   # both axes at once, [x, y]
+  center: [17.5, 17.5]     # TODO confirm
+  background: [34.9, 34.9] # TODO confirm: near the end of travel
+
+logging:
+  level: INFO
