@@ -1,16 +1,35 @@
-"""The camera peer and RemoteDi2000 over libby (ZMQ on loopback), with a fake camera."""
+"""The camera server and RemoteDi2000 over libby (ZMQ on loopback), with a fake camera."""
+# The server is loaded from its script at run time, so pylint cannot see its members
+# pylint: disable=no-member
 
 import socket
+import types
+from pathlib import Path
 
 import numpy as np
 import pytest
 from libby import Libby
 
-from hispec.fiberswitch.camserver import (FRAME_CHUNK, CameraService, RemoteCameraError,
-                                          RemoteDi2000, decode_frame, encode_frame,
-                                          make_daemon_class)
+# daemons/hsfibers, put on the path by conftest
+from remotecam import RemoteCameraError, RemoteDi2000, decode_frame  # pylint: disable=import-error
 
 PEER = "hsfibers.testcam"
+SERVER = Path(__file__).resolve().parents[2] / "daemons" / "hsfibers" / "fiberswitchcamserver"
+
+
+def _load_server():
+    """The camera server script as a module, without writing bytecode beside it."""
+    module = types.ModuleType("fiberswitchcamserver")
+    module.__file__ = str(SERVER)
+    exec(compile(SERVER.read_text(encoding="utf-8"), str(SERVER), "exec"),  # pylint: disable=exec-used
+         module.__dict__)
+    return module
+
+
+camserver = _load_server()
+FRAME_CHUNK = camserver.FRAME_CHUNK
+CameraService = camserver.CameraService
+encode_frame = camserver.encode_frame
 
 
 class FakeCamera:
@@ -64,7 +83,7 @@ def fixture_served():
     camera = FakeCamera()
     peer_addr = f"tcp://127.0.0.1:{_port()}"
     client_addr = f"tcp://127.0.0.1:{_port()}"
-    cls = type("ZmqPeer", (make_daemon_class(),), {"transport": "zmq"})
+    cls = type("ZmqPeer", (camserver.CameraPeer,), {"transport": "zmq"})
     peer = cls.from_config({"peer_id": "testcam", "group_id": "hsfibers", "bind": peer_addr,
                             "address_book": {}, "discovery_enabled": False})
     peer.driver = camera
@@ -139,7 +158,7 @@ def test_stale_frame_id_is_refused():
 
 
 def test_autofocus_status_retries_transient_errors(monkeypatch):
-    monkeypatch.setattr("hispec.fiberswitch.camserver.STATUS_RETRY_S", 0.0)
+    monkeypatch.setattr(camserver, "STATUS_RETRY_S", 0.0)
     camera = FakeCamera()
     replies = [OSError(71, "Protocol error"), 2]
 
