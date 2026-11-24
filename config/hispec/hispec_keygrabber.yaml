@@ -79,6 +79,10 @@ collections:
     peer: hsfei.hkfam
     keywords: ["%"]
     interval_s: 5.0
+  fsm:
+    peer: hsfei.fsm
+    keywords: ["%"]
+    interval_s: 5.0
 
   # Filter wheels and attenuators: discrete positions, changed rarely
   atcfw:

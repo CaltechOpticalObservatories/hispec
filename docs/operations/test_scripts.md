@@ -89,8 +89,8 @@ Some subsystems have their stages ready-made. The FEI ones are in `hispec.fei`
   script.
 - **Don't** add `time.sleep()` to wait for hardware; wait on a keyword.
 
-Some hardware has no daemon yet, for example the FEI's ILS source stage,
-FSM and red power meter. Tests that need them cannot follow these rules until those
+Some hardware has no daemon yet, for example the FEI's ILS source stage
+and red power meter. Tests that need them cannot follow these rules until those
 daemons exist; talk to the software team before writing one.
 
 ## When it fails

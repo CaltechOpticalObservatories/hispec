@@ -23,6 +23,7 @@ their shared `pdu_base.py` base class.
 | `generic/inficon` | `inficon.inficonvgc502` | Inficon VGC502 vacuum gauge controller | `hsfei_atcpress` |
 | `generic/camera` | `tracking_camera.TrackingCamera` | H2RG on an STA Archon, through `camera_interface_tracking` | `hsfei_atcam` |
 | `hsfei/pi-daemon` | `pi.PIControllerBase` | PI C-663 / C-863 / E-754 motion controllers | `hsfei_atcl`, `hsfei_atcp`, `hsfei_feipo`, `hsfei_lsm`, `hsfei_ms` |
+| `hsfei/fsm` | `pi.PIControllerBase` | PI E-727 fast steering mirror | `hsfei_fsm` |
 | `hsfei/adc` | `newport.smc100pp` | Newport SMC100PP ADC prism rotators | `hsfei_adc` |
 | `hsfei/atccryo` | `sunpower.sunpower_cryocooler` | Sunpower cryocooler | `hsfei_atccryo` |
 | `hsfei/piaa-gimbalmount` | `thorlabs.ppc102` | Thorlabs PPC102 piezo gimbal mount | `hsfei_piaagimb`, `hsfei_piaagimr` |
@@ -61,7 +62,8 @@ camera) environment.
 | `hsfei_atctherm` | ATC temperature control |
 | `hsfei_atcpress` | ATC vacuum pressure |
 | `hsfei_atccryo` | ATC cryocooler |
-| `hsfei_atcam` | ATC camera, the only instance on `feiserver` |
+| `hsfei_atcam` | ATC camera, on `feiserver` |
+| `hsfei_fsm` | fast steering mirror, on `feiserver` |
 
 ### `hscal` — Calibration
 
