@@ -916,7 +916,7 @@ requires-dist = [
     { name = "hardware-device-base", git = "https://github.com/COO-Utilities/hardware_device_base" },
     { name = "instrumentctl", git = "https://github.com/CaltechOpticalObservatories/instrumentctl.git" },
     { name = "keyring" },
-    { name = "libby", extras = ["influxdb", "otel"], git = "https://github.com/CaltechOpticalObservatories/libby.git?rev=libby-0.4.0" },
+    { name = "libby", extras = ["influxdb", "otel"], git = "https://github.com/CaltechOpticalObservatories/libby.git?rev=libby-0.4.1" },
     { name = "libximc", specifier = ">=3.1.4" },
     { name = "matplotlib", marker = "extra == 'scripts'" },
     { name = "paho-mqtt", specifier = ">=2" },
@@ -1267,8 +1267,8 @@ requires-dist = [{ name = "hardware-device-base", git = "https://github.com/COO-
 
 [[package]]
 name = "libby"
-version = "0.4.0"
-source = { git = "https://github.com/CaltechOpticalObservatories/libby.git?rev=libby-0.4.0#aa8c66aeb7e166d9e4f76c09b889c67da5c344f6" }
+version = "0.4.1"
+source = { git = "https://github.com/CaltechOpticalObservatories/libby.git?rev=libby-0.4.1#0e24c60afd9e00da537de2d7792fe5309a1d0874" }
 dependencies = [
     { name = "argcomplete" },
     { name = "bamboo" },
