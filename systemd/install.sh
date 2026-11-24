@@ -66,11 +66,14 @@ IMAGESTREAMIO_URL=https://github.com/milk-org/ImageStreamIO.git
 IMAGESTREAMIO_REF="${HISPEC_IMAGESTREAMIO_REF:-3b366508f79f996fc47c9006b09e074a2e6c9bc9}"
 IMAGESTREAMIO_CONFIG=/usr/local/lib/cmake/ImageStreamIOConfig.cmake
 DEPLOY_KEY="${HISPEC_ETC_DIR:-/etc/hispec}/deploy-key"
-OPS_GROUP=hispec-ops
+# Who may open the FT4222. Swap in another group (e.g. dialout) or set an
+# owning account (e.g. hsfei); an empty owner leaves the board owned by root
+FT4222_GROUP=hispec-ops
+FT4222_OWNER=
 FSM_LIBRARIES=(libpi_pi_gcs2 libft4222)
 DRIVERS_DOC=https://caltechopticalobservatories.github.io/hispec/build_notes/FEI_build/software_build.html#section-drivers
 FT4222_UDEV_RULE=/etc/udev/rules.d/99_HISPEC_spi_ftdi_4222.rules
-FT4222_UDEV_RULE_TEXT='SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", GROUP="'"$OPS_GROUP"'", MODE="0660"'
+FT4222_UDEV_RULE_TEXT="SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"0403\", ATTRS{idProduct}==\"601c\"${FT4222_OWNER:+, OWNER=\"$FT4222_OWNER\"}, GROUP=\"$FT4222_GROUP\", MODE=\"0660\""
 PI_CPP_SRC="$REPO_DIR/src/hispec/driver/pi/cpp"
 # Kept between runs, so an unchanged interface is neither rebuilt nor reinstalled
 PI_CPP_BUILD=/var/cache/hispec/pi-cpp-build
@@ -260,9 +263,9 @@ if has_extra "$CAMERA_EXTRA" && [[ ! -f $IMAGESTREAMIO_CONFIG ]]; then
     echo "installed ImageStreamIO ${IMAGESTREAMIO_REF:0:7} in /usr/local"
 fi
 
-# The FT4222 is opened through usbfs. The ops group covers the daemons' account
-# and the operators; on a new host it is created by `hispec install` below, so a
-# board plugged in before then needs a replug
+# The FT4222 is opened through usbfs. The default group, hispec-ops, covers the
+# daemons' account and the operators; on a new host it is created by
+# `hispec install` below, so a board plugged in before then needs a replug
 if [[ $ROLE == "$CAMERA_ROLE" ]]; then
     if [[ "$(cat "$FT4222_UDEV_RULE" 2>/dev/null)" != "$FT4222_UDEV_RULE_TEXT" ]]; then
         printf '%s\n' "$FT4222_UDEV_RULE_TEXT" >"$FT4222_UDEV_RULE"

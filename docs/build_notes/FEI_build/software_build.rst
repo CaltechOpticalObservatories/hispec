@@ -238,12 +238,24 @@ FT4222 udev Rules
 -----------------
 
 ``install.sh`` writes ``/etc/udev/rules.d/99_HISPEC_spi_ftdi_4222.rules`` on
-``feiserver``, giving the board to ``hispec-ops`` so the daemons' account and the
-operators can open it:
+``feiserver``. By default it gives the board to ``hispec-ops``, so the daemons'
+account and the operators can open it:
 
 .. code-block:: text
 
    SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", GROUP="hispec-ops", MODE="0660"
+
+The names are settings, not requirements. To give the board to another group or
+account, change ``FT4222_GROUP`` and ``FT4222_OWNER`` at the top of
+``systemd/install.sh`` and re-run it. For example, ``FT4222_GROUP=dialout`` with
+``FT4222_OWNER=hsfei`` writes:
+
+.. code-block:: text
+
+   SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", OWNER="hsfei", GROUP="dialout", MODE="0660"
+
+Whatever group you choose, the ``hispec`` account needs to be in it for a daemon
+to open the board.
 
 Verify with the board plugged in:
 
