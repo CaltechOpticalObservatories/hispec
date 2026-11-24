@@ -1,0 +1,74 @@
+# HISPEC keyheader config.
+#
+# Usage:
+#   daemons/generic/keyheader -c config/hispec/hispec_keyheader.yaml
+#
+# An ordinary LibbyDaemon config (peer_id, group_id, transport, ...) plus the
+# three keyheader sections: source, defaults and segments. See
+# docs/source/keyheader.md for every field and the validation rules.
+
+peer_id: keyheader
+group_id: hispec
+transport: rabbitmq
+rabbitmq_url: amqp://localhost
+
+# The InfluxDB the keygrabber writes to. The token is never written here:
+# token_env names the environment variable that holds it, and a `token` key
+# is rejected. A read-only token is enough.
+source:
+  type: influxdb
+  url: http://localhost:8086
+  org: hispec
+  bucket: HISPEC_keyhistory
+  token_env: HISPEC_INFLUX_TOKEN
+  timeout_ms: 10000
+
+# Threads reading a segment's cards in parallel
+workers: 4
+
+# Applied to every card unless its segment or the card itself overrides them.
+# window_s must exceed the keygrabber's interval for a keyword (including its
+# failure backoff), or a quiet keyword comes back blank.
+defaults:
+  mode: nearest
+  window_s: 300
+
+# A list, not a mapping: YAML silently keeps only the last of two identical
+# keys, which would hide a duplicate. Segment names are what a requesting
+# daemon asks for, and FITS keywords must be unique across ALL segments,
+# because the requesting daemon merges them into one header.
+#
+# Each card is written on one line in YAML flow style. Inside { } the
+# characters [ ] { } , and ": " have meaning, so quote any value that holds
+# them; comments are always quoted here for that reason.
+segments:
+  - name: SPEC-EXP-BEGIN
+    date_keyword: DATE-BEG
+    date_comment: UTC start of exposure
+    cards:
+      - {fits: N2OSTPNT, keyword: hscal.gcellheater1.1_gc1_N2O, type: float, format: ".1f", comment: "N2O gas cell setpoint (K)"}
+      - {fits: N2OOUTPT, keyword: hscal.gcellheater1.1_gc1_N2O_output, type: float, format: ".1f", comment: "N2O gas cell output (%)"}
+      - {fits: N2OTEMP, keyword: hscal.gcellheater1.tA_gc1_N2O, type: float, format: ".1f", comment: "N2O gas cell temperature (K)"}
+      - {fits: CH4STPNT, keyword: hscal.gcellheater1.2_gc2_CH4_H2O, type: float, format: ".1f", comment: "CH4-H2O gas cell setpoint (K)"}
+      - {fits: CH4OUTPT, keyword: hscal.gcellheater1.2_gc2_CH4_H2O_output, type: float, format: ".1f", comment: "CH4-H2O gas cell output (%)"}
+      - {fits: CH4TEMP, keyword: hscal.gcellheater1.tD_gc2_CH4_H2O, type: float, format: ".1f", comment: "CH4-H2O gas cell temperature (K)"}
+      - {fits: YJDETTMP, keyword: hsyj.yjdettherm.tA_detector, type: float, format: ".3f", comment: "YJ detector temperature [K]", mode: interpolate}
+      - {fits: YJPENTMP, keyword: hsyj.yjdettherm.tB_penguin, type: float, format: ".3f", comment: "YJ penguin temperature [K]", mode: interpolate}
+      - {fits: YJTHMCON, keyword: hsyj.yjdettherm.isconnected, type: bool, comment: "YJ detector temp controller connected"}
+      # format ".40" truncates the string, so it stays on one card
+      - {fits: YJTHMSTA, keyword: hsyj.yjdettherm.1_detector_status, type: str, format: ".40", comment: "YJ detector heater loop status"}
+      - {fits: BSRSPOW, keyword: hspower.yjcal2.power7, type: float, format: ".1f", comment: "YJ Et SRS outlet power [W]"}
+      - {fits: BSRSON, keyword: hspower.yjcal2.state7, type: bool, comment: "YJ Et SRS outlet switched on"}
+      - {fits: RSRSPOW, keyword: hspower.hkcal1.power2, type: float, format: ".1f", comment: "HK Et SRS outlet power [W]"}
+      - {fits: RSRSON, keyword: hspower.hkcal1.state2, type: bool, comment: "HK Et SRS outlet switched on"}
+
+  # At the end of an exposure the next sample is usually not stored yet, so
+  # take the last value at or before the moment
+  - name: SPEC-EXP-END
+    date_keyword: DATE-END
+    date_comment: UTC end of exposure
+    defaults:
+      mode: prior
+    cards:
+      - {fits: YJDETTME, keyword: hsyj.yjdettherm.tA_detector, type: float, format: ".3f", comment: "YJ detector temperature at end [K]"}
+      - {fits: YJPENTME, keyword: hsyj.yjdettherm.tB_penguin, type: float, format: ".3f", comment: "YJ penguin temperature at end [K]"}

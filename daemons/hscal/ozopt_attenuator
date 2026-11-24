@@ -11,7 +11,7 @@ import sys
 from hispec import HispecDriverDaemon
 from hispec.driver.ozoptics.dd100mc import OZController
 
-# StageController.home() polls to completion, so the RPC waits out the move
+# OZController.home() blocks until the controller replies, so the RPC waits out the move
 HOME_TIMEOUT_S = 60.0
 
 
@@ -38,7 +38,7 @@ class OZDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         self.keyword_registry.bool("isconnected",
                                    getter=self.controller.is_connected,
                                    setter=self._set_connected,
-                                   description="ADC rotator controller is connected.")
+                                   description="OZOptics attenuator controller is connected.")
         self.keyword_registry.string("status",
                                      getter=self._status,
                                      description="Status of the device driver as a "
@@ -49,16 +49,16 @@ class OZDaemon(HispecDriverDaemon):  # pylint: disable=W0223
                                                   "refused while a stage is moving.")
         self.keyword_registry.bool("isreferenced",
                                    getter=self.is_referenced,
-                                   setter=self.controller.home(),
+                                   setter=self._set_referenced,
                                    timeout_s=HOME_TIMEOUT_S,
                                    description="OZOptic attenuator stage is referenced; "
                                                "write true to home.")
-        self.keyword_registry.float(f"position",
+        self.keyword_registry.float("position",
                                     getter=self.controller.get_pos,
                                     setter=self.controller.set_pos,
                                     units=self.units,
                                     description="OZOptics stage position in steps.")
-        self.keyword_registry.float(f"attenuation",
+        self.keyword_registry.float("attenuation",
                                     getter=self.controller.get_attenuation,
                                     setter=self.controller.set_attenuation,
                                     units=self.atten_units,
@@ -80,7 +80,7 @@ class OZDaemon(HispecDriverDaemon):  # pylint: disable=W0223
         self.logger.info("Shutting down %s daemon", self.peer_id)
         try:
             self.controller.disconnect()
-            self.logger.info("Disconnected from ADC controller")
+            self.logger.info("Disconnected from OZOptics controller")
         except Exception as e:  # pylint: disable=W0718
             self.logger.error("Error disconnecting: %s", e)
 
@@ -103,6 +103,13 @@ class OZDaemon(HispecDriverDaemon):  # pylint: disable=W0223
     def is_referenced(self) -> bool:
         """Return True if the stage has been referenced (homed)."""
         return bool(self.controller.is_homed())
+
+    def _set_referenced(self, value: bool) -> None:
+        """Home the stage; reject false, the driver cannot clear the flag."""
+        if not value:
+            raise RuntimeError("cannot clear referenced state; write true to home")
+        if not self.controller.home():
+            raise RuntimeError("controller failed to home the stage")
 
 
 def main():
