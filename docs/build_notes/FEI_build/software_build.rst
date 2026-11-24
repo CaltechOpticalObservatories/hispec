@@ -100,6 +100,13 @@ Install the HISPEC software as described in :doc:`../../install`:
 The ``feiserver`` role brings the tracking camera module, ImageStreamIO, atlas
 and the analysis script extras; :doc:`tracking_camera` covers them.
 
+``feiserver`` also runs the fast steering mirror daemon, which uses the PI
+library from :ref:`section-drivers`:
+
+.. code-block:: bash
+
+   hispec deploy hsfei_fsm
+
 .. warning::
    ``PyQt5`` comes from ``apt``, not the venv.
 

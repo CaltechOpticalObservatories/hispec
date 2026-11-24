@@ -454,6 +454,7 @@ Re-run `sudo /opt/hispec/app/systemd/install.sh` when the pull changed
 | `hsfei_feipo` | `hispecserver` | `hsfei/pi-daemon` | `config/hsfei/hsfei_feipo.yaml` |
 | `hsfei_lsm` | `hispecserver` | `hsfei/pi-daemon` | `config/hsfei/hsfei_lsm.yaml` |
 | `hsfei_ms` | `hispecserver` | `hsfei/pi-daemon` | `config/hsfei/hsfei_ms.yaml` |
+| `hsfei_fsm` | `feiserver` | `hsfei/fsm` | `config/hsfei/hsfei_fsm.yaml` |
 | `hsfei_piaagimb` | `hispecserver` | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimb.yaml` |
 | `hsfei_piaagimr` | `hispecserver` | `hsfei/piaa-gimbalmount` | `config/hsfei/hsfei_piaagimr.yaml` |
 | `hsfei_hkfam` | `hispecserver` | `hsfei/xeryon` | `config/hsfei/hsfei_hkfam.yaml` |
