@@ -28,6 +28,10 @@
 # when missing, and ImageStreamIO is built into /usr/local when missing; an
 # existing clone is never pulled or reset.
 #
+# feiserver also drives the fast steering mirror. The installer refuses to go on
+# without the PI GCS and LibFT4222 libraries, writes the FT4222 udev rule, and
+# builds the pi driver's E-727 C++ interface into /usr/local.
+#
 # Re-run it to enrol operators, after a dependency change, or to repair a host.
 # It is NOT part of adding a daemon: once a host is set up, operators do that
 # themselves with `hispec deploy <name>`, no root needed.
@@ -62,6 +66,14 @@ IMAGESTREAMIO_URL=https://github.com/milk-org/ImageStreamIO.git
 IMAGESTREAMIO_REF="${HISPEC_IMAGESTREAMIO_REF:-3b366508f79f996fc47c9006b09e074a2e6c9bc9}"
 IMAGESTREAMIO_CONFIG=/usr/local/lib/cmake/ImageStreamIOConfig.cmake
 DEPLOY_KEY="${HISPEC_ETC_DIR:-/etc/hispec}/deploy-key"
+OPS_GROUP=hispec-ops
+FSM_LIBRARIES=(libpi_pi_gcs2 libft4222)
+DRIVERS_DOC=https://caltechopticalobservatories.github.io/hispec/build_notes/FEI_build/software_build.html#section-drivers
+FT4222_UDEV_RULE=/etc/udev/rules.d/99_HISPEC_spi_ftdi_4222.rules
+FT4222_UDEV_RULE_TEXT='SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", GROUP="'"$OPS_GROUP"'", MODE="0660"'
+PI_CPP_SRC="$REPO_DIR/src/hispec/driver/pi/cpp"
+# Kept between runs, so an unchanged interface is neither rebuilt nor reinstalled
+PI_CPP_BUILD=/var/cache/hispec/pi-cpp-build
 UV_VERSION="${HISPEC_UV_VERSION:-0.12.23}"
 # Its own copy rather than whatever uv is on PATH, since a snap refreshes
 # itself and would unpin the resolver
@@ -206,6 +218,17 @@ if [[ -n $(git -C "$REPO_DIR" status --porcelain --untracked-files=no) ]]; then
 fi
 echo "installing $REPO_DIR ($CHECKOUT_DESC)"
 
+# Both come from vendor downloads that only a browser can fetch, so they are
+# installed by hand and checked here
+if [[ $ROLE == "$CAMERA_ROLE" ]]; then
+    for library in "${FSM_LIBRARIES[@]}"; do
+        if ! ldconfig -p | grep -q "^[[:space:]]*$library\.so "; then
+            echo "error: $library is not installed; see $DRIVERS_DOC" >&2
+            exit 1
+        fi
+    done
+fi
+
 # On the camera host, edits to the camera module and atlas are the norm
 if [[ $ROLE == "$CAMERA_ROLE" ]]; then
     mkdir -p "$EXTRA_DIR"
@@ -235,6 +258,36 @@ if has_extra "$CAMERA_EXTRA" && [[ ! -f $IMAGESTREAMIO_CONFIG ]]; then
     ldconfig
     rm -rf "$IMAGESTREAMIO_BUILD"
     echo "installed ImageStreamIO ${IMAGESTREAMIO_REF:0:7} in /usr/local"
+fi
+
+# The FT4222 is opened through usbfs. The ops group covers the daemons' account
+# and the operators; on a new host it is created by `hispec install` below, so a
+# board plugged in before then needs a replug
+if [[ $ROLE == "$CAMERA_ROLE" ]]; then
+    if [[ "$(cat "$FT4222_UDEV_RULE" 2>/dev/null)" != "$FT4222_UDEV_RULE_TEXT" ]]; then
+        printf '%s\n' "$FT4222_UDEV_RULE_TEXT" >"$FT4222_UDEV_RULE"
+        udevadm control --reload-rules
+        udevadm trigger --subsystem-match=usb --attr-match=idVendor=0403 --attr-match=idProduct=601c
+        echo "installed $FT4222_UDEV_RULE"
+    fi
+fi
+
+# Built every run to keep /usr/local in step with the pi submodule; the build
+# directory makes an unchanged run a no-op
+if [[ $ROLE == "$CAMERA_ROLE" ]]; then
+    for tool in cmake c++ ctest; do
+        if ! command -v "$tool" >/dev/null; then
+            echo "error: building the E-727 C++ interface needs $tool: apt install build-essential cmake" >&2
+            exit 1
+        fi
+    done
+    cmake -S "$PI_CPP_SRC" -B "$PI_CPP_BUILD" -DCMAKE_INSTALL_PREFIX=/usr/local >/dev/null
+    cmake --build "$PI_CPP_BUILD" -j"$(nproc)" >/dev/null
+    if ! PI_CPP_TESTS=$(ctest --test-dir "$PI_CPP_BUILD" --output-on-failure); then
+        echo "$PI_CPP_TESTS" >&2
+        exit 1
+    fi
+    cmake --install "$PI_CPP_BUILD" | sed -n 's/^-- Installing: /installed /p'
 fi
 
 # Pinned, so re-running the installer cannot resolve with a different uv

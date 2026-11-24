@@ -73,6 +73,10 @@ activating anything.
    recorded in `/etc/hispec/extras`, so later runs keep them; `hispec doctor`
    reports one that has gone missing.
 
+   `feiserver` also drives the fast steering mirror: the installer stops until
+   the PI and LibFT4222 libraries from the FEI build notes are installed, writes
+   the FT4222 udev rule and installs the E-727 C++ interface into `/usr/local`.
+
    Before `hispec deploy hsfei_atcam` on `feiserver`, put the ACF at
    `/etc/hispec/hispecatc.acf` and create `/opt/hispec/data` writable by
    `hispec`. The daemon holds the Archon, so nothing else can drive the camera

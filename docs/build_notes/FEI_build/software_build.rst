@@ -237,20 +237,34 @@ server to instrument hardware.
 FT4222 udev Rules
 -----------------
 
-#. Create ``/etc/udev/rules.d/99_HISPEC_spi_ftdi_4222.rules``:
+``install.sh`` writes ``/etc/udev/rules.d/99_HISPEC_spi_ftdi_4222.rules`` on
+``feiserver``, giving the board to ``hispec-ops`` so the daemons' account and the
+operators can open it:
 
-   .. code-block:: text
+.. code-block:: text
 
-      SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", OWNER="hsfei", MODE="0660", GROUP="dialout"
+   SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="601c", GROUP="hispec-ops", MODE="0660"
 
-#. Reload, replug the board, and verify:
+Verify with the board plugged in:
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      sudo udevadm control --reload-rules
-      sudo udevadm trigger
-      lsusb | grep 0403:601c                  # board detected
-      ls -l /dev/bus/usb/*/* | grep -i 0403   # hsfei dialout 0660
+   lsusb | grep 0403:601c                  # board detected
+   ls -l /dev/bus/usb/*/* | grep -i 0403   # root hispec-ops 0660
+
+E-727 C++ Interface
+-------------------
+
+``install.sh`` also builds the ``pi`` driver's C++ interface to the E-727 from
+``src/hispec/driver/pi/cpp`` and installs it into ``/usr/local``: the headers in
+``include/e727``, the ``e727_spi_check`` diagnostic, and the ``pi_cpp`` CMake
+package. It refuses to run until the PI and LibFT4222 libraries above are
+installed. Link against it with:
+
+.. code-block:: cmake
+
+   find_package(pi_cpp 0.1 REQUIRED)
+   target_link_libraries(my_app PRIVATE e727::spi)
 
 Tracking Camera
 ---------------
